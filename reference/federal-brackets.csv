@@ -1,0 +1,8 @@
+"Filing Status","Min Income","Max Income",Rate,"Base Amount"
+"Married Filing Jointly",0,24800.00,10,0
+"Married Filing Jointly",	24801.00,	100800.00,	12.00,	2480.00
+"Married Filing Jointly",	100801.00,	211400.00,	22.00,	11599.88
+"Married Filing Jointly",	211401.00,	403550.00,	24.00,	35931.66			
+"Married Filing Jointly",	403551.00,	512450.00,	32.00,	82047.42			
+"Married Filing Jointly",	512451.00,	768700.00,	35.00,	116895.10			
+"Married Filing Jointly",	768701.00,	99999999999.00,	37.00,	206582.25			
