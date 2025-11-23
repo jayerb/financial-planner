@@ -1,3 +1,4 @@
+# ![Unit Tests](https://github.com/jayerb/financial-planner/actions/workflows/unit-tests.yml/badge.svg)
 
 # financial-planner
 
