@@ -1,7 +1,37 @@
-# financial-planner
-This is a retirement planning application based on current income, tax rules, and expected growth parameters. It does a tax calculation that is only an approximation based on an understanding of a subset of the tax rules. The tax calculation should be fine for planning purposes, but it is not good enough for tax filing. There will be many tax scenarios where the calculation is very far off.
 
-This program will calculate an estimated tax burden for the current and future years based on growth parameters.
+# financial-planner
+
+This is a retirement planning application that estimates federal tax burden and other financial planning parameters based on user-supplied program specifications. The tax calculation is an approximation and should not be used for tax filing purposes.
+
+## What the Program Does
+
+The main program reads a set of input parameters from a directory under `input-parameters/`, specified by the user at the command line. It loads the tax bracket inflation rate and the final year for the program from the `spec.json` file in the chosen directory. Using these parameters, it constructs a model of federal tax brackets for each year and prepares to calculate the federal tax burden for any given income and year (future versions will accept income as input).
+
+## How to Use
+
+1. Ensure you have Python 3 installed.
+2. From the root of the repository, run the main program with:
+
+  ```bash
+  python src/Program.py <program_name>
+  ```
+
+  - Replace `<program_name>` with the name of the directory under `input-parameters/` that contains your `spec.json` file (e.g., `program1`).
+
+3. The program will read the parameters from `input-parameters/<program_name>/spec.json`, construct the tax bracket model, and print a confirmation message. (Future versions will allow you to specify income and get a tax burden calculation.)
+
+### Example
+
+```bash
+python src/Program.py program1
+```
+
+## Project Structure
+
+- `src/` — Main source code, including the entry point `Program.py` and tax logic in `tax/`
+- `input-parameters/` — Program-specific input directories, each with a `spec.json`
+- `reference/` — Reference data such as base federal tax brackets
+- `tests/` — Unit tests
 
 # Statutory Parameters
 - 2026 Tax Brackets

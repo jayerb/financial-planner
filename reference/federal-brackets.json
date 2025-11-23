@@ -1,6 +1,5 @@
 {
     "taxYear": 2026,
-    "annualIncrease": 0.2,
     "filingStatus": "Married Filing Jointly",
     "bracket1": {
         "maxIncome": 24800.00,
