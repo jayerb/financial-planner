@@ -1,0 +1,40 @@
+{
+    "taxYear": 2026,
+    "annualIncrease": 0.2,
+    "filingStatus": "Married Filing Jointly",
+    "bracket1": {
+        "maxIncome": 24800.00,
+        "rate": 0.10,
+        "baseAmount": 0
+    },
+    "bracket2": {
+        "maxIncome": 100800.00,
+        "rate": 12.00,
+        "baseAmount": 2480.00
+    },
+    "bracket3": {
+        "maxIncome": 211400.00,	
+        "rate": 22.00,	
+        "baseAmount": 11599.88
+    },
+    "bracket4": {
+        "maxIncome": 403550.00,	
+        "rate": 24.00,	
+        "baseAmount": 35931.66			
+    },
+    "bracket5": {
+        "maxIncome": 512450.00,	
+        "rate": 32.00,	
+        "baseAmount": 82047.42
+    },
+    "bracket6": {
+        "maxIncome": 768700.00,	
+        "rate": 35.00,	
+        "baseAmount": 116895.10			
+    },
+    "bracket7": {
+        "maxIncome": 99999999999.00,	
+        "rate": 37.00,	
+        "baseAmount": 206582.25			
+    }
+}
