@@ -61,3 +61,22 @@ class FederalBrackets:
 				return b["baseAmount"] + (income - (0 if brackets.index(b) == 0 else brackets[brackets.index(b)-1]["maxIncome"])) * b["rate"]
 		# Should not reach here
 		raise ValueError("Income exceeds all bracket definitions.")
+
+	def totalDeductions(self, year: int) -> float:
+		"""
+		Returns the total deductions (standard deduction + max 401k + max HSA) for the given year,
+		inflating each value by the inflation rate for each year after the base year.
+		"""
+		ref_path = os.path.join(os.path.dirname(__file__), '../../reference/federal-brackets.json')
+		with open(ref_path, 'r') as f:
+			data = json.load(f)
+		base_year = data["taxYear"]
+		std_ded = data.get("standardDeduction", 0)
+		max_401k = data.get("maxContributions", {}).get("401k", 0)
+		max_hsa = data.get("maxContributions", {}).get("HSA", 0)
+		years = year - base_year
+		if years < 0:
+			raise ValueError(f"Year {year} is before base year {base_year}")
+		inflation = (1 + self.inflation_rate) ** years
+		total = std_ded * inflation + max_401k * inflation + max_hsa * inflation
+		return total

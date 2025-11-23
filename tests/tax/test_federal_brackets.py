@@ -11,6 +11,20 @@ class TestFederalBrackets(unittest.TestCase):
         self.final_year = 2028
         self.fed = FederalBrackets(self.inflation, self.final_year)
 
+    def test_total_deductions(self):
+        # Values from reference/federal-brackets.json for 2026
+        std_ded = 32200.00
+        max_401k = 24000.00
+        max_hsa = 8300.00
+        # For 2026, no inflation applied
+        expected_2026 = std_ded + max_401k + max_hsa
+        self.assertAlmostEqual(self.fed.totalDeductions(2026), expected_2026, places=2)
+
+        # For 2027, apply 3% inflation
+        inflation = 1.03
+        expected_2027 = (std_ded + max_401k + max_hsa) * inflation
+        self.assertAlmostEqual(self.fed.totalDeductions(2027), expected_2027, places=2)
+
     def test_bracket_cache_years(self):
         # Should include 2026, 2027, 2028
         self.assertIn(2026, self.fed.brackets_by_year)

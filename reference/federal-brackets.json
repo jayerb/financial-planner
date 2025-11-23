@@ -1,6 +1,11 @@
 {
     "taxYear": 2026,
     "filingStatus": "Married Filing Jointly",
+    "standardDeduction": 32200.00,
+    "maxContributions": {
+        "401k": 24000.00,
+        "HSA": 8300.00
+    },
     "bracket1": {
         "maxIncome": 24800.00,
         "rate": 0.10,

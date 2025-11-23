@@ -23,9 +23,23 @@ def main():
         sys.exit(1)
     # Construct FederalBrackets instance
     fed_brackets = FederalBrackets(inflation_rate, final_year)
-    print(f"FederalBrackets instance created for years up to {final_year} with inflation rate {inflation_rate}")
-    # Placeholder for future income/tax calculations
-    # Example: print(fed_brackets.taxBurden(100000, final_year))
+
+    # Calculate gross income for 2026
+    income_details = spec.get('income', {})
+    base_salary = income_details.get('baseSalary', 0)
+    bonus_fraction = income_details.get('bonusFraction', 0)
+    other_income = income_details.get('otherIncome', 0)
+    gross_income = base_salary + (base_salary * bonus_fraction) + other_income
+
+    # Get total deductions for 2026
+    tax_year = 2026
+    total_deductions = fed_brackets.totalDeductions(tax_year)
+    adjusted_gross_income = gross_income - total_deductions
+
+    # Calculate federal tax burden for 2026 using adjusted gross income
+    federal_tax = fed_brackets.taxBurden(adjusted_gross_income, tax_year)
+
+    print(f"Federal tax burden for {tax_year} on adjusted gross income ${adjusted_gross_income:,.2f} (gross income ${gross_income:,.2f}, total deductions ${total_deductions:,.2f}): ${federal_tax:,.2f}")
 
 if __name__ == "__main__":
     main()
