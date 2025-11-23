@@ -1,7 +1,7 @@
 import sys
 import os
 import json
-from tax.FederalBrackets import FederalBrackets
+from tax.FederalDetails import FederalDetails
 
 def main():
     if len(sys.argv) < 2:
@@ -22,7 +22,7 @@ def main():
         print("spec.json must contain 'lastYear' and 'federalBracketInflation' fields.")
         sys.exit(1)
     # Construct FederalBrackets instance
-    fed_brackets = FederalBrackets(inflation_rate, final_year)
+    fed_brackets = FederalDetails(inflation_rate, final_year)
 
     # Calculate gross income for 2026
     income_details = spec.get('income', {})

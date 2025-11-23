@@ -1,3 +1,18 @@
+## Running Unit Tests
+
+Unit tests are located in the `tests/` directory and use the `pytest` framework.
+
+To run all unit tests, execute the following command from the root of the repository:
+
+```bash
+pytest tests
+```
+
+If you do not have pytest installed, you can install it with:
+
+```bash
+pip install pytest
+```
 # ![Unit Tests](https://github.com/jayerb/financial-planner/actions/workflows/unit-tests.yml/badge.svg)
 
 # financial-planner

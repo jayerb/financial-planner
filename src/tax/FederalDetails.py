@@ -2,7 +2,7 @@
 import json
 import os
 
-class FederalBrackets:
+class FederalDetails:
 	def __init__(self, inflation_rate: float, final_year: int):
 		"""
 		inflation_rate: e.g., 0.03 for 3% inflation

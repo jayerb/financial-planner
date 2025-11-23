@@ -2,14 +2,14 @@ import unittest
 import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src/tax')))
-from FederalBrackets import FederalBrackets
+from FederalDetails import FederalDetails
 
-class TestFederalBrackets(unittest.TestCase):
+class TestFederalDetails(unittest.TestCase):
     def setUp(self):
         # Use 3% inflation, test up to 2028
         self.inflation = 0.03
         self.final_year = 2028
-        self.fed = FederalBrackets(self.inflation, self.final_year)
+        self.fed = FederalDetails(self.inflation, self.final_year)
 
     def test_total_deductions(self):
         # Values from reference/federal-brackets.json for 2026
