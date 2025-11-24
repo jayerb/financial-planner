@@ -8,6 +8,9 @@
         "otherIncome": 5000,
         "annualBaseIncreaseFraction": 0.04
     },
+    "companyProvidedLifeInsurance": {
+        "annualPremium": 700.00
+    },
     "deductions": {
         "medicalDentalVision": 10800.00
     }
