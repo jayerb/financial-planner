@@ -1,6 +1,7 @@
 import os
 import json
 from tax.FederalDetails import FederalDetails
+from tax.StateDetails import StateDetails
 
 
 def calculate_take_home(spec: dict, tax_year: int = 2026) -> dict:
@@ -49,6 +50,10 @@ def calculate_take_home(spec: dict, tax_year: int = 2026) -> dict:
     medicare_rate = medicare_details.get('medicare', 0)
     surcharge_threshold = medicare_details.get('surchargeThreshold', 0)
     surcharge_rate = medicare_details.get('surchargeRate', 0)
+    # State tax details
+    state_details = medicare_details.get('state', {})
+    state_rate = state_details.get('rate', 0)
+    state_standard_deduction = state_details.get('standardDeduction', 0)
 
     medical_dental_vision = spec.get('deductions', {}).get('medicalDentalVision', 0)
     life_premium = spec.get('companyProvidedLifeInsurance', {}).get('annualPremium', 0)
@@ -59,7 +64,11 @@ def calculate_take_home(spec: dict, tax_year: int = 2026) -> dict:
         medicare_surcharge = (gross_income - surcharge_threshold) * surcharge_rate
     total_medicare = medicare_charge + medicare_surcharge
 
-    take_home_pay = gross_income - federal_tax - total_social_security - total_medicare
+    # State tax: use StateDetails which accounts for 401k/HSA contributions and medical deductions
+    state = StateDetails(inflation_rate, final_year)
+    state_tax = state.taxBurden(gross_income, medical_dental_vision, year=tax_year)
+
+    take_home_pay = gross_income - federal_tax - total_social_security - total_medicare - state_tax
 
     return {
         'gross_income': gross_income,
@@ -71,5 +80,6 @@ def calculate_take_home(spec: dict, tax_year: int = 2026) -> dict:
         'total_social_security': total_social_security,
         'medicare_charge': medicare_charge,
         'medicare_surcharge': medicare_surcharge,
+        'state_tax': state_tax,
         'take_home_pay': take_home_pay,
     }

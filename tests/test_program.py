@@ -36,5 +36,25 @@ def test_calculate_take_home_program1():
     # Take home pay approx
     total_social_security = results['total_social_security']
     total_medicare = results['medicare_charge'] + results['medicare_surcharge']
-    expected_take_home = gross_income - results['federal_tax'] - total_social_security - total_medicare
+    # State tax should consider 401k and HSA contributions (not the federal standard deduction)
+    # Load state and federal contribution details to compute expected state tax
+    flat_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../reference/flat-tax-details.json'))
+    with open(flat_path, 'r') as f:
+        flat = json.load(f)
+    state_details = flat.get('state', {})
+    state_rate = state_details.get('rate', 0)
+    state_sd = state_details.get('standardDeduction', 0)
+
+    fed_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../reference/federal-details.json'))
+    with open(fed_path, 'r') as f:
+        fed = json.load(f)
+    max_contrib = fed.get('maxContributions', {})
+    c401k = max_contrib.get('401k', 0)
+    hsa = max_contrib.get('HSA', 0)
+
+    expected_state_tax = max(0.0, gross_income - (c401k + hsa) - 10800 - state_sd) * state_rate
+    assert round(results['state_tax'], 2) == round(expected_state_tax, 2)
+
+    # Take home pay approx (subtract state tax)
+    expected_take_home = gross_income - results['federal_tax'] - total_social_security - total_medicare - expected_state_tax
     assert round(results['take_home_pay'], 2) == round(expected_take_home, 2)

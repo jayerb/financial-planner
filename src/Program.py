@@ -24,6 +24,7 @@ def main():
     print(f"Total Social Security + MA PFML: ${results['total_social_security']:,.2f}")
     print(f"Medicare: ${results['medicare_charge']:,.2f}")
     print(f"Medicare Surcharge: ${results['medicare_surcharge']:,.2f}")
+    print(f"State tax: ${results.get('state_tax', 0):,.2f}")
     print(f"Take home pay: ${results['take_home_pay']:,.2f}")
 
     # calculation moved to `src/calc/take_home.py`

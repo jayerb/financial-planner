@@ -1,5 +1,8 @@
 {
-    "state": 0.05,
+    "state": {
+        "rate": 0.05,
+        "standardDeduction": 8800.00
+    },
     "medicare": 0.0145,
     "surchargeThreshold": 250000.00,
     "surchargeRate": 0.009
