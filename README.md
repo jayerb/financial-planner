@@ -62,6 +62,20 @@ The project now supports a simple state tax model driven by `reference/flat-tax-
 
 The state tax calculation intentionally excludes the federal standard deduction but does include retirement and HSA contributions.
 
+## ESPP (Employee Stock Purchase Plan) Support
+
+This project now includes a simple ESPP taxable-benefit calculation. The ESPP taxable benefit is treated as part of gross income and therefore flows into adjusted gross income (AGI) for both federal and state calculations.
+
+- **Implementation:** a new helper class `ESPPDetails` is available at `src/tax/ESPPDetails.py`. It reads the `maxESPPValue` program cap from `reference/federal-details.json`.
+- **Behavior:** the ESPP cap is considered a fixed program-level limit and is NOT inflated. The taxable benefit is calculated as:
+
+  `espp_taxable = maxESPPValue * esppDiscount`
+
+  where `esppDiscount` is provided in the program spec (`input-parameters/<program>/spec.json`). For example, with a `maxESPPValue` of `$25,000` and an `esppDiscount` of `0.15` (15%), the taxable benefit is `$3,750`.
+
+- **Inclusion:** the computed ESPP taxable benefit is added to `gross_income` in `calculate_take_home` so it affects federal tax, Social Security/MA PFML calculations, Medicare, and state tax (subject to each tax's rules).
+- **Tests:** unit tests for `ESPPDetails` are located at `tests/tax/test_espp_details.py`.
+
 # Statutory Parameters
 - 2026 Tax Brackets
 - Estimated Annual Tax Bracket Growth Percentage
