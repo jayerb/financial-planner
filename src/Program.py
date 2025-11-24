@@ -35,7 +35,9 @@ def main():
     # Get total deductions for 2026
     tax_year = 2026
     total_deductions = fed_brackets.totalDeductions(tax_year)
-    adjusted_gross_income = gross_income - total_deductions
+    # Subtract medical/dental/vision deduction from gross income for AGI
+    medical_dental_vision = spec.get('deductions', {}).get('medicalDentalVision', 0)
+    adjusted_gross_income = gross_income - total_deductions - medical_dental_vision
 
     # Calculate federal tax burden for 2026 using adjusted gross income
     federal_result = fed_brackets.taxBurden(adjusted_gross_income, tax_year)
@@ -64,7 +66,9 @@ def main():
     surcharge_rate = medicare_details.get('surchargeRate', 0)
 
     # Calculate Medicare charge
-    medicare_charge = gross_income * medicare_rate
+    # Medicare charge is on gross income minus medical/dental/vision deduction
+    medicare_base = gross_income - medical_dental_vision
+    medicare_charge = medicare_base * medicare_rate
     medicare_surcharge = 0
     if gross_income > surcharge_threshold:
         medicare_surcharge = (gross_income - surcharge_threshold) * surcharge_rate
