@@ -49,6 +49,19 @@ python src/Program.py program1
 - `reference/` — Reference data such as base federal tax brackets
 - `tests/` — Unit tests
 
+## State Tax Support
+
+The project now supports a simple state tax model driven by `reference/flat-tax-details.json`.
+
+- **Implementation:** a new class `StateDetails` is available at `src/tax/StateDetails.py`. It reads the `state` section in `reference/flat-tax-details.json` for the state tax rate and standard deduction, and it reads contribution limits (401k, HSA) from `reference/federal-details.json`.
+- **Calculation:** state taxable income is computed as:
+
+  gross_income - (inflated 401k + inflated HSA) - medical/dental/vision deductions - inflated state standard deduction
+
+  The state tax equals `state_rate * max(0, state_taxable)`.
+
+The state tax calculation intentionally excludes the federal standard deduction but does include retirement and HSA contributions.
+
 # Statutory Parameters
 - 2026 Tax Brackets
 - Estimated Annual Tax Bracket Growth Percentage
