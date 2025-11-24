@@ -20,9 +20,16 @@ def test_state_tax_basic_matches_program_logic():
     income = spec['income']
     gross_income = income['baseSalary'] + income['baseSalary'] * income['bonusFraction'] + income['otherIncome']
     medical = spec.get('deductions', {}).get('medicalDentalVision', 0)
+    # include ESPP contribution benefit
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    espp_discount = spec.get('esppDiscount', 0)
+    with open(os.path.join(repo_root, 'reference', 'federal-details.json'), 'r') as f:
+        fed_ref = json.load(f)
+    max_espp = fed_ref.get('maxESPPValue', 0)
+    espp_income = max_espp * espp_discount
+    gross_income = gross_income + espp_income
 
     # load reference values
-    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
     with open(os.path.join(repo_root, 'reference', 'flat-tax-details.json'), 'r') as f:
         flat = json.load(f)
     with open(os.path.join(repo_root, 'reference', 'federal-details.json'), 'r') as f:

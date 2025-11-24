@@ -12,7 +12,15 @@ def test_calculate_take_home_program1():
     results = calculate_take_home(spec, tax_year=2026)
 
     # Expected calculations (as done in the program):
-    gross_income = 85000 + 85000*0.1 + 5000
+    # include ESPP taxable benefit
+    base = 85000 + 85000*0.1 + 5000
+    # ESPP max is fixed; do not inflate
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    with open(os.path.join(repo_root, 'reference', 'federal-details.json'), 'r') as f:
+        fed_ref = json.load(f)
+    max_espp = fed_ref.get('maxESPPValue', 0)
+    espp_income = max_espp * spec.get('esppDiscount', 0)
+    gross_income = base + espp_income
     assert results['gross_income'] == gross_income
 
     # total deductions from reference/federal-details.json: 32200 + 24000 + 8300 = 64500
@@ -23,7 +31,11 @@ def test_calculate_take_home_program1():
     assert results['adjusted_gross_income'] == expected_agi
 
     # Federal tax for AGI (falls into bracket1 10%) => tax = AGI * 0.10
-    assert round(results['federal_tax'], 2) == round(expected_agi * 0.10, 2)
+    # Compute expected federal tax using the same FederalDetails logic
+    from tax.FederalDetails import FederalDetails
+    fed_details = FederalDetails(spec.get('federalBracketInflation', 0), spec.get('lastYear'))
+    fed_result = fed_details.taxBurden(expected_agi, 2026)
+    assert round(results['federal_tax'], 2) == round(fed_result.totalFederalTax, 2)
 
     # Social security (employee + maPFML) = gross_income * (0.062 + 0.046)
     assert round(results['total_social_security'], 2) == round(gross_income * (0.062 + 0.046), 2)

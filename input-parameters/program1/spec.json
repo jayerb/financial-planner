@@ -8,6 +8,7 @@
         "otherIncome": 5000,
         "annualBaseIncreaseFraction": 0.04
     },
+    "esppDiscount": 0.15,
     "companyProvidedLifeInsurance": {
         "annualPremium": 700.00
     },

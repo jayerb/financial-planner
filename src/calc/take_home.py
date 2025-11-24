@@ -2,6 +2,7 @@ import os
 import json
 from tax.FederalDetails import FederalDetails
 from tax.StateDetails import StateDetails
+from tax.ESPPDetails import ESPPDetails
 
 
 def calculate_take_home(spec: dict, tax_year: int = 2026) -> dict:
@@ -22,6 +23,11 @@ def calculate_take_home(spec: dict, tax_year: int = 2026) -> dict:
     bonus_fraction = income_details.get('bonusFraction', 0)
     other_income = income_details.get('otherIncome', 0)
     gross_income = base_salary + (base_salary * bonus_fraction) + other_income
+
+    # ESPP: include taxable benefit from ESPP discount in gross income
+    espp = ESPPDetails()
+    espp_income = espp.taxable_from_spec(spec)
+    gross_income = gross_income + espp_income
 
     total_deductions = fed.totalDeductions(tax_year)
     medical_dental_vision = spec.get('deductions', {}).get('medicalDentalVision', 0)
@@ -50,10 +56,6 @@ def calculate_take_home(spec: dict, tax_year: int = 2026) -> dict:
     medicare_rate = medicare_details.get('medicare', 0)
     surcharge_threshold = medicare_details.get('surchargeThreshold', 0)
     surcharge_rate = medicare_details.get('surchargeRate', 0)
-    # State tax details
-    state_details = medicare_details.get('state', {})
-    state_rate = state_details.get('rate', 0)
-    state_standard_deduction = state_details.get('standardDeduction', 0)
 
     medical_dental_vision = spec.get('deductions', {}).get('medicalDentalVision', 0)
     life_premium = spec.get('companyProvidedLifeInsurance', {}).get('annualPremium', 0)
