@@ -1,8 +1,8 @@
 import unittest
 import os
 import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src/tax')))
-from FederalDetails import FederalDetails
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
+from tax.FederalDetails import FederalDetails
 
 class TestFederalDetails(unittest.TestCase):
     def setUp(self):
@@ -34,11 +34,14 @@ class TestFederalDetails(unittest.TestCase):
     def test_tax_burden_base_year(self):
         # Test known values for 2026
         # Bracket 1: up to 24800 @ 10%
-        self.assertAlmostEqual(self.fed.taxBurden(10000, 2026), 1000.0, places=2)
+        result1 = self.fed.taxBurden(10000, 2026)
+        self.assertAlmostEqual(result1.totalFederalTax, 1000.0, places=2)
         # Bracket 2: up to 100800 @ 12%, base 2480
-        self.assertAlmostEqual(self.fed.taxBurden(50000, 2026), 2480 + (50000-24800)*0.12, places=2)
+        result2 = self.fed.taxBurden(50000, 2026)
+        self.assertAlmostEqual(result2.totalFederalTax, 2480 + (50000-24800)*0.12, places=2)
         # Bracket 7: very high income
-        self.assertAlmostEqual(self.fed.taxBurden(1_000_000, 2026), 206582.25 + (1_000_000-768700)*0.37, places=2)
+        result3 = self.fed.taxBurden(1_000_000, 2026)
+        self.assertAlmostEqual(result3.totalFederalTax, 206582.25 + (1_000_000-768700)*0.37, places=2)
 
     def test_tax_burden_inflated_year(self):
         # For 2027, brackets should be inflated by 3%
@@ -50,7 +53,8 @@ class TestFederalDetails(unittest.TestCase):
         # Test income just above bracket 1
         income = bracket1_max_2027 + 1000
         expected = bracket2_base_2027 + (income - bracket1_max_2027) * 0.12
-        self.assertAlmostEqual(self.fed.taxBurden(income, 2027), expected, places=2)
+        result = self.fed.taxBurden(income, 2027)
+        self.assertAlmostEqual(result.totalFederalTax, expected, places=2)
 
     def test_invalid_year(self):
         with self.assertRaises(ValueError):

@@ -1,6 +1,7 @@
-# import required modules
+
 import json
 import os
+from model.FederalResult import FederalResult
 
 class FederalDetails:
 	def __init__(self, inflation_rate: float, final_year: int):
@@ -49,16 +50,17 @@ class FederalDetails:
 			]
 			year += 1
 
-	def taxBurden(self, income: float, year: int) -> float:
+	def taxBurden(self, income: float, year: int) -> FederalResult:
 		"""
-		Returns the total federal tax burden for a given income and year.
+		Returns a FederalResult with the total federal tax burden and marginal bracket for a given income and year.
 		"""
 		if year not in self.brackets_by_year:
 			raise ValueError(f"No tax brackets available for year {year}")
 		brackets = self.brackets_by_year[year]
 		for b in brackets:
 			if income <= b["maxIncome"]:
-				return b["baseAmount"] + (income - (0 if brackets.index(b) == 0 else brackets[brackets.index(b)-1]["maxIncome"])) * b["rate"]
+				total_tax = b["baseAmount"] + (income - (0 if brackets.index(b) == 0 else brackets[brackets.index(b)-1]["maxIncome"])) * b["rate"]
+				return FederalResult(totalFederalTax=total_tax, marginalBracket=b["rate"])
 		# Should not reach here
 		raise ValueError("Income exceeds all bracket definitions.")
 

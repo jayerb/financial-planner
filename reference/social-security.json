@@ -1,4 +1,6 @@
 {
+    "annualIncreaseMaximum": 0.02,
     "employeePortion": 0.062,
+    "maximumTaxedIncome": 184500.00,
     "maPFML": 0.046
 }

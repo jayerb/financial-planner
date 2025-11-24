@@ -7,5 +7,8 @@
         "bonusFraction": 0.1,
         "otherIncome": 5000,
         "annualBaseIncreaseFraction": 0.04
+    },
+    "deductions": {
+        "medicalDentalVision": 10800.00
     }
 }

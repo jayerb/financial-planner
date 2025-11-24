@@ -1,4 +1,6 @@
 {
     "state": 0.05,
-    "medicare": 0.0145
+    "medicare": 0.0145,
+    "surchargeThreshold": 250000.00,
+    "surchargeRate": 0.009
 }
