@@ -12,6 +12,35 @@
     "companyProvidedLifeInsurance": {
         "annualPremium": 700.00
     },
+    "restrictedStockUnits": {
+        "previousGrants": [
+            {
+                "year": 2022,
+                "grantShares": 100,
+                "vestingPeriodYears": 4
+            },
+            {
+                "year": 2023,
+                "grantShares": 150,
+                "vestingPeriodYears": 4
+            },
+            {
+                "year": 2024,
+                "grantShares": 250,
+                "vestingPeriodYears": 4
+            },
+            {
+                "year": 2025,
+                "grantShares": 300,
+                "vestingPeriodYears": 4
+            }
+        ],
+        "initialAnnualGrantValue": 10000,
+        "annualGrantIncreaseFraction": 0.05,
+        "expectedSharePriceGrowthFraction": 0.07,
+        "currentStockPrice": 250.00,
+        "vestingPeriodYears": 4
+    },
     "deductions": {
         "medicalDentalVision": 10800.00
     }
