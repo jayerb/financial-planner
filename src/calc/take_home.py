@@ -5,6 +5,7 @@ from tax.StateDetails import StateDetails
 from tax.ESPPDetails import ESPPDetails
 from tax.SocialSecurityDetails import SocialSecurityDetails
 from tax.MedicareDetails import MedicareDetails
+from calc.rsu_calculator import RSUCalculator
 
 
 class TakeHomeCalculator:
@@ -16,12 +17,14 @@ class TakeHomeCalculator:
     """
 
     def __init__(self, federal: FederalDetails, state: StateDetails, espp: ESPPDetails,
-                 social_security: SocialSecurityDetails, medicare: MedicareDetails):
+                 social_security: SocialSecurityDetails, medicare: MedicareDetails,
+                 rsu_calculator: RSUCalculator):
         self.federal = federal
         self.state = state
         self.espp = espp
         self.social_security = social_security
         self.medicare = medicare
+        self.rsu_calculator = rsu_calculator
 
     def calculate(self, spec: dict, tax_year: int = 2026) -> Dict:
         final_year = spec.get('lastYear')
@@ -38,6 +41,11 @@ class TakeHomeCalculator:
         # ESPP: use injected ESPPDetails
         espp_income = self.espp.taxable_from_spec(spec)
         gross_income = gross_income + espp_income
+
+        # RSU: add vested RSU value to gross income
+        rsu_result = self.rsu_calculator.calculate_vested_value(spec, tax_year)
+        rsu_vested_value = rsu_result['vested_value']
+        gross_income = gross_income + rsu_vested_value
 
         total_deductions = self.federal.totalDeductions(tax_year)
         medical_dental_vision = spec.get('deductions', {}).get('medicalDentalVision', 0)
@@ -74,4 +82,7 @@ class TakeHomeCalculator:
             'medicare_surcharge': medicare_surcharge,
             'state_tax': state_tax,
             'take_home_pay': take_home_pay,
+            'rsu_vested_value': rsu_vested_value,
+            'rsu_vested_shares': rsu_result['vested_shares'],
+            'rsu_stock_price': rsu_result['stock_price'],
         }

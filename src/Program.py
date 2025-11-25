@@ -7,6 +7,7 @@ from tax.ESPPDetails import ESPPDetails
 from tax.SocialSecurityDetails import SocialSecurityDetails
 from tax.MedicareDetails import MedicareDetails
 from calc.take_home import TakeHomeCalculator
+from calc.rsu_calculator import RSUCalculator
 
 def main():
     if len(sys.argv) < 2:
@@ -53,11 +54,19 @@ def main():
         surcharge_rate=medicare_ref.get('surchargeRate', 0)
     )
 
-    calculator = TakeHomeCalculator(fed, state, espp, social_security, medicare)
+    # Create RSU calculator from spec
+    rsu_config = spec.get('restrictedStockUnits', {})
+    rsu_calculator = RSUCalculator(
+        current_stock_price=rsu_config.get('currentStockPrice', 0),
+        expected_share_price_growth_fraction=rsu_config.get('expectedSharePriceGrowthFraction', 0)
+    )
+
+    calculator = TakeHomeCalculator(fed, state, espp, social_security, medicare, rsu_calculator)
     results = calculator.calculate(spec, tax_year)
 
     print(f"Federal tax burden for {tax_year} on adjusted gross income ${results['adjusted_gross_income']:,.2f} (gross income ${results['gross_income']:,.2f}, total deductions ${results['total_deductions']:,.2f}): ${results['federal_tax']:,.2f}")
     print(f"Marginal federal bracket: {results['marginal_bracket']:.2%}")
+    print(f"RSU vested: {results['rsu_vested_shares']:,.2f} shares @ ${results['rsu_stock_price']:,.2f} = ${results['rsu_vested_value']:,.2f}")
     print(f"Total Social Security + MA PFML: ${results['total_social_security']:,.2f}")
     print(f"Medicare: ${results['medicare_charge']:,.2f}")
     print(f"Medicare Surcharge: ${results['medicare_surcharge']:,.2f}")

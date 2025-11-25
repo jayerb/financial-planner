@@ -65,6 +65,19 @@ def create_mock_medicare(medicare_rate=0.0145, surcharge_threshold=250000, surch
     return mock
 
 
+def create_mock_rsu_calculator(vested_value=0, vested_shares=0, stock_price=100.0):
+    """Create a mock RSUCalculator with sensible defaults."""
+    mock = Mock()
+    mock.calculate_vested_value.return_value = {
+        'vested_value': vested_value,
+        'vested_shares': vested_shares,
+        'stock_price': stock_price,
+        'target_year': 2026,
+        'vesting_breakdown': []
+    }
+    return mock
+
+
 def create_spec(base_salary, bonus_fraction=0, other_income=0, medical_dental_vision=0):
     """Create a minimal spec dictionary for testing."""
     return {
@@ -90,6 +103,7 @@ def test_medicare_surcharge_applies():
     mock_state = create_mock_state()
     mock_espp = create_mock_espp()
     mock_social_security = create_mock_social_security()
+    mock_rsu = create_mock_rsu_calculator()
 
     # Medicare mock with specific surcharge values
     surcharge_threshold = 250000
@@ -104,7 +118,8 @@ def test_medicare_surcharge_applies():
         state=mock_state,
         espp=mock_espp,
         social_security=mock_social_security,
-        medicare=mock_medicare
+        medicare=mock_medicare,
+        rsu_calculator=mock_rsu
     )
 
     # High income to trigger surcharge
@@ -123,6 +138,7 @@ def test_social_security_cap_applies():
     mock_federal = create_mock_federal()
     mock_state = create_mock_state()
     mock_espp = create_mock_espp()
+    mock_rsu = create_mock_rsu_calculator()
 
     # Social security mock with specific cap values
     max_taxed_income = 168600
@@ -140,7 +156,8 @@ def test_social_security_cap_applies():
         state=mock_state,
         espp=mock_espp,
         social_security=mock_social_security,
-        medicare=mock_medicare
+        medicare=mock_medicare,
+        rsu_calculator=mock_rsu
     )
 
     # Income above max taxed income
@@ -159,13 +176,15 @@ def test_no_medicare_surcharge_below_threshold():
     mock_espp = create_mock_espp()
     mock_social_security = create_mock_social_security()
     mock_medicare = create_mock_medicare(surcharge_threshold=250000)
+    mock_rsu = create_mock_rsu_calculator()
 
     calculator = TakeHomeCalculator(
         federal=mock_federal,
         state=mock_state,
         espp=mock_espp,
         social_security=mock_social_security,
-        medicare=mock_medicare
+        medicare=mock_medicare,
+        rsu_calculator=mock_rsu
     )
 
     # Income below surcharge threshold
@@ -173,3 +192,40 @@ def test_no_medicare_surcharge_below_threshold():
     results = calculator.calculate(spec, tax_year=2026)
 
     assert results['medicare_surcharge'] == 0
+
+
+def test_rsu_vested_value_added_to_gross_income():
+    """Test that RSU vested value is added to gross income."""
+    mock_federal = create_mock_federal()
+    mock_state = create_mock_state()
+    mock_espp = create_mock_espp()
+    mock_social_security = create_mock_social_security()
+    mock_medicare = create_mock_medicare()
+
+    # RSU mock with specific vested value
+    rsu_vested_value = 25000
+    mock_rsu = create_mock_rsu_calculator(
+        vested_value=rsu_vested_value,
+        vested_shares=100,
+        stock_price=250.0
+    )
+
+    calculator = TakeHomeCalculator(
+        federal=mock_federal,
+        state=mock_state,
+        espp=mock_espp,
+        social_security=mock_social_security,
+        medicare=mock_medicare,
+        rsu_calculator=mock_rsu
+    )
+
+    base_salary = 100000
+    spec = create_spec(base_salary=base_salary)
+    results = calculator.calculate(spec, tax_year=2026)
+
+    # Gross income should include RSU vested value
+    expected_gross = base_salary + rsu_vested_value
+    assert results['gross_income'] == expected_gross
+    assert results['rsu_vested_value'] == rsu_vested_value
+    assert results['rsu_vested_shares'] == 100
+    assert results['rsu_stock_price'] == 250.0
