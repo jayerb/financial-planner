@@ -36,7 +36,11 @@ class TakeHomeCalculator:
         base_salary = income_details.get('baseSalary', 0)
         bonus_fraction = income_details.get('bonusFraction', 0)
         other_income = income_details.get('otherIncome', 0)
-        gross_income = base_salary + (base_salary * bonus_fraction) + other_income
+        short_term_capital_gains = income_details.get('shortTermCapitalGains', 0)
+        long_term_capital_gains = income_details.get('longTermCapitalGains', 0)
+        
+        # Short-term capital gains are taxed as ordinary income
+        gross_income = base_salary + (base_salary * bonus_fraction) + other_income + short_term_capital_gains
 
         # ESPP: use injected ESPPDetails
         espp_income = income_details.get('esppIncome', self.espp.taxable_from_spec(spec))
@@ -54,7 +58,14 @@ class TakeHomeCalculator:
         federal_tax = federal_result.totalFederalTax
         marginal_bracket = federal_result.marginalBracket
 
-        # Social Security
+        # Calculate long-term capital gains tax using special brackets
+        ltcg_tax = self.federal.longTermCapitalGainsTax(adjusted_gross_income, long_term_capital_gains, tax_year)
+        federal_result.longTermCapitalGainsTax = ltcg_tax
+        
+        # Total federal tax includes both ordinary income tax and LTCG tax
+        total_federal_tax = federal_tax + ltcg_tax
+
+        # Social Security (LTCG is not subject to Social Security tax)
         total_social_security = self.social_security.total_contribution(gross_income, tax_year)
 
         # Medicare
@@ -67,14 +78,18 @@ class TakeHomeCalculator:
         # State tax: use injected StateDetails
         state_tax = self.state.taxBurden(gross_income, medical_dental_vision, year=tax_year)
 
-        take_home_pay = gross_income - federal_tax - total_social_security - total_medicare - state_tax
+        take_home_pay = gross_income - total_federal_tax - total_social_security - total_medicare - state_tax
 
         return {
             'gross_income': gross_income,
             'total_deductions': total_deductions,
             'adjusted_gross_income': adjusted_gross_income,
             'federal_result': federal_result,
-            'federal_tax': federal_tax,
+            'federal_tax': total_federal_tax,
+            'ordinary_income_tax': federal_tax,
+            'long_term_capital_gains_tax': ltcg_tax,
+            'long_term_capital_gains': long_term_capital_gains,
+            'short_term_capital_gains': short_term_capital_gains,
             'marginal_bracket': marginal_bracket,
             'total_social_security': total_social_security,
             'medicare_charge': medicare_charge,

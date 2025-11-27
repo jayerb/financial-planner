@@ -12,7 +12,9 @@ def create_mock_federal():
     federal_result = Mock()
     federal_result.totalFederalTax = 50000
     federal_result.marginalBracket = 0.24
+    federal_result.longTermCapitalGainsTax = 0
     mock.taxBurden.return_value = federal_result
+    mock.longTermCapitalGainsTax.return_value = 0
     return mock
 
 
@@ -291,3 +293,148 @@ def test_espp_income_calculated_when_not_in_spec():
 
     # The ESPP mock's taxable_from_spec should have been called
     mock_espp.taxable_from_spec.assert_called_once_with(spec)
+
+
+def test_short_term_capital_gains_added_to_gross_income():
+    """Test that short-term capital gains are added to gross income."""
+    mock_federal = create_mock_federal()
+    mock_state = create_mock_state()
+    mock_espp = create_mock_espp()
+    mock_social_security = create_mock_social_security()
+    mock_medicare = create_mock_medicare()
+    mock_rsu = create_mock_rsu_calculator()
+
+    calculator = TakeHomeCalculator(
+        federal=mock_federal,
+        state=mock_state,
+        espp=mock_espp,
+        social_security=mock_social_security,
+        medicare=mock_medicare,
+        rsu_calculator=mock_rsu
+    )
+
+    base_salary = 100000
+    short_term_gains = 5000
+    spec = create_spec(base_salary=base_salary)
+    spec['income']['shortTermCapitalGains'] = short_term_gains
+
+    results = calculator.calculate(spec, tax_year=2026)
+
+    # Gross income should include short-term capital gains
+    expected_gross = base_salary + short_term_gains
+    assert results['gross_income'] == expected_gross
+    assert results['short_term_capital_gains'] == short_term_gains
+
+
+def test_long_term_capital_gains_tax_calculated():
+    """Test that long-term capital gains tax is calculated using LTCG brackets."""
+    mock_federal = create_mock_federal()
+    mock_state = create_mock_state()
+    mock_espp = create_mock_espp()
+    mock_social_security = create_mock_social_security()
+    mock_medicare = create_mock_medicare()
+    mock_rsu = create_mock_rsu_calculator()
+
+    # Configure LTCG tax calculation
+    ltcg_tax = 1500
+    mock_federal.longTermCapitalGainsTax.return_value = ltcg_tax
+
+    calculator = TakeHomeCalculator(
+        federal=mock_federal,
+        state=mock_state,
+        espp=mock_espp,
+        social_security=mock_social_security,
+        medicare=mock_medicare,
+        rsu_calculator=mock_rsu
+    )
+
+    base_salary = 100000
+    long_term_gains = 10000
+    spec = create_spec(base_salary=base_salary)
+    spec['income']['longTermCapitalGains'] = long_term_gains
+
+    results = calculator.calculate(spec, tax_year=2026)
+
+    # LTCG tax should be calculated and included
+    assert results['long_term_capital_gains_tax'] == ltcg_tax
+    assert results['long_term_capital_gains'] == long_term_gains
+    
+    # longTermCapitalGainsTax should have been called with AGI and LTCG amount
+    mock_federal.longTermCapitalGainsTax.assert_called_once()
+    call_args = mock_federal.longTermCapitalGainsTax.call_args
+    assert call_args[0][1] == long_term_gains  # Second arg is LTCG amount
+    assert call_args[0][2] == 2026  # Third arg is year
+
+
+def test_federal_tax_includes_ltcg_tax():
+    """Test that total federal tax includes both ordinary income tax and LTCG tax."""
+    mock_federal = create_mock_federal()
+    mock_state = create_mock_state()
+    mock_espp = create_mock_espp()
+    mock_social_security = create_mock_social_security()
+    mock_medicare = create_mock_medicare()
+    mock_rsu = create_mock_rsu_calculator()
+
+    # Configure ordinary income tax and LTCG tax
+    ordinary_tax = 50000
+    ltcg_tax = 2000
+    federal_result = Mock()
+    federal_result.totalFederalTax = ordinary_tax
+    federal_result.marginalBracket = 0.24
+    federal_result.longTermCapitalGainsTax = 0
+    mock_federal.taxBurden.return_value = federal_result
+    mock_federal.longTermCapitalGainsTax.return_value = ltcg_tax
+
+    calculator = TakeHomeCalculator(
+        federal=mock_federal,
+        state=mock_state,
+        espp=mock_espp,
+        social_security=mock_social_security,
+        medicare=mock_medicare,
+        rsu_calculator=mock_rsu
+    )
+
+    base_salary = 200000
+    long_term_gains = 15000
+    spec = create_spec(base_salary=base_salary)
+    spec['income']['longTermCapitalGains'] = long_term_gains
+
+    results = calculator.calculate(spec, tax_year=2026)
+
+    # Total federal tax should be ordinary + LTCG
+    expected_total_federal = ordinary_tax + ltcg_tax
+    assert results['federal_tax'] == expected_total_federal
+    assert results['ordinary_income_tax'] == ordinary_tax
+    assert results['long_term_capital_gains_tax'] == ltcg_tax
+
+
+def test_capital_gains_default_to_zero():
+    """Test that capital gains default to zero if not specified."""
+    mock_federal = create_mock_federal()
+    mock_state = create_mock_state()
+    mock_espp = create_mock_espp()
+    mock_social_security = create_mock_social_security()
+    mock_medicare = create_mock_medicare()
+    mock_rsu = create_mock_rsu_calculator()
+
+    calculator = TakeHomeCalculator(
+        federal=mock_federal,
+        state=mock_state,
+        espp=mock_espp,
+        social_security=mock_social_security,
+        medicare=mock_medicare,
+        rsu_calculator=mock_rsu
+    )
+
+    base_salary = 100000
+    spec = create_spec(base_salary=base_salary)
+    # Do NOT set capital gains in spec
+
+    results = calculator.calculate(spec, tax_year=2026)
+
+    # Capital gains should default to 0
+    assert results['short_term_capital_gains'] == 0
+    assert results['long_term_capital_gains'] == 0
+    assert results['long_term_capital_gains_tax'] == 0
+    # Gross income should just be base salary
+    assert results['gross_income'] == base_salary

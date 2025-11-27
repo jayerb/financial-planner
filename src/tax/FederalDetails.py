@@ -13,6 +13,7 @@ class FederalDetails:
 		self.final_year = final_year
 		self.brackets_by_year = {}
 		self.deductions_by_year = {}
+		self.ltcg_brackets_by_year = {}
 		self._load_and_build_brackets()
 
 	def _load_and_build_brackets(self):
@@ -55,15 +56,29 @@ class FederalDetails:
 				"maxHSA": year_data.get("maxContributions", {}).get("HSA", 0)
 			}
 
+			# Load qualified dividend / LTCG brackets for this year
+			ltcg_brackets = []
+			for b in year_data.get("qualifedDivLTCGBrackets", []):
+				rate = b["rate"]
+				if rate > 1:
+					rate = rate / 100.0
+				ltcg_brackets.append({
+					"maxIncome": b["maxIncome"],
+					"rate": rate
+				})
+			self.ltcg_brackets_by_year[year] = ltcg_brackets
+
 		# Get the last specified year to use as base for inflation
 		last_specified_year = tax_years[-1]["year"]
 		last_brackets = self.brackets_by_year[last_specified_year]
 		last_deductions = self.deductions_by_year[last_specified_year]
+		last_ltcg_brackets = self.ltcg_brackets_by_year[last_specified_year]
 
 		# Build inflated brackets for years after the last specified year
 		year = last_specified_year + 1
 		brackets = last_brackets
 		deductions = last_deductions
+		ltcg_brackets = last_ltcg_brackets
 		while year <= self.final_year:
 			# Inflate brackets
 			brackets = [
@@ -83,6 +98,16 @@ class FederalDetails:
 				"maxHSA": deductions["maxHSA"] * (1 + self.inflation_rate)
 			}
 			self.deductions_by_year[year] = dict(deductions)
+
+			# Inflate LTCG brackets
+			ltcg_brackets = [
+				{
+					"maxIncome": b["maxIncome"] * (1 + self.inflation_rate),
+					"rate": b["rate"]
+				}
+				for b in ltcg_brackets
+			]
+			self.ltcg_brackets_by_year[year] = [dict(b) for b in ltcg_brackets]
 
 			year += 1
 
@@ -109,3 +134,58 @@ class FederalDetails:
 			raise ValueError(f"No deduction data available for year {year}")
 		d = self.deductions_by_year[year]
 		return d["standardDeduction"] + d["max401k"] + d["maxHSA"]
+
+	def longTermCapitalGainsTax(self, ordinary_taxable_income: float, ltcg_amount: float, year: int) -> float:
+		"""
+		Calculates the tax on long-term capital gains and qualified dividends.
+		
+		The LTCG tax brackets are based on total taxable income (ordinary + LTCG).
+		The tax is calculated by determining which bracket(s) the LTCG falls into,
+		based on where the ordinary income ends and where ordinary + LTCG ends.
+		
+		Args:
+			ordinary_taxable_income: Taxable income excluding LTCG (after deductions)
+			ltcg_amount: Long-term capital gains and qualified dividends amount
+			year: Tax year
+			
+		Returns:
+			The federal tax on long-term capital gains
+		"""
+		if year not in self.ltcg_brackets_by_year:
+			raise ValueError(f"No LTCG tax brackets available for year {year}")
+		
+		if ltcg_amount <= 0:
+			return 0.0
+		
+		brackets = self.ltcg_brackets_by_year[year]
+		total_income = ordinary_taxable_income + ltcg_amount
+		ltcg_tax = 0.0
+		
+		# Start from where ordinary income ends
+		income_floor = max(0, ordinary_taxable_income)
+		remaining_ltcg = ltcg_amount
+		
+		for b in brackets:
+			if remaining_ltcg <= 0:
+				break
+			
+			# The bracket applies to income from previous bracket max to this bracket max
+			bracket_floor = 0 if brackets.index(b) == 0 else brackets[brackets.index(b) - 1]["maxIncome"]
+			bracket_ceiling = b["maxIncome"]
+			
+			# If ordinary income is already past this bracket, skip it
+			if income_floor >= bracket_ceiling:
+				continue
+			
+			# Calculate the portion of LTCG that falls in this bracket
+			taxable_in_bracket_start = max(income_floor, bracket_floor)
+			taxable_in_bracket_end = min(total_income, bracket_ceiling)
+			taxable_in_bracket = max(0, taxable_in_bracket_end - taxable_in_bracket_start)
+			
+			# Can't tax more LTCG than we have remaining
+			taxable_in_bracket = min(taxable_in_bracket, remaining_ltcg)
+			
+			ltcg_tax += taxable_in_bracket * b["rate"]
+			remaining_ltcg -= taxable_in_bracket
+		
+		return ltcg_tax

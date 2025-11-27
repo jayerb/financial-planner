@@ -17,6 +17,11 @@
                 { "maxIncome": 501050.00, "rate": 0.32, "baseAmount": 80397.42 },
                 { "maxIncome": 751600.00, "rate": 0.35, "baseAmount": 114461.10 },
                 { "maxIncome": 99999999999.00, "rate": 0.37, "baseAmount": 202153.25 }
+            ],
+            "qualifedDivLTCGBrackets": [
+                { "maxIncome": 96700.00, "rate": 0.0 },
+                { "maxIncome": 600050.00, "rate": 0.15 },
+                { "maxIncome": 99999999999.00, "rate": 0.20 }
             ]
         },
         {
@@ -34,8 +39,12 @@
                 { "maxIncome": 512450.00, "rate": 0.32, "baseAmount": 82047.42 },
                 { "maxIncome": 768700.00, "rate": 0.35, "baseAmount": 116895.10 },
                 { "maxIncome": 99999999999.00, "rate": 0.37, "baseAmount": 206582.25 }
-            ]
-        }
+            ],
+            "qualifedDivLTCGBrackets": [
+                { "maxIncome": 98900.00, "rate": 0.0 },
+                { "maxIncome": 613700.00, "rate": 0.15 },
+                { "maxIncome": 99999999999.00, "rate": 0.20 }
+            ]        }
 
     ]
 }

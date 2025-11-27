@@ -4,3 +4,4 @@ from dataclasses import dataclass
 class FederalResult:
     totalFederalTax: float
     marginalBracket: float
+    longTermCapitalGainsTax: float = 0.0
