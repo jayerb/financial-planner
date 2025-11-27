@@ -39,7 +39,7 @@ class TakeHomeCalculator:
         gross_income = base_salary + (base_salary * bonus_fraction) + other_income
 
         # ESPP: use injected ESPPDetails
-        espp_income = self.espp.taxable_from_spec(spec)
+        espp_income = income_details.get('esppIncome', self.espp.taxable_from_spec(spec))
         gross_income = gross_income + espp_income
 
         # RSU: add vested RSU value to gross income

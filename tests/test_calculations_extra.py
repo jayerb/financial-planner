@@ -222,3 +222,72 @@ def test_rsu_vested_value_added_to_gross_income():
     expected_gross = base_salary + rsu_vested_value
     assert results['gross_income'] == expected_gross
     assert results['rsu_vested_value'] == rsu_vested_value
+
+
+def test_espp_income_from_spec_used_when_provided():
+    """Test that esppIncome from spec is used when provided."""
+    mock_federal = create_mock_federal()
+    mock_state = create_mock_state()
+    mock_espp = create_mock_espp()
+    mock_social_security = create_mock_social_security()
+    mock_medicare = create_mock_medicare()
+    mock_rsu = create_mock_rsu_calculator()
+
+    # Set up ESPP mock to return a different value - this should NOT be used
+    mock_espp.taxable_from_spec.return_value = 5000
+
+    calculator = TakeHomeCalculator(
+        federal=mock_federal,
+        state=mock_state,
+        espp=mock_espp,
+        social_security=mock_social_security,
+        medicare=mock_medicare,
+        rsu_calculator=mock_rsu
+    )
+
+    base_salary = 100000
+    espp_income_from_spec = 3750  # This value should be used instead of calculated
+    spec = create_spec(base_salary=base_salary)
+    spec['income']['esppIncome'] = espp_income_from_spec
+
+    results = calculator.calculate(spec, tax_year=2026)
+
+    # Gross income should include the esppIncome from spec (3750), not the calculated value (5000)
+    expected_gross = base_salary + espp_income_from_spec
+    assert results['gross_income'] == expected_gross
+
+
+def test_espp_income_calculated_when_not_in_spec():
+    """Test that ESPP income is calculated when not provided in spec."""
+    mock_federal = create_mock_federal()
+    mock_state = create_mock_state()
+    mock_espp = create_mock_espp()
+    mock_social_security = create_mock_social_security()
+    mock_medicare = create_mock_medicare()
+    mock_rsu = create_mock_rsu_calculator()
+
+    # Set up ESPP mock to return a calculated value
+    calculated_espp_income = 4500
+    mock_espp.taxable_from_spec.return_value = calculated_espp_income
+
+    calculator = TakeHomeCalculator(
+        federal=mock_federal,
+        state=mock_state,
+        espp=mock_espp,
+        social_security=mock_social_security,
+        medicare=mock_medicare,
+        rsu_calculator=mock_rsu
+    )
+
+    base_salary = 100000
+    spec = create_spec(base_salary=base_salary)
+    # Do NOT set spec['income']['esppIncome'] - it should be calculated
+
+    results = calculator.calculate(spec, tax_year=2026)
+
+    # Gross income should include the calculated ESPP income
+    expected_gross = base_salary + calculated_espp_income
+    assert results['gross_income'] == expected_gross
+
+    # The ESPP mock's taxable_from_spec should have been called
+    mock_espp.taxable_from_spec.assert_called_once_with(spec)
