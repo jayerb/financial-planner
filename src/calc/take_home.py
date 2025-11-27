@@ -27,10 +27,10 @@ class TakeHomeCalculator:
         self.rsu_calculator = rsu_calculator
 
     def calculate(self, spec: dict, tax_year: int = 2026) -> Dict:
-        final_year = spec.get('lastYear')
+        final_year = spec.get('lastPlanningYear')
         inflation_rate = spec.get('federalBracketInflation')
         if final_year is None or inflation_rate is None:
-            raise ValueError("spec must contain 'lastYear' and 'federalBracketInflation' fields.")
+            raise ValueError("spec must contain 'lastPlanningYear' and 'federalBracketInflation' fields.")
 
         income_details = spec.get('income', {})
         base_salary = income_details.get('baseSalary', 0)
@@ -43,8 +43,7 @@ class TakeHomeCalculator:
         gross_income = gross_income + espp_income
 
         # RSU: add vested RSU value to gross income
-        rsu_result = self.rsu_calculator.calculate_vested_value(spec, tax_year)
-        rsu_vested_value = rsu_result['vested_value']
+        rsu_vested_value = self.rsu_calculator.vested_value[tax_year]
         gross_income = gross_income + rsu_vested_value
 
         total_deductions = self.federal.totalDeductions(tax_year)
@@ -82,7 +81,5 @@ class TakeHomeCalculator:
             'medicare_surcharge': medicare_surcharge,
             'state_tax': state_tax,
             'take_home_pay': take_home_pay,
-            'rsu_vested_value': rsu_vested_value,
-            'rsu_vested_shares': rsu_result['vested_shares'],
-            'rsu_stock_price': rsu_result['stock_price'],
+            'rsu_vested_value': rsu_vested_value
         }
