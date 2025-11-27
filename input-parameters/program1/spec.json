@@ -1,6 +1,7 @@
 {
     "firstYear": 2026,
-    "lastYear": 2076,
+    "lastWorkingYear": 2046,
+    "lastPlanningYear": 2076,
     "federalBracketInflation": 0.03,
     "income": {
         "baseSalary": 85000,

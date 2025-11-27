@@ -37,7 +37,7 @@ def create_mock_social_security(max_taxed_income=168600, employee_portion=0.062,
     mock.employee_portion = employee_portion
     mock.ma_pfml = ma_pfml
 
-    def total_contribution(gross_income):
+    def total_contribution(gross_income, year):
         taxable = min(gross_income, max_taxed_income)
         return taxable * (employee_portion + ma_pfml)
 
@@ -68,20 +68,15 @@ def create_mock_medicare(medicare_rate=0.0145, surcharge_threshold=250000, surch
 def create_mock_rsu_calculator(vested_value=0, vested_shares=0, stock_price=100.0):
     """Create a mock RSUCalculator with sensible defaults."""
     mock = Mock()
-    mock.calculate_vested_value.return_value = {
-        'vested_value': vested_value,
-        'vested_shares': vested_shares,
-        'stock_price': stock_price,
-        'target_year': 2026,
-        'vesting_breakdown': []
-    }
+    # The RSU calculator now uses a dictionary keyed by year
+    mock.vested_value = {2026: vested_value}
     return mock
 
 
 def create_spec(base_salary, bonus_fraction=0, other_income=0, medical_dental_vision=0):
     """Create a minimal spec dictionary for testing."""
     return {
-        'lastYear': 2030,
+        'lastPlanningYear': 2030,
         'federalBracketInflation': 0.02,
         'income': {
             'baseSalary': base_salary,
@@ -167,7 +162,7 @@ def test_social_security_cap_applies():
     # Should be capped at max_taxed_income
     expected_ss = max_taxed_income * (employee_portion + ma_pfml)
     assert round(results['total_social_security'], 2) == round(expected_ss, 2)
-    mock_social_security.total_contribution.assert_called_once_with(200000)
+    mock_social_security.total_contribution.assert_called_once_with(200000, 2026)
 
 
 def test_no_medicare_surcharge_below_threshold():
@@ -227,5 +222,3 @@ def test_rsu_vested_value_added_to_gross_income():
     expected_gross = base_salary + rsu_vested_value
     assert results['gross_income'] == expected_gross
     assert results['rsu_vested_value'] == rsu_vested_value
-    assert results['rsu_vested_shares'] == 100
-    assert results['rsu_stock_price'] == 250.0

@@ -34,15 +34,8 @@ def main():
     max_espp = fed_ref.get('maxESPPValue', 0)
     espp = ESPPDetails(max_espp)
 
-    # read Social Security details from reference
-    ss_ref_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '../reference', 'social-security.json'))
-    with open(ss_ref_path, 'r') as f:
-        ss_ref = json.load(f)
-    social_security = SocialSecurityDetails(
-        maximum_taxed_income=ss_ref.get('maximumTaxedIncome', 0),
-        employee_portion=ss_ref.get('employeePortion', 0),
-        ma_pfml=ss_ref.get('maPFML', 0)
-    )
+    # Create Social Security details with inflation rate and final year
+    social_security = SocialSecurityDetails(inflation_rate, final_year)
 
     # read Medicare details from reference
     medicare_ref_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '../reference', 'flat-tax-details.json'))

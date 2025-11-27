@@ -1,45 +1,41 @@
 {
-    "taxYear": 2026,
     "filingStatus": "Married Filing Jointly",
-    "standardDeduction": 32200.00,
-    "maxContributions": {
-        "401k": 24000.00,
-        "HSA": 8300.00
-    },
     "maxESPPValue": 25000.00,
-    "bracket1": {
-        "maxIncome": 24800.00,
-        "rate": 0.10,
-        "baseAmount": 0
-    },
-    "bracket2": {
-        "maxIncome": 100800.00,
-        "rate": 12.00,
-        "baseAmount": 2480.00
-    },
-    "bracket3": {
-        "maxIncome": 211400.00,	
-        "rate": 22.00,	
-        "baseAmount": 11599.88
-    },
-    "bracket4": {
-        "maxIncome": 403550.00,	
-        "rate": 24.00,	
-        "baseAmount": 35931.66			
-    },
-    "bracket5": {
-        "maxIncome": 512450.00,	
-        "rate": 32.00,	
-        "baseAmount": 82047.42
-    },
-    "bracket6": {
-        "maxIncome": 768700.00,	
-        "rate": 35.00,	
-        "baseAmount": 116895.10			
-    },
-    "bracket7": {
-        "maxIncome": 99999999999.00,	
-        "rate": 37.00,	
-        "baseAmount": 206582.25			
-    }
+    "taxYears": [
+        {
+            "year": 2025,
+            "standardDeduction": 31500.00,
+            "maxContributions": {
+                "401k": 23500.00,
+                "HSA": 8550.00
+            },
+            "brackets": [
+                { "maxIncome": 23850.00, "rate": 0.10, "baseAmount": 0 },
+                { "maxIncome": 96950.00, "rate": 0.12, "baseAmount": 2385.00 },
+                { "maxIncome": 206700.00, "rate": 0.22, "baseAmount": 11156.88 },
+                { "maxIncome": 394600.00, "rate": 0.24, "baseAmount": 35301.66 },
+                { "maxIncome": 501050.00, "rate": 0.32, "baseAmount": 80397.42 },
+                { "maxIncome": 751600.00, "rate": 0.35, "baseAmount": 114461.10 },
+                { "maxIncome": 99999999999.00, "rate": 0.37, "baseAmount": 202153.25 }
+            ]
+        },
+        {
+            "year": 2026,
+            "standardDeduction": 32200.00,
+            "maxContributions": {
+                "401k": 24000.00,
+                "HSA": 8806.50
+            },
+            "brackets": [
+                { "maxIncome": 24800.00, "rate": 0.10, "baseAmount": 0 },
+                { "maxIncome": 100800.00, "rate": 0.12, "baseAmount": 2480.00 },
+                { "maxIncome": 211400.00, "rate": 0.22, "baseAmount": 11599.88 },
+                { "maxIncome": 403550.00, "rate": 0.24, "baseAmount": 35931.66 },
+                { "maxIncome": 512450.00, "rate": 0.32, "baseAmount": 82047.42 },
+                { "maxIncome": 768700.00, "rate": 0.35, "baseAmount": 116895.10 },
+                { "maxIncome": 99999999999.00, "rate": 0.37, "baseAmount": 206582.25 }
+            ]
+        }
+
+    ]
 }

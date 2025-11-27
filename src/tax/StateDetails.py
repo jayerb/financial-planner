@@ -18,7 +18,17 @@ class StateDetails:
         with open(fed_path, 'r') as f:
             self.fed = json.load(f)
 
-        self.base_year = self.fed.get('taxYear', None)
+        # Handle new taxYears array format
+        tax_years = self.fed.get('taxYears', [])
+        if tax_years:
+            # Use the first year's data as the base
+            base_year_data = tax_years[0]
+            self.base_year = base_year_data.get('year')
+            self.base_max_contrib = base_year_data.get('maxContributions', {})
+        else:
+            # Fallback to old format
+            self.base_year = self.fed.get('taxYear', None)
+            self.base_max_contrib = self.fed.get('maxContributions', {})
 
     def _inflate(self, amount: float, to_year: int) -> float:
         if amount is None:
@@ -48,9 +58,8 @@ class StateDetails:
         # inflate state standard deduction to requested year (if inflation provided)
         state_sd_inflated = self._inflate(state_sd, tax_year)
 
-        max_contrib = self.fed.get('maxContributions', {})
-        c401k = max_contrib.get('401k', 0)
-        hsa = max_contrib.get('HSA', 0)
+        c401k = self.base_max_contrib.get('401k', 0)
+        hsa = self.base_max_contrib.get('HSA', 0)
 
         c401k_inflated = self._inflate(c401k, tax_year)
         hsa_inflated = self._inflate(hsa, tax_year)

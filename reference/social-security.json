@@ -1,6 +1,17 @@
 {
     "annualIncreaseMaximum": 0.02,
-    "employeePortion": 0.062,
-    "maximumTaxedIncome": 184500.00,
-    "maPFML": 0.046
+    "taxYears": [
+        {
+            "year": 2025,
+            "maximumTaxedIncome": 176100.00,
+            "employeePortion": 0.062,
+            "maPFML": 0.0063
+        },
+        {
+            "year": 2026,
+            "maximumTaxedIncome": 184500.00,
+            "employeePortion": 0.062,
+            "maPFML": 0.0063
+        }
+    ]
 }

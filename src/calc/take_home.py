@@ -30,7 +30,7 @@ class TakeHomeCalculator:
         final_year = spec.get('lastPlanningYear')
         inflation_rate = spec.get('federalBracketInflation')
         if final_year is None or inflation_rate is None:
-            raise ValueError("spec must contain 'lastPlanningYear' and 'federalBracketInflation' fields.")
+            raise ValueError("spec must contain 'lastYear' and 'federalBracketInflation' fields.")
 
         income_details = spec.get('income', {})
         base_salary = income_details.get('baseSalary', 0)
@@ -55,7 +55,7 @@ class TakeHomeCalculator:
         marginal_bracket = federal_result.marginalBracket
 
         # Social Security
-        total_social_security = self.social_security.total_contribution(gross_income)
+        total_social_security = self.social_security.total_contribution(gross_income, tax_year)
 
         # Medicare
         life_premium = spec.get('companyProvidedLifeInsurance', {}).get('annualPremium', 0)
