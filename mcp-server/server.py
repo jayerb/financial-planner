@@ -157,6 +157,21 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="get_investment_balances",
+            description="Get investment account balances (taxable brokerage, tax-deferred 401k/IRA, HSA) for a specific year or all years. Shows how accounts grow with appreciation over the planning horizon.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "year": {
+                        "type": "integer",
+                        "description": "Optional: specific year to get balances for. If omitted, returns summary with initial, retirement, and final balances."
+                    },
+                    "program": PROGRAM_PARAM
+                },
+                "required": []
+            }
+        ),
+        Tool(
             name="compare_years",
             description="Compare financial metrics between two years.",
             inputSchema={
@@ -231,6 +246,8 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             result = fp_tools.get_deferred_comp_info(arguments["year"], program)
         elif name == "get_retirement_balances":
             result = fp_tools.get_retirement_balances(arguments.get("year"), program)
+        elif name == "get_investment_balances":
+            result = fp_tools.get_investment_balances(arguments.get("year"), program)
         elif name == "compare_years":
             result = fp_tools.compare_years(arguments["year1"], arguments["year2"], program)
         elif name == "get_lifetime_totals":

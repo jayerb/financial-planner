@@ -21,6 +21,7 @@ from calc.take_home import TakeHomeCalculator
 from calc.rsu_calculator import RSUCalculator
 from calc.balance_calculator import BalanceCalculator
 from calc.deferred_comp_calculator import DeferredCompCalculator
+from calc.investment_calculator import InvestmentCalculator
 
 
 class FinancialPlannerTools:
@@ -115,6 +116,11 @@ class FinancialPlannerTools:
         
         # Balance calculator
         self.balance_calculator = BalanceCalculator(self.calculator, self.fed)
+        
+        # Investment calculator
+        self.investment_calculator = InvestmentCalculator(
+            self.spec, first_year, final_year
+        )
     
     def _cache_results(self):
         """Pre-calculate and cache results for all years."""
@@ -336,6 +342,77 @@ class FinancialPlannerTools:
             ]
         }
     
+    def get_investment_balances(self, year: Optional[int] = None) -> dict:
+        """Get investment account balances (taxable, tax-deferred, HSA)."""
+        investments = self.spec.get('investments', {})
+        
+        # Check if investments are configured
+        if not investments:
+            return {
+                "message": "No investment accounts configured in this program.",
+                "hint": "Add an 'investments' section to your spec.json with taxableBalance, taxDeferredBalance, and/or hsaBalance."
+            }
+        
+        if year is not None:
+            if year < self.first_year or year > self.last_planning_year:
+                return {"error": f"Year {year} is not in the planning horizon ({self.first_year}-{self.last_planning_year})"}
+            
+            balances = self.investment_calculator.get_balances(year)
+            if balances is None:
+                return {"error": f"No balance data for year {year}"}
+            
+            return {
+                "year": year,
+                "is_working_year": year <= self.last_working_year,
+                "balances": {
+                    "taxable_account": round(balances['taxable'], 2),
+                    "tax_deferred_account": round(balances['tax_deferred'], 2),
+                    "hsa_account": round(balances['hsa'], 2),
+                    "total_investments": round(balances['total'], 2)
+                },
+                "appreciation_rates": {
+                    "taxable": investments.get('taxableAppreciationRate', 0),
+                    "tax_deferred": investments.get('taxDeferredAppreciationRate', 0),
+                    "hsa": investments.get('hsaAppreciationRate', 0)
+                }
+            }
+        
+        # Return all years summary
+        all_balances = self.investment_calculator.get_all_balances()
+        retirement_balances = self.investment_calculator.get_balance_at_retirement(self.last_working_year)
+        final_balances = self.investment_calculator.get_final_balances()
+        
+        return {
+            "initial_balances": {
+                "taxable": round(investments.get('taxableBalance', 0), 2),
+                "tax_deferred": round(investments.get('taxDeferredBalance', 0), 2),
+                "hsa": round(investments.get('hsaBalance', 0), 2)
+            },
+            "appreciation_rates": {
+                "taxable": investments.get('taxableAppreciationRate', 0),
+                "tax_deferred": investments.get('taxDeferredAppreciationRate', 0),
+                "hsa": investments.get('hsaAppreciationRate', 0)
+            },
+            "at_retirement": {
+                "year": self.last_working_year,
+                "taxable": round(retirement_balances['taxable'], 2),
+                "tax_deferred": round(retirement_balances['tax_deferred'], 2),
+                "hsa": round(retirement_balances['hsa'], 2),
+                "total": round(retirement_balances['total'], 2)
+            },
+            "final_balances": {
+                "year": self.last_planning_year,
+                "taxable": round(final_balances['taxable'], 2),
+                "tax_deferred": round(final_balances['tax_deferred'], 2),
+                "hsa": round(final_balances['hsa'], 2),
+                "total": round(final_balances['total'], 2)
+            },
+            "yearly_totals": [
+                {"year": year, "total": round(bal['total'], 2)}
+                for year, bal in sorted(all_balances.items())
+            ]
+        }
+
     def compare_years(self, year1: int, year2: int) -> dict:
         """Compare financial metrics between two years."""
         if year1 not in self.yearly_results:
@@ -613,6 +690,12 @@ class MultiProgramTools:
     def get_retirement_balances(self, year: Optional[int] = None, program: Optional[str] = None) -> dict:
         """Get 401(k) and deferred comp balances."""
         result = self._get_program(program, require_explicit=True).get_retirement_balances(year)
+        result["program"] = program or self.default_program
+        return result
+    
+    def get_investment_balances(self, year: Optional[int] = None, program: Optional[str] = None) -> dict:
+        """Get investment account balances (taxable, tax-deferred, HSA)."""
+        result = self._get_program(program, require_explicit=True).get_investment_balances(year)
         result["program"] = program or self.default_program
         return result
     
