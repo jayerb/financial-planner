@@ -50,9 +50,12 @@ class TakeHomeCalculator:
         rsu_vested_value = self.rsu_calculator.vested_value[tax_year]
         gross_income = gross_income + rsu_vested_value
 
-        total_deductions = self.federal.totalDeductions(tax_year)
+        deductions = self.federal.totalDeductions(tax_year)
         medical_dental_vision = spec.get('deductions', {}).get('medicalDentalVision', 0)
-        adjusted_gross_income = gross_income - total_deductions - medical_dental_vision
+        deductions['medicalDentalVision'] = medical_dental_vision
+        deductions['total'] = deductions['total'] + medical_dental_vision
+        total_deductions = deductions['total']
+        adjusted_gross_income = gross_income - total_deductions
 
         federal_result = self.federal.taxBurden(adjusted_gross_income, tax_year)
         federal_tax = federal_result.totalFederalTax
@@ -83,6 +86,7 @@ class TakeHomeCalculator:
         return {
             'gross_income': gross_income,
             'total_deductions': total_deductions,
+            'deductions': deductions,
             'adjusted_gross_income': adjusted_gross_income,
             'federal_result': federal_result,
             'federal_tax': total_federal_tax,

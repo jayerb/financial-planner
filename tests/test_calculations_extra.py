@@ -8,7 +8,12 @@ from calc.take_home import TakeHomeCalculator
 def create_mock_federal():
     """Create a mock FederalDetails with sensible defaults."""
     mock = Mock()
-    mock.totalDeductions.return_value = 15000
+    mock.totalDeductions.return_value = {
+        'standardDeduction': 10000,
+        'max401k': 3000,
+        'maxHSA': 2000,
+        'total': 15000
+    }
     federal_result = Mock()
     federal_result.totalFederalTax = 50000
     federal_result.marginalBracket = 0.24

@@ -62,14 +62,33 @@ def main():
     calculator = TakeHomeCalculator(fed, state, espp, social_security, medicare, rsu_calculator)
     results = calculator.calculate(spec, tax_year)
 
-    print(f"Federal tax burden for {tax_year} on adjusted gross income ${results['adjusted_gross_income']:,.2f} (gross income ${results['gross_income']:,.2f}, total deductions ${results['total_deductions']:,.2f}): ${results['federal_tax']:,.2f}")
-    print(f"Marginal federal bracket: {results['marginal_bracket']:.2%}")
-    print(f"RSU vested: ${results['rsu_vested_value']:,.2f}")
-    print(f"Total Social Security + MA PFML: ${results['total_social_security']:,.2f}")
-    print(f"Medicare: ${results['medicare_charge']:,.2f}")
-    print(f"Medicare Surcharge: ${results['medicare_surcharge']:,.2f}")
-    print(f"State tax: ${results.get('state_tax', 0):,.2f}")
-    print(f"Take home pay: ${results['take_home_pay']:,.2f}")
+    print(f"\n=== Tax Summary for {tax_year} ===")
+    print(f"\nGross Income: ${results['gross_income']:,.2f}")
+    print(f"RSU Vested: ${results['rsu_vested_value']:,.2f}")
+    
+    print(f"\n--- Deductions ---")
+    deductions = results['deductions']
+    print(f"  Standard Deduction: ${deductions['standardDeduction']:,.2f}")
+    print(f"  401(k) Contribution: ${deductions['max401k']:,.2f}")
+    print(f"  HSA Contribution: ${deductions['maxHSA']:,.2f}")
+    print(f"  Medical/Dental/Vision: ${deductions['medicalDentalVision']:,.2f}")
+    print(f"  Total Deductions: ${results['total_deductions']:,.2f}")
+    
+    print(f"\nAdjusted Gross Income: ${results['adjusted_gross_income']:,.2f}")
+    
+    print(f"\n--- Federal Taxes ---")
+    print(f"  Ordinary Income Tax: ${results['ordinary_income_tax']:,.2f}")
+    print(f"  Long-Term Capital Gains Tax: ${results['long_term_capital_gains_tax']:,.2f}")
+    print(f"  Total Federal Tax: ${results['federal_tax']:,.2f}")
+    print(f"  Marginal Bracket: {results['marginal_bracket']:.2%}")
+    
+    print(f"\n--- Other Taxes ---")
+    print(f"  Social Security + MA PFML: ${results['total_social_security']:,.2f}")
+    print(f"  Medicare: ${results['medicare_charge']:,.2f}")
+    print(f"  Medicare Surcharge: ${results['medicare_surcharge']:,.2f}")
+    print(f"  State Tax: ${results.get('state_tax', 0):,.2f}")
+    
+    print(f"\n=== Take Home Pay: ${results['take_home_pay']:,.2f} ===")
 
     # calculation moved to `src/calc/take_home.py`
 

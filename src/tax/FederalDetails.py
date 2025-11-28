@@ -125,15 +125,24 @@ class FederalDetails:
 		# Should not reach here
 		raise ValueError("Income exceeds all bracket definitions.")
 
-	def totalDeductions(self, year: int) -> float:
+	def totalDeductions(self, year: int) -> dict:
 		"""
-		Returns the total deductions (standard deduction + max 401k + max HSA) for the given year.
+		Returns a dictionary with itemized deductions and total for the given year.
 		Uses specified values for years in the JSON, or inflated values for future years.
+		
+		Returns:
+			dict with keys: standardDeduction, max401k, maxHSA, total
 		"""
 		if year not in self.deductions_by_year:
 			raise ValueError(f"No deduction data available for year {year}")
 		d = self.deductions_by_year[year]
-		return d["standardDeduction"] + d["max401k"] + d["maxHSA"]
+		total = d["standardDeduction"] + d["max401k"] + d["maxHSA"]
+		return {
+			"standardDeduction": d["standardDeduction"],
+			"max401k": d["max401k"],
+			"maxHSA": d["maxHSA"],
+			"total": total
+		}
 
 	def longTermCapitalGainsTax(self, ordinary_taxable_income: float, ltcg_amount: float, year: int) -> float:
 		"""

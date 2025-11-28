@@ -17,15 +17,24 @@ class TestFederalDetails(unittest.TestCase):
         max_401k = 23500.00
         max_hsa = 8550.00
         base_total = std_ded + max_401k + max_hsa
+        
         # For 2025, no inflation applied
-        self.assertAlmostEqual(self.fed.totalDeductions(2025), base_total, places=2)
+        deductions_2025 = self.fed.totalDeductions(2025)
+        self.assertAlmostEqual(deductions_2025['standardDeduction'], std_ded, places=2)
+        self.assertAlmostEqual(deductions_2025['max401k'], max_401k, places=2)
+        self.assertAlmostEqual(deductions_2025['maxHSA'], max_hsa, places=2)
+        self.assertAlmostEqual(deductions_2025['total'], base_total, places=2)
 
         # For 2026, no inflation applied since it's explicitly specified
         std_ded_2026 = 32200.00
         max_401k_2026 = 24000.00
         max_hsa_2026 = 8806.50
         expected_2026 = std_ded_2026 + max_401k_2026 + max_hsa_2026
-        self.assertAlmostEqual(self.fed.totalDeductions(2026), expected_2026, places=2)
+        deductions_2026 = self.fed.totalDeductions(2026)
+        self.assertAlmostEqual(deductions_2026['standardDeduction'], std_ded_2026, places=2)
+        self.assertAlmostEqual(deductions_2026['max401k'], max_401k_2026, places=2)
+        self.assertAlmostEqual(deductions_2026['maxHSA'], max_hsa_2026, places=2)
+        self.assertAlmostEqual(deductions_2026['total'], expected_2026, places=2)
 
     def test_bracket_cache_years(self):
         # Should include 2025, 2026, 2027, 2028
