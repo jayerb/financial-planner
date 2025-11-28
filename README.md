@@ -21,7 +21,7 @@ Answer the prompts to enter your income, deductions, retirement plans, RSUs, ESP
 **Option B: Manual Configuration**
 Copy an existing example and modify it:
 ```bash
-cp -r input-parameters/program1 input-parameters/myplan
+cp -r input-parameters/myprogram input-parameters/myplan
 # Edit input-parameters/myplan/spec.json with your details
 ```
 
@@ -48,10 +48,7 @@ Create `.vscode/mcp.json` in your workspace:
     "financial-planner": {
       "type": "stdio",
       "command": "/path/to/.venv/bin/python",
-      "args": ["mcp-server/server.py"],
-      "env": {
-        "FINANCIAL_PLANNER_PROGRAM": "myprogram"
-      }
+      "args": ["mcp-server/server.py"]
     }
   }
 }
@@ -71,10 +68,7 @@ Edit your config file:
   "mcpServers": {
     "financial-planner": {
       "command": "python",
-      "args": ["/path/to/financial-planner/mcp-server/server.py"],
-      "env": {
-        "FINANCIAL_PLANNER_PROGRAM": "myprogram"
-      }
+      "args": ["/path/to/financial-planner/mcp-server/server.py"]
     }
   }
 }
@@ -86,7 +80,7 @@ Edit your config file:
 
 The server uses stdio transport. Run directly:
 ```bash
-FINANCIAL_PLANNER_PROGRAM=myprogram python mcp-server/server.py
+python mcp-server/server.py
 ```
 </details>
 
@@ -98,11 +92,11 @@ Once configured, ask your AI assistant questions like:
 - "What's my take-home pay in 2030?"
 - "How much federal tax will I pay in 2027?"
 - "Compare my income between 2025 and 2040"
-- "What's my effective tax rate for the quickexample program?"
+- "What's my effective tax rate for the myprogram program?"
 - "When do my deferred comp disbursements start?"
 - "What's my total lifetime tax burden?"
 
-The MCP server automatically discovers all programs in `input-parameters/` and you can query any of them by name.
+The MCP server automatically discovers **all programs** in `input-parameters/` at startup. You can query any of them by name, or omit the program name to use the first one found.
 
 ## Available MCP Tools
 
@@ -152,8 +146,7 @@ financial-planner/
 │   ├── server.py           # MCP server entry point
 │   └── tools.py            # Tool implementations
 ├── input-parameters/       # Your financial plan configurations
-│   ├── myprogram/          # Example plan
-│   └── program1/           # Another example
+│   └── myprogram/          # Example plan
 ├── reference/              # Tax brackets and statutory parameters
 └── tests/                  # Unit tests
 ```
