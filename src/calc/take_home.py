@@ -94,7 +94,14 @@ class TakeHomeCalculator:
             # RSU: add vested RSU value to gross income
             rsu_vested_value = self.rsu_calculator.vested_value.get(tax_year, 0)
             
-            medical_dental_vision = spec.get('deductions', {}).get('medicalDentalVision', 0)
+            # Medical/dental/vision with inflation
+            base_medical = spec.get('deductions', {}).get('medicalDentalVision', 0)
+            medical_inflation = spec.get('deductions', {}).get('medicalInflationRate', 0.0)
+            if years_from_first > 0 and medical_inflation > 0:
+                medical_dental_vision = base_medical * ((1 + medical_inflation) ** years_from_first)
+            else:
+                medical_dental_vision = base_medical
+            
             life_premium = spec.get('companyProvidedLifeInsurance', {}).get('annualPremium', 0)
             
             # No deferred comp disbursement during working years

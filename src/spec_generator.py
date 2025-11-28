@@ -405,6 +405,12 @@ def generate_spec(existing_spec: Optional[dict] = None) -> dict:
         default=ex_deductions.get('medicalDentalVision', 0.0)
     )
     
+    if deductions['medicalDentalVision'] > 0:
+        deductions['medicalInflationRate'] = prompt_percent(
+            "Expected annual medical cost inflation rate",
+            default=ex_deductions.get('medicalInflationRate', 0.05)
+        )
+    
     has_existing_deductions = len(ex_deductions) > 0
     if deductions['medicalDentalVision'] > 0 or prompt_yes_no("Add any deductions?", default=has_existing_deductions):
         spec['deductions'] = deductions

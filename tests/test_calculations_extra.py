@@ -12,6 +12,7 @@ def create_mock_federal():
         'standardDeduction': 10000,
         'max401k': 3000,
         'maxHSA': 2000,
+        'employeeHSA': 2000,
         'total': 15000
     }
     federal_result = Mock()
@@ -488,3 +489,118 @@ def test_capital_gains_default_to_zero():
     assert results['long_term_capital_gains_tax'] == 0
     # Gross income should just be base salary
     assert results['gross_income'] == base_salary
+
+
+def test_medical_inflation_applies_after_first_year():
+    """Test that medical costs are inflated for years after the first year."""
+    mock_federal = create_mock_federal()
+    mock_state = create_mock_state()
+    mock_espp = create_mock_espp()
+    mock_social_security = create_mock_social_security()
+    mock_medicare = create_mock_medicare()
+    mock_rsu = create_mock_rsu_calculator()
+    mock_rsu.vested_value = {2026: 0, 2027: 0, 2028: 0}
+
+    calculator = TakeHomeCalculator(
+        federal=mock_federal,
+        state=mock_state,
+        espp=mock_espp,
+        social_security=mock_social_security,
+        medicare=mock_medicare,
+        rsu_calculator=mock_rsu
+    )
+
+    base_salary = 100000
+    base_medical = 5000
+    medical_inflation = 0.10  # 10% inflation for easy calculation
+    
+    spec = create_spec(base_salary=base_salary, medical_dental_vision=base_medical)
+    spec['firstYear'] = 2026
+    spec['lastWorkingYear'] = 2030
+    spec['deductions']['medicalInflationRate'] = medical_inflation
+
+    # First year - should use base medical amount
+    results_2026 = calculator.calculate(spec, tax_year=2026)
+    assert results_2026['deductions']['medicalDentalVision'] == base_medical
+
+    # Second year - should be inflated by 10%
+    results_2027 = calculator.calculate(spec, tax_year=2027)
+    expected_2027 = base_medical * 1.10
+    assert abs(results_2027['deductions']['medicalDentalVision'] - expected_2027) < 0.01
+
+    # Third year - should be inflated by 10% twice
+    results_2028 = calculator.calculate(spec, tax_year=2028)
+    expected_2028 = base_medical * (1.10 ** 2)
+    assert abs(results_2028['deductions']['medicalDentalVision'] - expected_2028) < 0.01
+
+
+def test_medical_inflation_zero_rate_no_change():
+    """Test that medical costs don't change with zero inflation rate."""
+    mock_federal = create_mock_federal()
+    mock_state = create_mock_state()
+    mock_espp = create_mock_espp()
+    mock_social_security = create_mock_social_security()
+    mock_medicare = create_mock_medicare()
+    mock_rsu = create_mock_rsu_calculator()
+    mock_rsu.vested_value = {2026: 0, 2030: 0}
+
+    calculator = TakeHomeCalculator(
+        federal=mock_federal,
+        state=mock_state,
+        espp=mock_espp,
+        social_security=mock_social_security,
+        medicare=mock_medicare,
+        rsu_calculator=mock_rsu
+    )
+
+    base_salary = 100000
+    base_medical = 5000
+    
+    spec = create_spec(base_salary=base_salary, medical_dental_vision=base_medical)
+    spec['firstYear'] = 2026
+    spec['lastWorkingYear'] = 2030
+    spec['deductions']['medicalInflationRate'] = 0.0  # No inflation
+
+    # First year
+    results_2026 = calculator.calculate(spec, tax_year=2026)
+    assert results_2026['deductions']['medicalDentalVision'] == base_medical
+
+    # Later year - should still be same with 0% inflation
+    results_2030 = calculator.calculate(spec, tax_year=2030)
+    assert results_2030['deductions']['medicalDentalVision'] == base_medical
+
+
+def test_medical_inflation_not_set_defaults_to_no_inflation():
+    """Test that medical costs don't change when inflation rate is not set."""
+    mock_federal = create_mock_federal()
+    mock_state = create_mock_state()
+    mock_espp = create_mock_espp()
+    mock_social_security = create_mock_social_security()
+    mock_medicare = create_mock_medicare()
+    mock_rsu = create_mock_rsu_calculator()
+    mock_rsu.vested_value = {2026: 0, 2028: 0}
+
+    calculator = TakeHomeCalculator(
+        federal=mock_federal,
+        state=mock_state,
+        espp=mock_espp,
+        social_security=mock_social_security,
+        medicare=mock_medicare,
+        rsu_calculator=mock_rsu
+    )
+
+    base_salary = 100000
+    base_medical = 5000
+    
+    spec = create_spec(base_salary=base_salary, medical_dental_vision=base_medical)
+    spec['firstYear'] = 2026
+    spec['lastWorkingYear'] = 2030
+    # Do NOT set medicalInflationRate
+
+    # First year
+    results_2026 = calculator.calculate(spec, tax_year=2026)
+    assert results_2026['deductions']['medicalDentalVision'] == base_medical
+
+    # Later year - should still be same without inflation rate set
+    results_2028 = calculator.calculate(spec, tax_year=2028)
+    assert results_2028['deductions']['medicalDentalVision'] == base_medical
