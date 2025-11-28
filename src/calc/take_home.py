@@ -39,8 +39,16 @@ class TakeHomeCalculator:
         short_term_capital_gains = income_details.get('shortTermCapitalGains', 0)
         long_term_capital_gains = income_details.get('longTermCapitalGains', 0)
         
+        # Calculate deferred income contributions
+        base_deferral_fraction = income_details.get('baseDeferralFraction', 0)
+        bonus_deferral_fraction = income_details.get('bonusDeferralFraction', 0)
+        bonus_amount = base_salary * bonus_fraction
+        base_deferral = base_salary * base_deferral_fraction
+        bonus_deferral = bonus_amount * bonus_deferral_fraction
+        total_deferral = base_deferral + bonus_deferral
+        
         # Short-term capital gains are taxed as ordinary income
-        gross_income = base_salary + (base_salary * bonus_fraction) + other_income + short_term_capital_gains
+        gross_income = base_salary + bonus_amount + other_income + short_term_capital_gains
 
         # ESPP: use injected ESPPDetails
         espp_income = income_details.get('esppIncome', self.espp.taxable_from_spec(spec))
@@ -55,7 +63,9 @@ class TakeHomeCalculator:
         deductions['medicalDentalVision'] = medical_dental_vision
         deductions['total'] = deductions['total'] + medical_dental_vision
         total_deductions = deductions['total']
-        adjusted_gross_income = gross_income - total_deductions
+        
+        # Adjusted gross income for federal/state taxes includes deferral reduction
+        adjusted_gross_income = gross_income - total_deductions - total_deferral
 
         federal_result = self.federal.taxBurden(adjusted_gross_income, tax_year)
         federal_tax = federal_result.totalFederalTax
@@ -69,9 +79,11 @@ class TakeHomeCalculator:
         total_federal_tax = federal_tax + ltcg_tax
 
         # Social Security (LTCG is not subject to Social Security tax)
+        # Note: Deferrals do NOT reduce Social Security taxable income
         total_social_security = self.social_security.total_contribution(gross_income, tax_year)
 
         # Medicare
+        # Note: Deferrals do NOT reduce Medicare taxable income
         life_premium = spec.get('companyProvidedLifeInsurance', {}).get('annualPremium', 0)
         medicare_base = gross_income - medical_dental_vision + life_premium
         medicare_charge = self.medicare.base_contribution(medicare_base)
@@ -79,16 +91,22 @@ class TakeHomeCalculator:
         total_medicare = medicare_charge + medicare_surcharge
 
         # State tax: use injected StateDetails
-        state_income_tax = self.state.taxBurden(gross_income + long_term_capital_gains, medical_dental_vision, year=tax_year)
+        # State taxes are also reduced by deferrals (use adjusted_gross_income which includes deferral reduction)
+        state_taxable_income = gross_income - total_deferral + long_term_capital_gains
+        state_income_tax = self.state.taxBurden(state_taxable_income, medical_dental_vision, year=tax_year)
         state_short_term_capital_gains_tax = self.state.shortTermCapitalGainsTax(short_term_capital_gains)
         state_tax = state_income_tax + state_short_term_capital_gains_tax
 
-        take_home_pay = gross_income - total_federal_tax - total_social_security - total_medicare - state_tax
+        # Take home pay: gross income minus all taxes and deferrals (deferrals go to deferred account, not take-home)
+        take_home_pay = gross_income - total_federal_tax - total_social_security - total_medicare - state_tax - total_deferral
 
         return {
             'gross_income': gross_income,
             'total_deductions': total_deductions,
             'deductions': deductions,
+            'base_deferral': base_deferral,
+            'bonus_deferral': bonus_deferral,
+            'total_deferral': total_deferral,
             'adjusted_gross_income': adjusted_gross_income,
             'federal_result': federal_result,
             'federal_tax': total_federal_tax,
