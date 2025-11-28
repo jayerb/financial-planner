@@ -26,7 +26,22 @@ The main program reads a set of input parameters from a directory under `input-p
 ## How to Use
 
 1. Ensure you have Python 3 installed.
-2. From the root of the repository, run the main program with:
+
+2. **Option A: Interactive Setup (Recommended for new users)**
+
+   Run the interactive wizard to create your configuration:
+
+   ```bash
+   python src/Program.py --generate
+   ```
+
+   This will guide you through entering your financial planning parameters and create a `spec.json` file for you.
+
+3. **Option B: Manual Configuration**
+
+   Create your own `spec.json` file in a directory under `input-parameters/` (see existing examples like `myprogram/` or `program1/`).
+
+4. Run your financial plan:
 
   ```bash
   python src/Program.py <program_name>
@@ -34,12 +49,20 @@ The main program reads a set of input parameters from a directory under `input-p
 
   - Replace `<program_name>` with the name of the directory under `input-parameters/` that contains your `spec.json` file (e.g., `program1`).
 
-3. The program will read the parameters from `input-parameters/<program_name>/spec.json`, construct the tax bracket model, and print a confirmation message. (Future versions will allow you to specify income and get a tax burden calculation.)
+5. The program will read the parameters from `input-parameters/<program_name>/spec.json` and calculate your financial projections.
 
 ### Example
 
 ```bash
+# Create a new configuration interactively
+python src/Program.py --generate
+
+# Run an existing configuration
 python src/Program.py program1
+
+# Run with different output modes
+python src/Program.py program1 --mode Balances
+python src/Program.py program1 --mode AnnualSummary
 ```
 
 ## Project Structure
@@ -56,45 +79,42 @@ The project includes an **MCP (Model Context Protocol) server** that enables AI 
 
 ### Benefits
 
+- **Multi-program support**: Query any of your saved financial plans by name
 - **Natural language queries**: Ask questions like "What's my ESPP income for 2026?" or "Compare my taxes between 2025 and 2035"
 - **No command-line needed**: Get financial projections directly in your chat interface
 - **Real-time calculations**: All calculations are generated on the fly from your `spec.json` configuration
 - **Comprehensive data access**: Query income breakdowns, tax details, retirement balances, deferred compensation, and more
 
-### Available Tools
+### Quick Start
 
-| Tool | Description |
-|------|-------------|
-| `get_program_overview` | Overview of the financial plan including dates and income sources |
-| `list_available_years` | List all years in the plan (working vs retirement) |
-| `get_annual_summary` | Income and tax summary for a specific year |
-| `get_tax_details` | Detailed tax breakdown for a specific year |
-| `get_income_breakdown` | Detailed income sources for a specific year |
-| `get_deferred_comp_info` | Deferred compensation info for a specific year |
-| `get_retirement_balances` | 401(k) and deferred comp balances |
-| `compare_years` | Compare financial metrics between two years |
-| `get_lifetime_totals` | Lifetime totals across the planning horizon |
-| `search_financial_data` | Search for specific metrics (e.g., "ESPP income in 2029") |
+#### Step 1: Create Your Financial Plan
 
-### Running the MCP Server
+Before using the MCP server, you need at least one financial plan configuration:
 
-#### Prerequisites
+**Option A: Interactive Setup (Recommended)**
+```bash
+python src/Program.py --generate
+```
+This wizard will guide you through entering your income, deductions, retirement plans, and other financial details.
 
-Install the MCP package:
+**Option B: Manual Configuration**
+Create a `spec.json` file in a new folder under `input-parameters/` (see `input-parameters/myprogram/spec.json` for an example).
+
+#### Step 2: Install MCP Dependencies
 
 ```bash
 pip install mcp
-```
-
-Or install all dependencies:
-
-```bash
+# Or install all dependencies:
 pip install -r mcp-server/requirements.txt
 ```
 
-#### VS Code with GitHub Copilot
+#### Step 3: Configure Your AI Assistant
 
-Add the following to `.vscode/mcp.json` in your workspace:
+The MCP server automatically discovers all programs in `input-parameters/` and caches their calculations at startup.
+
+**For VS Code with GitHub Copilot:**
+
+Create or edit `.vscode/mcp.json` in your workspace:
 
 ```json
 {
@@ -111,14 +131,13 @@ Add the following to `.vscode/mcp.json` in your workspace:
 }
 ```
 
-Replace `/path/to/.venv/bin/python` with the path to your Python interpreter and set `FINANCIAL_PLANNER_PROGRAM` to your program folder name in `input-parameters/`.
+Replace `/path/to/.venv/bin/python` with your Python interpreter path. The `FINANCIAL_PLANNER_PROGRAM` sets the default program (optional).
 
-#### Claude Desktop
+**For Claude Desktop:**
 
-Add to your Claude Desktop config:
-
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`  
-**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+Edit your Claude Desktop config:
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`  
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
@@ -134,15 +153,40 @@ Add to your Claude Desktop config:
 }
 ```
 
-### Example Questions
+**For Other MCP Clients:**
 
-Once configured, you can ask your AI assistant:
+The server uses stdio transport and works with any MCP-compatible client. Run it with:
+```bash
+FINANCIAL_PLANNER_PROGRAM=myprogram python mcp-server/server.py
+```
 
+#### Step 4: Start Using It!
+
+Once configured, restart your AI assistant and start asking questions:
+
+- "What programs are available?"
 - "What's my take-home pay in 2030?"
-- "How much federal tax will I pay in 2027?"
-- "When do my deferred comp disbursements start?"
-- "What's my total lifetime tax burden?"
+- "How much federal tax will I pay in 2027 for the quickexample program?"
 - "Compare my income between 2025 and 2040"
+- "What's my total lifetime tax burden?"
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `list_programs` | List all available programs and their basic info |
+| `get_program_overview` | Overview of the financial plan including dates and income sources |
+| `list_available_years` | List all years in the plan (working vs retirement) |
+| `get_annual_summary` | Income and tax summary for a specific year |
+| `get_tax_details` | Detailed tax breakdown for a specific year |
+| `get_income_breakdown` | Detailed income sources for a specific year |
+| `get_deferred_comp_info` | Deferred compensation info for a specific year |
+| `get_retirement_balances` | 401(k) and deferred comp balances |
+| `compare_years` | Compare financial metrics between two years |
+| `get_lifetime_totals` | Lifetime totals across the planning horizon |
+| `search_financial_data` | Search for specific metrics (e.g., "ESPP income in 2029") |
+
+All tools accept an optional `program` parameter to specify which plan to query. If not specified, the default program is used.
 
 See `mcp-server/README.md` for more details.
 

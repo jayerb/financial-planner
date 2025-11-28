@@ -2,6 +2,12 @@
 
 This is an MCP (Model Context Protocol) server that exposes the financial planning calculations to AI assistants. Users can ask natural language questions about their financial plan and get accurate answers.
 
+## Features
+
+- **Multi-program support**: Query any program in `input-parameters/` by name
+- **Automatic discovery**: All programs are loaded and cached at startup
+- **Natural language queries**: Ask questions like "What's my take-home pay in 2030 for quickexample?"
+
 ## Installation
 
 1. Install the MCP package:
@@ -39,18 +45,19 @@ Add the following to your Claude Desktop config file:
 
 Replace `/path/to/financial-planner` with the actual path to your financial-planner directory.
 
-Set `FINANCIAL_PLANNER_PROGRAM` to the name of your program folder in `input-parameters/`.
+Set `FINANCIAL_PLANNER_PROGRAM` to set the default program (optional - if not set, the first discovered program will be used).
 
 ### For VS Code with GitHub Copilot
 
-Add to your VS Code settings (`.vscode/settings.json`):
+Add to `.vscode/mcp.json` in your workspace:
 
 ```json
 {
-  "github.copilot.chat.mcpServers": {
+  "servers": {
     "financial-planner": {
-      "command": "python",
-      "args": ["${workspaceFolder}/mcp-server/server.py"],
+      "type": "stdio",
+      "command": "/path/to/.venv/bin/python",
+      "args": ["mcp-server/server.py"],
       "env": {
         "FINANCIAL_PLANNER_PROGRAM": "myprogram"
       }
@@ -61,10 +68,11 @@ Add to your VS Code settings (`.vscode/settings.json`):
 
 ## Available Tools
 
-The MCP server provides the following tools:
+The MCP server provides the following tools. All tools accept an optional `program` parameter to specify which program to query:
 
 | Tool | Description |
 |------|-------------|
+| `list_programs` | List all available programs with their basic info |
 | `get_program_overview` | Overview of the financial plan including dates and income sources |
 | `list_available_years` | List all years in the plan (working vs retirement) |
 | `get_annual_summary` | Income and tax summary for a specific year |
@@ -80,14 +88,24 @@ The MCP server provides the following tools:
 
 Once configured, you can ask your AI assistant questions like:
 
+- "What programs are available?"
 - "How much is my ESPP income for 2029?"
+- "What's my take-home pay in 2030 for the quickexample program?"
 - "What's my effective tax rate in 2031?"
-- "Compare my take-home pay between 2025 and 2035"
+- "Compare my take-home pay between 2025 and 2035 for myprogram"
 - "When do my deferred comp disbursements start and end?"
 - "What's my total lifetime tax burden?"
 - "How much will I have in my 401(k) by 2050?"
 - "What's my RSU vested value in 2027?"
 - "Show me my federal tax breakdown for 2030"
+
+### Specifying a Program
+
+You can specify which program to query in your questions:
+- "What's my take-home pay in 2030 for **quickexample**?"
+- "Compare gross income for **program1** in 2026 vs 2030"
+
+If you don't specify a program, the default program will be used.
 
 ## Creating Your Own Program
 

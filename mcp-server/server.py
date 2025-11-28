@@ -18,26 +18,32 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
-from tools import FinancialPlannerTools
+from tools import MultiProgramTools
 
 
 # Create the MCP server
 server = Server("financial-planner")
 
 # Global tools instance (initialized on startup)
-tools: FinancialPlannerTools | None = None
+tools: MultiProgramTools | None = None
 
 
-def get_tools() -> FinancialPlannerTools:
+def get_tools() -> MultiProgramTools:
     """Get or initialize the tools instance."""
     global tools
     if tools is None:
-        # Default to looking for spec in input-parameters/myprogram/
-        # Can be overridden by FINANCIAL_PLANNER_PROGRAM env var
-        program_name = os.environ.get('FINANCIAL_PLANNER_PROGRAM', 'myprogram')
+        # Default program can be set via FINANCIAL_PLANNER_PROGRAM env var
+        default_program = os.environ.get('FINANCIAL_PLANNER_PROGRAM')
         base_path = os.path.join(os.path.dirname(__file__), '..')
-        tools = FinancialPlannerTools(base_path, program_name)
+        tools = MultiProgramTools(base_path, default_program)
     return tools
+
+
+# Common program parameter schema
+PROGRAM_PARAM = {
+    "type": "string",
+    "description": "The program name (folder in input-parameters). If not specified, uses the default program. Use list_programs to see available programs."
+}
 
 
 @server.list_tools()
@@ -45,11 +51,22 @@ async def list_tools() -> list[Tool]:
     """List available financial planning tools."""
     return [
         Tool(
+            name="list_programs",
+            description="List all available financial planning programs. Use this to see which programs are available and their basic info.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+        Tool(
             name="get_program_overview",
             description="Get an overview of the financial plan including key dates, income sources, and plan parameters. Use this first to understand the scope of the plan.",
             inputSchema={
                 "type": "object",
-                "properties": {},
+                "properties": {
+                    "program": PROGRAM_PARAM
+                },
                 "required": []
             }
         ),
@@ -58,7 +75,9 @@ async def list_tools() -> list[Tool]:
             description="List all years covered by the financial plan, indicating which are working years vs retirement years.",
             inputSchema={
                 "type": "object",
-                "properties": {},
+                "properties": {
+                    "program": PROGRAM_PARAM
+                },
                 "required": []
             }
         ),
@@ -71,7 +90,8 @@ async def list_tools() -> list[Tool]:
                     "year": {
                         "type": "integer",
                         "description": "The tax year to get summary for"
-                    }
+                    },
+                    "program": PROGRAM_PARAM
                 },
                 "required": ["year"]
             }
@@ -85,7 +105,8 @@ async def list_tools() -> list[Tool]:
                     "year": {
                         "type": "integer",
                         "description": "The tax year to get details for"
-                    }
+                    },
+                    "program": PROGRAM_PARAM
                 },
                 "required": ["year"]
             }
@@ -99,7 +120,8 @@ async def list_tools() -> list[Tool]:
                     "year": {
                         "type": "integer",
                         "description": "The tax year to get income breakdown for"
-                    }
+                    },
+                    "program": PROGRAM_PARAM
                 },
                 "required": ["year"]
             }
@@ -113,7 +135,8 @@ async def list_tools() -> list[Tool]:
                     "year": {
                         "type": "integer",
                         "description": "The year to get deferred comp info for"
-                    }
+                    },
+                    "program": PROGRAM_PARAM
                 },
                 "required": ["year"]
             }
@@ -127,7 +150,8 @@ async def list_tools() -> list[Tool]:
                     "year": {
                         "type": "integer",
                         "description": "Optional: specific year to get balances for. If omitted, returns all years."
-                    }
+                    },
+                    "program": PROGRAM_PARAM
                 },
                 "required": []
             }
@@ -145,7 +169,8 @@ async def list_tools() -> list[Tool]:
                     "year2": {
                         "type": "integer",
                         "description": "Second year to compare"
-                    }
+                    },
+                    "program": PROGRAM_PARAM
                 },
                 "required": ["year1", "year2"]
             }
@@ -155,7 +180,9 @@ async def list_tools() -> list[Tool]:
             description="Get lifetime totals for income, taxes, and take-home pay across the entire planning horizon.",
             inputSchema={
                 "type": "object",
-                "properties": {},
+                "properties": {
+                    "program": PROGRAM_PARAM
+                },
                 "required": []
             }
         ),
@@ -172,7 +199,8 @@ async def list_tools() -> list[Tool]:
                     "year": {
                         "type": "integer",
                         "description": "Optional: specific year to search in"
-                    }
+                    },
+                    "program": PROGRAM_PARAM
                 },
                 "required": ["query"]
             }
@@ -185,29 +213,33 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     """Handle tool calls."""
     try:
         fp_tools = get_tools()
+        program = arguments.get("program")
         
-        if name == "get_program_overview":
-            result = fp_tools.get_program_overview()
+        if name == "list_programs":
+            result = fp_tools.list_programs()
+        elif name == "get_program_overview":
+            result = fp_tools.get_program_overview(program)
         elif name == "list_available_years":
-            result = fp_tools.list_available_years()
+            result = fp_tools.list_available_years(program)
         elif name == "get_annual_summary":
-            result = fp_tools.get_annual_summary(arguments["year"])
+            result = fp_tools.get_annual_summary(arguments["year"], program)
         elif name == "get_tax_details":
-            result = fp_tools.get_tax_details(arguments["year"])
+            result = fp_tools.get_tax_details(arguments["year"], program)
         elif name == "get_income_breakdown":
-            result = fp_tools.get_income_breakdown(arguments["year"])
+            result = fp_tools.get_income_breakdown(arguments["year"], program)
         elif name == "get_deferred_comp_info":
-            result = fp_tools.get_deferred_comp_info(arguments["year"])
+            result = fp_tools.get_deferred_comp_info(arguments["year"], program)
         elif name == "get_retirement_balances":
-            result = fp_tools.get_retirement_balances(arguments.get("year"))
+            result = fp_tools.get_retirement_balances(arguments.get("year"), program)
         elif name == "compare_years":
-            result = fp_tools.compare_years(arguments["year1"], arguments["year2"])
+            result = fp_tools.compare_years(arguments["year1"], arguments["year2"], program)
         elif name == "get_lifetime_totals":
-            result = fp_tools.get_lifetime_totals()
+            result = fp_tools.get_lifetime_totals(program)
         elif name == "search_financial_data":
             result = fp_tools.search_financial_data(
                 arguments["query"],
-                arguments.get("year")
+                arguments.get("year"),
+                program
             )
         else:
             result = {"error": f"Unknown tool: {name}"}

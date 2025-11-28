@@ -37,10 +37,11 @@ class RSUCalculator:
             stock_price = first_year_stock_price * ((1 + expected_share_price_growth_fraction) ** (year - first_year))
             stock_prices[year] = stock_price
             grant_value = first_year_grant_value * ((1 + annual_grant_increase) ** (year - first_year))
-            grants.append({'year': year,
-                           'grantShares': (grant_value) / 
-                                          stock_price,
-                           'vestingPeriodYears': 4})
+            # Only add grants if both grant_value and stock_price are positive
+            if grant_value > 0 and stock_price > 0:
+                grants.append({'year': year,
+                               'grantShares': grant_value / stock_price,
+                               'vestingPeriodYears': 4})
 
         """ collect vesting amounts for each year in the program """
         for grant in grants:

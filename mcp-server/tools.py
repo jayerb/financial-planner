@@ -495,3 +495,130 @@ class FinancialPlannerTools:
                     all_years_data["years"][yr] = year_data
             
             return all_years_data
+
+
+class MultiProgramTools:
+    """Manager for multiple financial planning programs.
+    
+    Discovers all available programs and caches their calculations,
+    allowing queries to specify which program to use.
+    """
+    
+    def __init__(self, base_path: str, default_program: Optional[str] = None):
+        """Initialize and discover all available programs.
+        
+        Args:
+            base_path: Path to the financial-planner root directory
+            default_program: Default program to use when none specified
+        """
+        self.base_path = base_path
+        self.programs: Dict[str, FinancialPlannerTools] = {}
+        self.default_program = default_program
+        self._discover_programs()
+    
+    def _discover_programs(self):
+        """Discover and load all available programs."""
+        input_params_path = os.path.join(self.base_path, 'input-parameters')
+        
+        if not os.path.exists(input_params_path):
+            return
+        
+        for name in os.listdir(input_params_path):
+            program_dir = os.path.join(input_params_path, name)
+            spec_path = os.path.join(program_dir, 'spec.json')
+            
+            if os.path.isdir(program_dir) and os.path.exists(spec_path):
+                try:
+                    self.programs[name] = FinancialPlannerTools(self.base_path, name)
+                except Exception as e:
+                    # Log but don't fail on individual program errors
+                    print(f"Warning: Failed to load program '{name}': {e}", file=sys.stderr)
+        
+        # Set default if not specified
+        if self.default_program is None and self.programs:
+            self.default_program = list(self.programs.keys())[0]
+    
+    def _get_program(self, program: Optional[str] = None) -> FinancialPlannerTools:
+        """Get the specified program or default."""
+        program_name = program or self.default_program
+        
+        if program_name not in self.programs:
+            available = list(self.programs.keys())
+            raise ValueError(
+                f"Program '{program_name}' not found. Available programs: {available}"
+            )
+        
+        return self.programs[program_name]
+    
+    def list_programs(self) -> dict:
+        """List all available programs."""
+        programs_info = {}
+        for name, tools in self.programs.items():
+            programs_info[name] = {
+                "first_year": tools.first_year,
+                "last_working_year": tools.last_working_year,
+                "last_planning_year": tools.last_planning_year,
+                "base_salary": tools.spec.get('income', {}).get('baseSalary', 0)
+            }
+        
+        return {
+            "available_programs": list(self.programs.keys()),
+            "default_program": self.default_program,
+            "programs_info": programs_info
+        }
+    
+    def get_program_overview(self, program: Optional[str] = None) -> dict:
+        """Get an overview of the specified financial plan."""
+        return self._get_program(program).get_program_overview()
+    
+    def list_available_years(self, program: Optional[str] = None) -> dict:
+        """List all years in the specified plan."""
+        return self._get_program(program).list_available_years()
+    
+    def get_annual_summary(self, year: int, program: Optional[str] = None) -> dict:
+        """Get income and tax summary for a specific year."""
+        result = self._get_program(program).get_annual_summary(year)
+        result["program"] = program or self.default_program
+        return result
+    
+    def get_tax_details(self, year: int, program: Optional[str] = None) -> dict:
+        """Get detailed tax breakdown for a specific year."""
+        result = self._get_program(program).get_tax_details(year)
+        result["program"] = program or self.default_program
+        return result
+    
+    def get_income_breakdown(self, year: int, program: Optional[str] = None) -> dict:
+        """Get detailed income breakdown for a specific year."""
+        result = self._get_program(program).get_income_breakdown(year)
+        result["program"] = program or self.default_program
+        return result
+    
+    def get_deferred_comp_info(self, year: int, program: Optional[str] = None) -> dict:
+        """Get deferred compensation information for a specific year."""
+        result = self._get_program(program).get_deferred_comp_info(year)
+        result["program"] = program or self.default_program
+        return result
+    
+    def get_retirement_balances(self, year: Optional[int] = None, program: Optional[str] = None) -> dict:
+        """Get 401(k) and deferred comp balances."""
+        result = self._get_program(program).get_retirement_balances(year)
+        result["program"] = program or self.default_program
+        return result
+    
+    def compare_years(self, year1: int, year2: int, program: Optional[str] = None) -> dict:
+        """Compare financial metrics between two years."""
+        result = self._get_program(program).compare_years(year1, year2)
+        result["program"] = program or self.default_program
+        return result
+    
+    def get_lifetime_totals(self, program: Optional[str] = None) -> dict:
+        """Get lifetime totals across the planning horizon."""
+        result = self._get_program(program).get_lifetime_totals()
+        result["program"] = program or self.default_program
+        return result
+    
+    def search_financial_data(self, query: str, year: Optional[int] = None, program: Optional[str] = None) -> dict:
+        """Search for specific financial metrics based on a query."""
+        result = self._get_program(program).search_financial_data(query, year)
+        result["program"] = program or self.default_program
+        return result

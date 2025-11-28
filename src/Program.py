@@ -12,6 +12,7 @@ from calc.rsu_calculator import RSUCalculator
 from calc.balance_calculator import BalanceCalculator
 from calc.deferred_comp_calculator import DeferredCompCalculator
 from render.renderers import TaxDetailsRenderer, BalancesRenderer, AnnualSummaryRenderer, RENDERER_REGISTRY
+from spec_generator import run_generator
 
 
 def calculate_yearly_deferrals(calculator: TakeHomeCalculator, spec: dict) -> dict:
@@ -53,15 +54,35 @@ Examples:
   python src/Program.py myprogram --mode TaxDetails
   python src/Program.py myprogram --mode Balances
   python src/Program.py myprogram --mode AnnualSummary
+  python src/Program.py --generate
         """
     )
-    parser.add_argument('program_name', help='Name of the program (folder in input-parameters)')
+    parser.add_argument('program_name', nargs='?', help='Name of the program (folder in input-parameters)')
     parser.add_argument('--mode', '-m', 
                         choices=list(RENDERER_REGISTRY.keys()), 
                         default='TaxDetails',
                         help='Output mode: TaxDetails (default) or Balances')
+    parser.add_argument('--generate', '-g',
+                        action='store_true',
+                        help='Launch interactive wizard to create a new spec.json configuration')
     
     args = parser.parse_args()
+    
+    # If --generate flag is set, run the interactive generator
+    if args.generate:
+        program_name = run_generator()
+        if program_name is None:
+            sys.exit(0)
+        # Ask if user wants to run the plan
+        run_plan = input("Would you like to run the plan now? [Y/n]: ").strip().lower()
+        if run_plan in ('', 'y', 'yes'):
+            args.program_name = program_name
+        else:
+            sys.exit(0)
+    
+    # Require program_name if not generating
+    if not args.program_name:
+        parser.error("program_name is required (or use --generate to create a new configuration)")
     
     program_name = args.program_name
     # Build path to spec.json
