@@ -114,14 +114,20 @@ class FederalDetails:
 	def taxBurden(self, income: float, year: int) -> FederalResult:
 		"""
 		Returns a FederalResult with the total federal tax burden and marginal bracket for a given income and year.
+		Federal income tax cannot be negative - if taxable income is zero or negative, tax is $0.
 		"""
 		if year not in self.brackets_by_year:
 			raise ValueError(f"No tax brackets available for year {year}")
+		
+		# Federal income tax cannot be negative
+		if income <= 0:
+			return FederalResult(totalFederalTax=0, marginalBracket=0)
+		
 		brackets = self.brackets_by_year[year]
 		for b in brackets:
 			if income <= b["maxIncome"]:
 				total_tax = b["baseAmount"] + (income - (0 if brackets.index(b) == 0 else brackets[brackets.index(b)-1]["maxIncome"])) * b["rate"]
-				return FederalResult(totalFederalTax=total_tax, marginalBracket=b["rate"])
+				return FederalResult(totalFederalTax=max(0, total_tax), marginalBracket=b["rate"])
 		# Should not reach here
 		raise ValueError("Income exceeds all bracket definitions.")
 

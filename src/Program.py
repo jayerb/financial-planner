@@ -10,7 +10,7 @@ from tax.MedicareDetails import MedicareDetails
 from calc.take_home import TakeHomeCalculator
 from calc.rsu_calculator import RSUCalculator
 from calc.balance_calculator import BalanceCalculator
-from render.renderers import TaxDetailsRenderer, BalancesRenderer, RENDERER_REGISTRY
+from render.renderers import TaxDetailsRenderer, BalancesRenderer, AnnualSummaryRenderer, RENDERER_REGISTRY
 
 
 def main():
@@ -19,13 +19,15 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Modes:
-  TaxDetails  Print detailed tax breakdown for the first year (default)
-  Balances    Print accumulated balances for 401(k) and deferred compensation plans
+  TaxDetails     Print detailed tax breakdown for the first year (default)
+  Balances       Print accumulated balances for 401(k) and deferred compensation plans
+  AnnualSummary  Print summary table of income and tax burden for each working year
 
 Examples:
   python src/Program.py myprogram
   python src/Program.py myprogram --mode TaxDetails
   python src/Program.py myprogram --mode Balances
+  python src/Program.py myprogram --mode AnnualSummary
         """
     )
     parser.add_argument('program_name', help='Name of the program (folder in input-parameters)')
@@ -94,6 +96,13 @@ Examples:
         balance_result = balance_calculator.calculate(spec)
         renderer = BalancesRenderer()
         renderer.render(balance_result)
+    elif args.mode == 'AnnualSummary':
+        last_planning_year = spec.get('lastPlanningYear', tax_year + 30)
+        yearly_results = {}
+        for year in range(tax_year, last_planning_year + 1):
+            yearly_results[year] = calculator.calculate(spec, year)
+        renderer = AnnualSummaryRenderer()
+        renderer.render(yearly_results)
 
 if __name__ == "__main__":
     main()

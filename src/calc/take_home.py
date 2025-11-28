@@ -32,36 +32,65 @@ class TakeHomeCalculator:
         if final_year is None or inflation_rate is None:
             raise ValueError("spec must contain 'lastYear' and 'federalBracketInflation' fields.")
 
+        first_year = spec.get('firstYear', 2026)
+        last_working_year = spec.get('lastWorkingYear', first_year + 10)
+        is_working_year = tax_year <= last_working_year
+
         income_details = spec.get('income', {})
-        base_salary = income_details.get('baseSalary', 0)
-        bonus_fraction = income_details.get('bonusFraction', 0)
-        other_income = income_details.get('otherIncome', 0)
         short_term_capital_gains = income_details.get('shortTermCapitalGains', 0)
         long_term_capital_gains = income_details.get('longTermCapitalGains', 0)
         
-        # Calculate deferred income contributions
-        base_deferral_fraction = income_details.get('baseDeferralFraction', 0)
-        bonus_deferral_fraction = income_details.get('bonusDeferralFraction', 0)
-        bonus_amount = base_salary * bonus_fraction
-        base_deferral = base_salary * base_deferral_fraction
-        bonus_deferral = bonus_amount * bonus_deferral_fraction
-        total_deferral = base_deferral + bonus_deferral
+        # Working income only applies during working years
+        if is_working_year:
+            base_salary = income_details.get('baseSalary', 0)
+            bonus_fraction = income_details.get('bonusFraction', 0)
+            other_income = income_details.get('otherIncome', 0)
+            
+            # Calculate deferred income contributions
+            base_deferral_fraction = income_details.get('baseDeferralFraction', 0)
+            bonus_deferral_fraction = income_details.get('bonusDeferralFraction', 0)
+            bonus_amount = base_salary * bonus_fraction
+            base_deferral = base_salary * base_deferral_fraction
+            bonus_deferral = bonus_amount * bonus_deferral_fraction
+            total_deferral = base_deferral + bonus_deferral
+            
+            # ESPP: use injected ESPPDetails
+            espp_income = income_details.get('esppIncome', self.espp.taxable_from_spec(spec))
+            
+            # RSU: add vested RSU value to gross income
+            rsu_vested_value = self.rsu_calculator.vested_value.get(tax_year, 0)
+            
+            medical_dental_vision = spec.get('deductions', {}).get('medicalDentalVision', 0)
+            life_premium = spec.get('companyProvidedLifeInsurance', {}).get('annualPremium', 0)
+        else:
+            # Post-working years: no salary, bonus, deferrals, ESPP, or RSUs
+            base_salary = 0
+            bonus_amount = 0
+            other_income = 0
+            base_deferral = 0
+            bonus_deferral = 0
+            total_deferral = 0
+            espp_income = 0
+            rsu_vested_value = 0
+            medical_dental_vision = 0
+            life_premium = 0
         
         # Short-term capital gains are taxed as ordinary income
         gross_income = base_salary + bonus_amount + other_income + short_term_capital_gains
-
-        # ESPP: use injected ESPPDetails
-        espp_income = income_details.get('esppIncome', self.espp.taxable_from_spec(spec))
         gross_income = gross_income + espp_income
-
-        # RSU: add vested RSU value to gross income
-        rsu_vested_value = self.rsu_calculator.vested_value[tax_year]
         gross_income = gross_income + rsu_vested_value
 
         deductions = self.federal.totalDeductions(tax_year)
-        medical_dental_vision = spec.get('deductions', {}).get('medicalDentalVision', 0)
-        deductions['medicalDentalVision'] = medical_dental_vision
-        deductions['total'] = deductions['total'] + medical_dental_vision
+        # Only include medical deductions during working years
+        if is_working_year:
+            deductions['medicalDentalVision'] = medical_dental_vision
+            deductions['total'] = deductions['total'] + medical_dental_vision
+        else:
+            # Post-working: no 401k or HSA contributions, only standard deduction
+            deductions['max401k'] = 0
+            deductions['maxHSA'] = 0
+            deductions['medicalDentalVision'] = 0
+            deductions['total'] = deductions['standardDeduction']
         total_deductions = deductions['total']
         
         # Adjusted gross income for federal/state taxes includes deferral reduction
@@ -84,7 +113,6 @@ class TakeHomeCalculator:
 
         # Medicare
         # Note: Deferrals do NOT reduce Medicare taxable income
-        life_premium = spec.get('companyProvidedLifeInsurance', {}).get('annualPremium', 0)
         medicare_base = gross_income - medical_dental_vision + life_premium
         medicare_charge = self.medicare.base_contribution(medicare_base)
         medicare_surcharge = self.medicare.surcharge(gross_income)

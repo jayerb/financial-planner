@@ -54,7 +54,7 @@ class RSUCalculator:
                         self.vesting_schedule[year] = 0
                     self.vesting_schedule[year] += grant_shares / vesting_period
         # now, start calculating the vesting schedule for future grants
-        for year in range(first_year, last_year):
-            self.vested_value[year] = self.vesting_schedule[year] * stock_prices[year]
+        for year in range(first_year, last_year + 1):
+            self.vested_value[year] = self.vesting_schedule.get(year, 0) * stock_prices[year]
     
 

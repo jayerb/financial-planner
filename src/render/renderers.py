@@ -165,8 +165,66 @@ class BalancesRenderer(BaseRenderer):
         print()
 
 
+class AnnualSummaryRenderer(BaseRenderer):
+    """Renderer for annual income and tax burden summary table."""
+    
+    def render(self, yearly_results: Dict[int, Dict]) -> None:
+        """Render a summary table of income and taxes for each year.
+        
+        Args:
+            yearly_results: Dictionary mapping year to tax calculation results
+        """
+        print()
+        print("=" * 110)
+        print(f"{'ANNUAL INCOME AND TAX SUMMARY':^110}")
+        print("=" * 110)
+        print()
+        print(f"  {'Year':<6} {'Gross Income':>14} {'Federal Tax':>14} {'FICA':>14} {'State Tax':>14} {'Total Tax':>14} {'Eff Rate':>10} {'Take Home':>14}")
+        print(f"  {'-' * 6} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 10} {'-' * 14}")
+        
+        total_gross = 0
+        total_federal = 0
+        total_fica = 0
+        total_state = 0
+        total_taxes = 0
+        total_take_home = 0
+        
+        for year in sorted(yearly_results.keys()):
+            results = yearly_results[year]
+            
+            gross_income = results['gross_income']
+            federal_tax = results['federal_tax']
+            fica = results['total_social_security'] + results['medicare_charge'] + results['medicare_surcharge']
+            state_tax = results.get('state_tax', 0)
+            year_total_tax = federal_tax + fica + state_tax
+            take_home = results['take_home_pay']
+            
+            # Effective tax rate
+            eff_rate = year_total_tax / gross_income if gross_income > 0 else 0
+            
+            print(f"  {year:<6} ${gross_income:>12,.0f} ${federal_tax:>12,.0f} ${fica:>12,.0f} ${state_tax:>12,.0f} ${year_total_tax:>12,.0f} {eff_rate:>9.1%} ${take_home:>12,.0f}")
+            
+            total_gross += gross_income
+            total_federal += federal_tax
+            total_fica += fica
+            total_state += state_tax
+            total_taxes += year_total_tax
+            total_take_home += take_home
+        
+        print(f"  {'-' * 6} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 10} {'-' * 14}")
+        
+        # Calculate overall effective rate
+        overall_eff_rate = total_taxes / total_gross if total_gross > 0 else 0
+        
+        print(f"  {'TOTAL':<6} ${total_gross:>12,.0f} ${total_federal:>12,.0f} ${total_fica:>12,.0f} ${total_state:>12,.0f} ${total_taxes:>12,.0f} {overall_eff_rate:>9.1%} ${total_take_home:>12,.0f}")
+        print()
+        print("=" * 110)
+        print()
+
+
 # Registry mapping mode names to renderer classes
 RENDERER_REGISTRY = {
     'TaxDetails': TaxDetailsRenderer,
     'Balances': BalancesRenderer,
+    'AnnualSummary': AnnualSummaryRenderer,
 }
