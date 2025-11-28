@@ -1,0 +1,172 @@
+"""Renderer classes for displaying financial planning results.
+
+This module contains renderer classes that handle the presentation logic
+for different types of financial planning outputs. Each renderer takes
+calculated results and formats them for display.
+"""
+
+from abc import ABC, abstractmethod
+from typing import Dict, Any
+
+from calc.balance_calculator import BalanceResult
+
+
+class BaseRenderer(ABC):
+    """Abstract base class for all renderers."""
+    
+    @abstractmethod
+    def render(self, data: Any) -> None:
+        """Render the data to output.
+        
+        Args:
+            data: The data to render (type depends on the specific renderer)
+        """
+        pass
+
+
+class TaxDetailsRenderer(BaseRenderer):
+    """Renderer for detailed tax breakdown display."""
+    
+    def __init__(self, tax_year: int):
+        """Initialize with the tax year to display.
+        
+        Args:
+            tax_year: The tax year for the results being rendered
+        """
+        self.tax_year = tax_year
+    
+    def render(self, results: Dict) -> None:
+        """Render the tax details breakdown.
+        
+        Args:
+            results: Dictionary containing tax calculation results from TakeHomeCalculator
+        """
+        # Calculate total taxes for summary
+        total_federal = results['federal_tax']
+        total_fica = results['total_social_security'] + results['medicare_charge'] + results['medicare_surcharge']
+        total_state = results.get('state_tax', 0)
+        total_taxes = total_federal + total_fica + total_state
+
+        print()
+        print("=" * 60)
+        print(f"{'TAX SUMMARY FOR ' + str(self.tax_year):^60}")
+        print("=" * 60)
+        
+        print()
+        print("-" * 60)
+        print("INCOME")
+        print("-" * 60)
+        print(f"  {'Gross Income:':<40} ${results['gross_income']:>14,.2f}")
+        print(f"  {'RSU Vested:':<40} ${results['rsu_vested_value']:>14,.2f}")
+        
+        print()
+        print("-" * 60)
+        print("DEDUCTIONS")
+        print("-" * 60)
+        deductions = results['deductions']
+        print(f"  {'Standard Deduction:':<40} ${deductions['standardDeduction']:>14,.2f}")
+        print(f"  {'401(k) Contribution:':<40} ${deductions['max401k']:>14,.2f}")
+        print(f"  {'HSA Contribution:':<40} ${deductions['maxHSA']:>14,.2f}")
+        print(f"  {'Medical/Dental/Vision:':<40} ${deductions['medicalDentalVision']:>14,.2f}")
+        print(f"  {'-' * 40}")
+        print(f"  {'Total Deductions:':<40} ${results['total_deductions']:>14,.2f}")
+        
+        print()
+        print("-" * 60)
+        print("DEFERRED INCOME (reduces Federal/State tax only)")
+        print("-" * 60)
+        print(f"  {'Base Salary Deferral:':<40} ${results.get('base_deferral', 0):>14,.2f}")
+        print(f"  {'Bonus Deferral:':<40} ${results.get('bonus_deferral', 0):>14,.2f}")
+        print(f"  {'-' * 40}")
+        print(f"  {'Total Deferred:':<40} ${results.get('total_deferral', 0):>14,.2f}")
+        
+        print()
+        print(f"  {'Adjusted Gross Income:':<40} ${results['adjusted_gross_income']:>14,.2f}")
+        
+        print()
+        print("-" * 60)
+        print("FEDERAL TAXES")
+        print("-" * 60)
+        print(f"  {'Ordinary Income Tax:':<40} ${results['ordinary_income_tax']:>14,.2f}")
+        print(f"  {'Long-Term Capital Gains Tax:':<40} ${results['long_term_capital_gains_tax']:>14,.2f}")
+        print(f"  {'-' * 40}")
+        print(f"  {'Total Federal Tax:':<40} ${results['federal_tax']:>14,.2f}")
+        print(f"  {'Marginal Bracket:':<40} {results['marginal_bracket']:>14.2%}")
+        
+        print()
+        print("-" * 60)
+        print("FICA TAXES")
+        print("-" * 60)
+        print(f"  {'Social Security + MA PFML:':<40} ${results['total_social_security']:>14,.2f}")
+        print(f"  {'Medicare:':<40} ${results['medicare_charge']:>14,.2f}")
+        print(f"  {'Medicare Surcharge:':<40} ${results['medicare_surcharge']:>14,.2f}")
+        print(f"  {'-' * 40}")
+        print(f"  {'Total FICA:':<40} ${total_fica:>14,.2f}")
+        
+        print()
+        print("-" * 60)
+        print("STATE TAXES")
+        print("-" * 60)
+        print(f"  {'State Income Tax:':<40} ${results.get('state_income_tax', 0):>14,.2f}")
+        print(f"  {'State Short-Term Capital Gains Tax:':<40} ${results.get('state_short_term_capital_gains_tax', 0):>14,.2f}")
+        print(f"  {'-' * 40}")
+        print(f"  {'Total State Tax:':<40} ${total_state:>14,.2f}")
+        
+        print()
+        print("=" * 60)
+        print("SUMMARY")
+        print("=" * 60)
+        total_deferral = results.get('total_deferral', 0)
+        print(f"  {'Gross Income:':<40} ${results['gross_income']:>14,.2f}")
+        print(f"  {'Total Deductions:':<40} ${results['total_deductions']:>14,.2f}")
+        print(f"  {'Total Deferred Income:':<40} ${total_deferral:>14,.2f}")
+        print(f"  {'Total Federal Tax:':<40} ${total_federal:>14,.2f}")
+        print(f"  {'Total FICA:':<40} ${total_fica:>14,.2f}")
+        print(f"  {'Total State Tax:':<40} ${total_state:>14,.2f}")
+        print(f"  {'-' * 40}")
+        print(f"  {'TOTAL TAXES PAID:':<40} ${total_taxes:>14,.2f}")
+        print(f"  {'TOTAL TO DEFERRED ACCOUNT:':<40} ${total_deferral:>14,.2f}")
+        print()
+        print("=" * 60)
+        print(f"{'TAKE HOME PAY:':^44} ${results['take_home_pay']:>14,.2f}")
+        print("=" * 60)
+        print()
+
+
+class BalancesRenderer(BaseRenderer):
+    """Renderer for accumulated balance display."""
+    
+    def render(self, result: BalanceResult) -> None:
+        """Render the accumulated balances.
+        
+        Args:
+            result: BalanceResult containing yearly balances and final totals
+        """
+        print()
+        print("=" * 80)
+        print(f"{'ACCUMULATED BALANCES':^80}")
+        print("=" * 80)
+        print()
+        print(f"  {'Year':<8} {'401(k) Contrib':>16} {'401(k) Balance':>18} {'Deferred Contrib':>18} {'Deferred Balance':>18}")
+        print(f"  {'-' * 8} {'-' * 16} {'-' * 18} {'-' * 18} {'-' * 18}")
+        
+        for yb in result.yearly_balances:
+            print(f"  {yb.year:<8} ${yb.contrib_401k:>14,.2f} ${yb.balance_401k:>16,.2f} ${yb.deferred_contrib:>16,.2f} ${yb.deferred_balance:>16,.2f}")
+        
+        print()
+        print("=" * 80)
+        print(f"{'FINAL BALANCES':^80}")
+        print("=" * 80)
+        print(f"  {'401(k) Balance:':<40} ${result.final_401k_balance:>18,.2f}")
+        print(f"  {'Deferred Compensation Balance:':<40} ${result.final_deferred_balance:>18,.2f}")
+        print(f"  {'-' * 60}")
+        print(f"  {'TOTAL RETIREMENT ASSETS:':<40} ${result.total_retirement_assets:>18,.2f}")
+        print("=" * 80)
+        print()
+
+
+# Registry mapping mode names to renderer classes
+RENDERER_REGISTRY = {
+    'TaxDetails': TaxDetailsRenderer,
+    'Balances': BalancesRenderer,
+}
