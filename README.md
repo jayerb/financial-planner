@@ -89,14 +89,14 @@ python mcp-server/server.py
 Once configured, ask your AI assistant questions like:
 
 - "What programs are available?"
-- "What's my take-home pay in 2030?"
-- "How much federal tax will I pay in 2027?"
-- "Compare my income between 2025 and 2040"
-- "What's my effective tax rate for the myprogram program?"
-- "When do my deferred comp disbursements start?"
-- "What's my total lifetime tax burden?"
+- "What's my take-home pay in 2030 for myprogram?"
+- "How much federal tax will I pay in 2027 for quickexample?"
+- "Compare my income between 2025 and 2040 for myprogram"
+- "What's my effective tax rate for myprogram?"
+- "When do my deferred comp disbursements start for myprogram?"
+- "What's my total lifetime tax burden for myprogram?"
 
-The MCP server automatically discovers **all programs** in `input-parameters/` at startup. You can query any of them by name, or omit the program name to use the first one found.
+The MCP server automatically discovers **all programs** in `input-parameters/` at startup. When multiple programs exist, you must specify which program to query by including the program name in your question.
 
 ## Available MCP Tools
 

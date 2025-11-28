@@ -538,8 +538,19 @@ class MultiProgramTools:
         if self.default_program is None and self.programs:
             self.default_program = list(self.programs.keys())[0]
     
-    def _get_program(self, program: Optional[str] = None) -> FinancialPlannerTools:
-        """Get the specified program or default."""
+    def _get_program(self, program: Optional[str] = None, require_explicit: bool = False) -> FinancialPlannerTools:
+        """Get the specified program or default.
+        
+        Args:
+            program: Program name to use, or None for default
+            require_explicit: If True, raise error when program not specified and multiple exist
+        """
+        if program is None and len(self.programs) > 1 and require_explicit:
+            available = list(self.programs.keys())
+            raise ValueError(
+                f"Multiple programs available: {available}. Please specify which program to query."
+            )
+        
         program_name = program or self.default_program
         
         if program_name not in self.programs:
@@ -569,56 +580,60 @@ class MultiProgramTools:
     
     def get_program_overview(self, program: Optional[str] = None) -> dict:
         """Get an overview of the specified financial plan."""
-        return self._get_program(program).get_program_overview()
+        result = self._get_program(program, require_explicit=True).get_program_overview()
+        result["program"] = program or self.default_program
+        return result
     
     def list_available_years(self, program: Optional[str] = None) -> dict:
         """List all years in the specified plan."""
-        return self._get_program(program).list_available_years()
+        result = self._get_program(program, require_explicit=True).list_available_years()
+        result["program"] = program or self.default_program
+        return result
     
     def get_annual_summary(self, year: int, program: Optional[str] = None) -> dict:
         """Get income and tax summary for a specific year."""
-        result = self._get_program(program).get_annual_summary(year)
+        result = self._get_program(program, require_explicit=True).get_annual_summary(year)
         result["program"] = program or self.default_program
         return result
     
     def get_tax_details(self, year: int, program: Optional[str] = None) -> dict:
         """Get detailed tax breakdown for a specific year."""
-        result = self._get_program(program).get_tax_details(year)
+        result = self._get_program(program, require_explicit=True).get_tax_details(year)
         result["program"] = program or self.default_program
         return result
     
     def get_income_breakdown(self, year: int, program: Optional[str] = None) -> dict:
         """Get detailed income breakdown for a specific year."""
-        result = self._get_program(program).get_income_breakdown(year)
+        result = self._get_program(program, require_explicit=True).get_income_breakdown(year)
         result["program"] = program or self.default_program
         return result
     
     def get_deferred_comp_info(self, year: int, program: Optional[str] = None) -> dict:
         """Get deferred compensation information for a specific year."""
-        result = self._get_program(program).get_deferred_comp_info(year)
+        result = self._get_program(program, require_explicit=True).get_deferred_comp_info(year)
         result["program"] = program or self.default_program
         return result
     
     def get_retirement_balances(self, year: Optional[int] = None, program: Optional[str] = None) -> dict:
         """Get 401(k) and deferred comp balances."""
-        result = self._get_program(program).get_retirement_balances(year)
+        result = self._get_program(program, require_explicit=True).get_retirement_balances(year)
         result["program"] = program or self.default_program
         return result
     
     def compare_years(self, year1: int, year2: int, program: Optional[str] = None) -> dict:
         """Compare financial metrics between two years."""
-        result = self._get_program(program).compare_years(year1, year2)
+        result = self._get_program(program, require_explicit=True).compare_years(year1, year2)
         result["program"] = program or self.default_program
         return result
     
     def get_lifetime_totals(self, program: Optional[str] = None) -> dict:
         """Get lifetime totals across the planning horizon."""
-        result = self._get_program(program).get_lifetime_totals()
+        result = self._get_program(program, require_explicit=True).get_lifetime_totals()
         result["program"] = program or self.default_program
         return result
     
     def search_financial_data(self, query: str, year: Optional[int] = None, program: Optional[str] = None) -> dict:
         """Search for specific financial metrics based on a query."""
-        result = self._get_program(program).search_financial_data(query, year)
+        result = self._get_program(program, require_explicit=True).search_financial_data(query, year)
         result["program"] = program or self.default_program
         return result
