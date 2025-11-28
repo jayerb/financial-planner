@@ -143,7 +143,7 @@ class FinancialPlannerTools:
             "income_sources": {
                 "base_salary": income.get('baseSalary', 0),
                 "bonus_fraction": income.get('bonusFraction', 0),
-                "espp_income": income.get('esppIncome', 0),
+                "espp_discount": self.spec.get('esppDiscount', 0),
                 "other_income": income.get('otherIncome', 0),
                 "short_term_capital_gains": income.get('shortTermCapitalGains', 0),
                 "long_term_capital_gains": income.get('longTermCapitalGains', 0)
@@ -270,7 +270,7 @@ class FinancialPlannerTools:
                 "bonus": round(base_salary * bonus_fraction, 2),
                 "other_income": round(income.get('otherIncome', 0), 2),
                 "rsu_vested_value": round(results.get('rsu_vested_value', 0), 2),
-                "espp_income": round(income.get('esppIncome', 0), 2)
+                "espp_income": round(results.get('espp_income', 0), 2)
             }
         
         breakdown["investment_income"] = {
@@ -465,8 +465,6 @@ class FinancialPlannerTools:
             for key in matched_keys:
                 if key in results:
                     found_data["results"][key] = round(results[key], 2)
-                elif key == "espp_income" and year <= self.last_working_year:
-                    found_data["results"][key] = round(income.get('esppIncome', 0), 2)
                 elif key == "base_salary" and year <= self.last_working_year:
                     found_data["results"][key] = round(income.get('baseSalary', 0), 2)
                 elif key == "bonus" and year <= self.last_working_year:
@@ -488,8 +486,6 @@ class FinancialPlannerTools:
                 for key in matched_keys:
                     if key in results:
                         year_data[key] = round(results[key], 2)
-                    elif key == "espp_income" and yr <= self.last_working_year:
-                        year_data[key] = round(income.get('esppIncome', 0), 2)
                 
                 if year_data:
                     all_years_data["years"][yr] = year_data

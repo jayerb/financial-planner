@@ -67,8 +67,12 @@ class TakeHomeCalculator:
             bonus_deferral = bonus_amount * bonus_deferral_fraction
             total_deferral = base_deferral + bonus_deferral
             
-            # ESPP: use injected ESPPDetails
-            espp_income = income_details.get('esppIncome', self.espp.taxable_from_spec(spec))
+            # ESPP: use esppIncome from spec only for first year, then calculate from discount
+            first_year = spec.get('firstYear', 2026)
+            if tax_year == first_year and 'esppIncome' in income_details:
+                espp_income = income_details.get('esppIncome', 0)
+            else:
+                espp_income = self.espp.taxable_from_spec(spec)
             
             # RSU: add vested RSU value to gross income
             rsu_vested_value = self.rsu_calculator.vested_value.get(tax_year, 0)
@@ -187,5 +191,6 @@ class TakeHomeCalculator:
             'state_short_term_capital_gains_tax': state_short_term_capital_gains_tax,
             'state_tax': state_tax,
             'take_home_pay': take_home_pay,
-            'rsu_vested_value': rsu_vested_value
+            'rsu_vested_value': rsu_vested_value,
+            'espp_income': espp_income
         }
