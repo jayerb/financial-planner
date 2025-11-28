@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 
 from tax.FederalDetails import FederalDetails
 from tax.StateDetails import StateDetails
@@ -18,13 +18,26 @@ class TakeHomeCalculator:
 
     def __init__(self, federal: FederalDetails, state: StateDetails, espp: ESPPDetails,
                  social_security: SocialSecurityDetails, medicare: MedicareDetails,
-                 rsu_calculator: RSUCalculator):
+                 rsu_calculator: RSUCalculator,
+                 deferred_comp_calculator: Optional['DeferredCompCalculator'] = None):
         self.federal = federal
         self.state = state
         self.espp = espp
         self.social_security = social_security
         self.medicare = medicare
         self.rsu_calculator = rsu_calculator
+        self.deferred_comp_calculator = deferred_comp_calculator
+    
+    def set_deferred_comp_calculator(self, calculator: 'DeferredCompCalculator') -> None:
+        """Set the deferred compensation calculator after initialization.
+        
+        This is needed because the deferred comp calculator requires yearly deferrals
+        which are computed by this calculator.
+        
+        Args:
+            calculator: The DeferredCompCalculator instance
+        """
+        self.deferred_comp_calculator = calculator
 
     def calculate(self, spec: dict, tax_year: int = 2026) -> Dict:
         final_year = spec.get('lastPlanningYear')
@@ -62,6 +75,9 @@ class TakeHomeCalculator:
             
             medical_dental_vision = spec.get('deductions', {}).get('medicalDentalVision', 0)
             life_premium = spec.get('companyProvidedLifeInsurance', {}).get('annualPremium', 0)
+            
+            # No deferred comp disbursement during working years
+            deferred_comp_disbursement = 0
         else:
             # Post-working years: no salary, bonus, deferrals, ESPP, or RSUs
             base_salary = 0
@@ -74,11 +90,25 @@ class TakeHomeCalculator:
             rsu_vested_value = 0
             medical_dental_vision = 0
             life_premium = 0
+            
+            # Get deferred compensation disbursement for this year
+            if self.deferred_comp_calculator:
+                deferred_comp_disbursement = self.deferred_comp_calculator.get_disbursement(tax_year)
+            else:
+                deferred_comp_disbursement = 0
         
-        # Short-term capital gains are taxed as ordinary income
+        # Short-term capital gains are taxed as ordinary income (for income tax purposes)
         gross_income = base_salary + bonus_amount + other_income + short_term_capital_gains
         gross_income = gross_income + espp_income
         gross_income = gross_income + rsu_vested_value
+        
+        # Deferred comp disbursement is taxable income but NOT subject to FICA
+        # Track it separately for FICA exclusion
+        gross_income_for_tax = gross_income + deferred_comp_disbursement
+        
+        # FICA only applies to earned income (wages, salary, bonus, RSUs, ESPP)
+        # Capital gains and deferred comp disbursements are NOT subject to FICA
+        earned_income_for_fica = base_salary + bonus_amount + other_income + espp_income + rsu_vested_value
 
         deductions = self.federal.totalDeductions(tax_year)
         # Only include medical deductions during working years
@@ -94,7 +124,8 @@ class TakeHomeCalculator:
         total_deductions = deductions['total']
         
         # Adjusted gross income for federal/state taxes includes deferral reduction
-        adjusted_gross_income = gross_income - total_deductions - total_deferral
+        # Use gross_income_for_tax which includes deferred comp disbursement
+        adjusted_gross_income = gross_income_for_tax - total_deductions - total_deferral
 
         federal_result = self.federal.taxBurden(adjusted_gross_income, tax_year)
         federal_tax = federal_result.totalFederalTax
@@ -107,29 +138,35 @@ class TakeHomeCalculator:
         # Total federal tax includes both ordinary income tax and LTCG tax
         total_federal_tax = federal_tax + ltcg_tax
 
-        # Social Security (LTCG is not subject to Social Security tax)
+        # Social Security only applies to earned income (wages, salary, bonus, RSUs, ESPP)
         # Note: Deferrals do NOT reduce Social Security taxable income
-        total_social_security = self.social_security.total_contribution(gross_income, tax_year)
+        # Note: Capital gains and deferred comp disbursements are NOT subject to Social Security
+        total_social_security = self.social_security.total_contribution(earned_income_for_fica, tax_year)
 
-        # Medicare
+        # Medicare only applies to earned income (wages, salary, bonus, RSUs, ESPP)
         # Note: Deferrals do NOT reduce Medicare taxable income
-        medicare_base = gross_income - medical_dental_vision + life_premium
+        # Note: Capital gains and deferred comp disbursements are NOT subject to Medicare
+        medicare_base = earned_income_for_fica - medical_dental_vision + life_premium
         medicare_charge = self.medicare.base_contribution(medicare_base)
-        medicare_surcharge = self.medicare.surcharge(gross_income)
+        medicare_surcharge = self.medicare.surcharge(earned_income_for_fica)
         total_medicare = medicare_charge + medicare_surcharge
 
         # State tax: use injected StateDetails
         # State taxes are also reduced by deferrals (use adjusted_gross_income which includes deferral reduction)
-        state_taxable_income = gross_income - total_deferral + long_term_capital_gains
+        # Deferred comp disbursements ARE subject to state income tax
+        state_taxable_income = gross_income_for_tax - total_deferral + long_term_capital_gains
         state_income_tax = self.state.taxBurden(state_taxable_income, medical_dental_vision, year=tax_year)
         state_short_term_capital_gains_tax = self.state.shortTermCapitalGainsTax(short_term_capital_gains)
         state_tax = state_income_tax + state_short_term_capital_gains_tax
 
         # Take home pay: gross income minus all taxes and deferrals (deferrals go to deferred account, not take-home)
-        take_home_pay = gross_income - total_federal_tax - total_social_security - total_medicare - state_tax - total_deferral
+        # Include deferred comp disbursement in take home (it's income received)
+        take_home_pay = gross_income_for_tax - total_federal_tax - total_social_security - total_medicare - state_tax - total_deferral
 
         return {
-            'gross_income': gross_income,
+            'gross_income': gross_income_for_tax,  # Total taxable income including deferred comp
+            'earned_income_for_fica': earned_income_for_fica,
+            'deferred_comp_disbursement': deferred_comp_disbursement,
             'total_deductions': total_deductions,
             'deductions': deductions,
             'base_deferral': base_deferral,

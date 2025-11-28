@@ -10,7 +10,32 @@ from tax.MedicareDetails import MedicareDetails
 from calc.take_home import TakeHomeCalculator
 from calc.rsu_calculator import RSUCalculator
 from calc.balance_calculator import BalanceCalculator
+from calc.deferred_comp_calculator import DeferredCompCalculator
 from render.renderers import TaxDetailsRenderer, BalancesRenderer, AnnualSummaryRenderer, RENDERER_REGISTRY
+
+
+def calculate_yearly_deferrals(calculator: TakeHomeCalculator, spec: dict) -> dict:
+    """Calculate yearly deferrals for working years only.
+    
+    This is needed to initialize the DeferredCompCalculator before 
+    calculating post-working year results that include disbursements.
+    
+    Args:
+        calculator: TakeHomeCalculator instance (without deferred comp calculator set)
+        spec: The program specification dictionary
+        
+    Returns:
+        Dictionary mapping year to total deferral amount
+    """
+    first_year = spec.get('firstYear', 2026)
+    last_working_year = spec.get('lastWorkingYear', first_year + 10)
+    
+    yearly_deferrals = {}
+    for year in range(first_year, last_working_year + 1):
+        results = calculator.calculate(spec, year)
+        yearly_deferrals[year] = results.get('total_deferral', 0)
+    
+    return yearly_deferrals
 
 
 def main():
@@ -85,6 +110,11 @@ Examples:
     )
 
     calculator = TakeHomeCalculator(fed, state, espp, social_security, medicare, rsu_calculator)
+
+    # Calculate yearly deferrals and create deferred comp calculator
+    yearly_deferrals = calculate_yearly_deferrals(calculator, spec)
+    deferred_comp_calculator = DeferredCompCalculator(spec, yearly_deferrals)
+    calculator.set_deferred_comp_calculator(deferred_comp_calculator)
 
     # Calculate and render based on mode
     if args.mode == 'TaxDetails':
