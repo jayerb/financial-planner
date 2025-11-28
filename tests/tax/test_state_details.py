@@ -6,10 +6,24 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 from tax.StateDetails import StateDetails
 
 
-def load_program_spec():
-    spec_path = os.path.join(os.path.dirname(__file__), '../../input-parameters/program1/spec.json')
-    with open(spec_path, 'r') as f:
-        return json.load(f)
+def create_test_spec():
+    """Create a test spec with sample financial data."""
+    return {
+        "firstYear": 2026,
+        "lastWorkingYear": 2046,
+        "lastPlanningYear": 2076,
+        "federalBracketInflation": 0.03,
+        "income": {
+            "baseSalary": 85000,
+            "bonusFraction": 0.1,
+            "otherIncome": 5000,
+            "annualBaseIncreaseFraction": 0.04
+        },
+        "esppDiscount": 0.15,
+        "deductions": {
+            "medicalDentalVision": 10800.00
+        }
+    }
 
 
 def get_federal_base_year_data():
@@ -40,7 +54,7 @@ def test_state_tax_basic_matches_program_logic():
     # Use zero inflation so values equal reference
     sd = StateDetails(inflation_rate=0.0, final_year=2026)
 
-    spec = load_program_spec()
+    spec = create_test_spec()
     income = spec['income']
     gross_income = income['baseSalary'] + income['baseSalary'] * income['bonusFraction'] + income['otherIncome']
     medical = spec.get('deductions', {}).get('medicalDentalVision', 0)
