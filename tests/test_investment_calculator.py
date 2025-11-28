@@ -305,3 +305,91 @@ def test_investment_calculator_supports_401k_key():
     )
     
     assert calc.get_balances(2025)['tax_deferred'] == pytest.approx(125000.0)
+
+
+def test_investment_calculator_with_employer_match():
+    """Test that employer 401k match is added to tax-deferred balance."""
+    spec = {
+        'investments': {
+            'taxDeferredBalance': 100000.0,
+            'taxDeferredAppreciationRate': 0.0
+        }
+    }
+    
+    yearly_contributions = {
+        2025: {'tax_deferred': 23000.0, 'employer_match': 7500.0, 'hsa': 4000.0},
+        2026: {'tax_deferred': 23500.0, 'employer_match': 7650.0, 'hsa': 4100.0}
+    }
+    
+    calc = InvestmentCalculator(
+        spec, first_year=2025, last_year=2027,
+        last_working_year=2026,
+        yearly_contributions=yearly_contributions
+    )
+    
+    # First year: initial balance + employee contribution + employer match
+    balances_2025 = calc.get_balances(2025)
+    assert balances_2025['tax_deferred'] == pytest.approx(130500.0)  # 100000 + 23000 + 7500
+    
+    # Verify contributions are tracked separately
+    assert balances_2025['contributions']['tax_deferred'] == 23000.0
+    assert balances_2025['contributions']['employer_match'] == 7500.0
+
+
+def test_investment_calculator_employer_match_with_appreciation():
+    """Test employer match combined with appreciation over multiple years."""
+    spec = {
+        'investments': {
+            'taxDeferredBalance': 100000.0,
+            'taxDeferredAppreciationRate': 0.10  # 10% for easy calculation
+        }
+    }
+    
+    yearly_contributions = {
+        2025: {'tax_deferred': 20000.0, 'employer_match': 5000.0},
+        2026: {'tax_deferred': 20000.0, 'employer_match': 5000.0}
+    }
+    
+    calc = InvestmentCalculator(
+        spec, first_year=2025, last_year=2027,
+        last_working_year=2027,
+        yearly_contributions=yearly_contributions
+    )
+    
+    # 2025: 100000 + 20000 + 5000 = 125000
+    assert calc.get_balances(2025)['tax_deferred'] == pytest.approx(125000.0)
+    
+    # 2026: (125000 * 1.1) + 20000 + 5000 = 137500 + 25000 = 162500
+    assert calc.get_balances(2026)['tax_deferred'] == pytest.approx(162500.0)
+
+
+def test_investment_calculator_no_employer_match_after_retirement():
+    """Test that employer match stops after last working year."""
+    spec = {
+        'investments': {
+            'taxDeferredBalance': 100000.0,
+            'taxDeferredAppreciationRate': 0.0
+        }
+    }
+    
+    yearly_contributions = {
+        2025: {'tax_deferred': 20000.0, 'employer_match': 5000.0},
+        2026: {'tax_deferred': 20000.0, 'employer_match': 5000.0},
+        2027: {'tax_deferred': 20000.0, 'employer_match': 5000.0}  # Should be ignored
+    }
+    
+    calc = InvestmentCalculator(
+        spec, first_year=2025, last_year=2030,
+        last_working_year=2026,
+        yearly_contributions=yearly_contributions
+    )
+    
+    # 2025: 100000 + 20000 + 5000 = 125000
+    assert calc.get_balances(2025)['tax_deferred'] == pytest.approx(125000.0)
+    
+    # 2026: 125000 + 20000 + 5000 = 150000
+    assert calc.get_balances(2026)['tax_deferred'] == pytest.approx(150000.0)
+    
+    # 2027: 150000 (no contributions, past last working year)
+    assert calc.get_balances(2027)['tax_deferred'] == pytest.approx(150000.0)
+    assert calc.get_balances(2027)['contributions']['employer_match'] == 0.0

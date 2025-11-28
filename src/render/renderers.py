@@ -151,25 +151,26 @@ class BalancesRenderer(BaseRenderer):
             result: BalanceResult containing yearly balances and final totals
         """
         print()
-        print("=" * 80)
-        print(f"{'ACCUMULATED BALANCES':^80}")
-        print("=" * 80)
+        print("=" * 116)
+        print(f"{'ACCUMULATED BALANCES':^116}")
+        print("=" * 116)
         print()
-        print(f"  {'Year':<8} {'401(k) Contrib':>16} {'401(k) Balance':>18} {'Deferred Contrib':>18} {'Deferred Balance':>18}")
-        print(f"  {'-' * 8} {'-' * 16} {'-' * 18} {'-' * 18} {'-' * 18}")
+        print(f"  {'Year':<8} {'401(k) Contrib':>16} {'401(k) Balance':>18} {'Deferred Contrib':>18} {'Deferred Balance':>18} {'HSA Contrib':>14} {'HSA Balance':>16}")
+        print(f"  {'-' * 8} {'-' * 16} {'-' * 18} {'-' * 18} {'-' * 18} {'-' * 14} {'-' * 16}")
         
         for yb in result.yearly_balances:
-            print(f"  {yb.year:<8} ${yb.contrib_401k:>14,.2f} ${yb.balance_401k:>16,.2f} ${yb.deferred_contrib:>16,.2f} ${yb.deferred_balance:>16,.2f}")
+            print(f"  {yb.year:<8} ${yb.contrib_401k:>14,.2f} ${yb.balance_401k:>16,.2f} ${yb.deferred_contrib:>16,.2f} ${yb.deferred_balance:>16,.2f} ${yb.contrib_hsa:>12,.2f} ${yb.balance_hsa:>14,.2f}")
         
         print()
-        print("=" * 80)
-        print(f"{'FINAL BALANCES':^80}")
-        print("=" * 80)
+        print("=" * 116)
+        print(f"{'FINAL BALANCES':^116}")
+        print("=" * 116)
         print(f"  {'401(k) Balance:':<40} ${result.final_401k_balance:>18,.2f}")
         print(f"  {'Deferred Compensation Balance:':<40} ${result.final_deferred_balance:>18,.2f}")
+        print(f"  {'HSA Balance:':<40} ${result.final_hsa_balance:>18,.2f}")
         print(f"  {'-' * 60}")
         print(f"  {'TOTAL RETIREMENT ASSETS:':<40} ${result.total_retirement_assets:>18,.2f}")
-        print("=" * 80)
+        print("=" * 116)
         print()
 
 

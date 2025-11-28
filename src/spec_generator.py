@@ -467,6 +467,23 @@ def generate_spec(existing_spec: Optional[dict] = None) -> dict:
             default=ex_investments.get('taxDeferredAppreciationRate', 0.07)
         )
     
+    # Employer 401k match
+    print()
+    print("--- Employer 401(k) Match ---")
+    print("Note: The match is calculated on salary AFTER any deferred compensation contributions.")
+    has_existing_match = ex_investments.get('employer401kMatchPercent', 0) > 0
+    has_employer_match = prompt_yes_no("Does your employer offer a 401(k) match?", default=has_existing_match)
+    
+    if has_employer_match:
+        investments['employer401kMatchPercent'] = prompt_percent(
+            "Employer match percentage (e.g., 50% means employer matches 50 cents per dollar)",
+            default=ex_investments.get('employer401kMatchPercent', 0.50)
+        )
+        investments['employer401kMatchMaxSalaryPercent'] = prompt_percent(
+            "Maximum salary percentage eligible for match (e.g., 6% means match on up to 6% of salary)",
+            default=ex_investments.get('employer401kMatchMaxSalaryPercent', 0.06)
+        )
+    
     # HSA
     print()
     print("--- Health Savings Account (HSA) ---")

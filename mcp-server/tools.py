@@ -107,6 +107,12 @@ class FinancialPlannerTools:
         # Calculate yearly deferrals and contributions for working years
         yearly_deferrals = {}
         yearly_contributions = {}
+        
+        # Get employer match settings
+        investments = self.spec.get('investments', {})
+        match_percent = investments.get('employer401kMatchPercent', 0)
+        max_salary_percent = investments.get('employer401kMatchMaxSalaryPercent', 0)
+        
         for year in range(first_year, last_working_year + 1):
             results = self.calculator.calculate(self.spec, year)
             yearly_deferrals[year] = results.get('total_deferral', 0)
@@ -114,8 +120,31 @@ class FinancialPlannerTools:
             # Get 401k and HSA contributions from deductions
             # Note: HSA contribution uses employeeHSA (not maxHSA) since employer contribution is not employee's
             deductions = results.get('deductions', {})
+            
+            # Calculate employer 401k match
+            # Match is based on salary AFTER deferred compensation contributions
+            employer_match = 0
+            if match_percent > 0 and max_salary_percent > 0:
+                # Get base salary and apply any deferrals
+                income_details = self.spec.get('income', {})
+                base_salary = income_details.get('baseSalary', 0)
+                base_deferral_fraction = income_details.get('baseDeferralFraction', 0)
+                
+                # Salary eligible for match is base salary minus deferred amount
+                salary_after_deferral = base_salary * (1 - base_deferral_fraction)
+                
+                # Maximum eligible amount for match
+                max_match_eligible = salary_after_deferral * max_salary_percent
+                
+                # Employer matches up to match_percent of the eligible amount
+                # (assuming employee contributes at least that much to 401k)
+                employee_401k_contrib = deductions.get('max401k', 0)
+                eligible_for_match = min(employee_401k_contrib, max_match_eligible)
+                employer_match = eligible_for_match * match_percent
+            
             yearly_contributions[year] = {
                 'tax_deferred': deductions.get('max401k', 0),
+                'employer_match': employer_match,
                 'hsa': deductions.get('employeeHSA', deductions.get('maxHSA', 0))
             }
         
@@ -393,6 +422,7 @@ class FinancialPlannerTools:
             if 'contributions' in balances:
                 result["contributions"] = {
                     "401k_contribution": round(balances['contributions'].get('tax_deferred', 0), 2),
+                    "employer_match": round(balances['contributions'].get('employer_match', 0), 2),
                     "hsa_contribution": round(balances['contributions'].get('hsa', 0), 2)
                 }
             

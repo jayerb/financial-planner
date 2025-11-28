@@ -11,6 +11,8 @@ class InvestmentCalculator:
     
     Tracks taxable, tax-deferred (401k/IRA), and HSA account balances,
     applying annual appreciation rates and adding yearly contributions.
+    
+    Employer 401k match is included in the tax-deferred contributions when provided.
     """
     
     def __init__(self, spec: dict, first_year: int, last_year: int,
@@ -25,7 +27,7 @@ class InvestmentCalculator:
             last_working_year: Last year of work (contributions only during working years)
             yearly_contributions: Optional dict mapping years to contribution amounts
                                   Each value should be a dict with keys:
-                                  '401k' (or 'tax_deferred'), 'hsa'
+                                  '401k' (or 'tax_deferred'), 'hsa', 'employer_match'
         """
         self.first_year = first_year
         self.last_year = last_year
@@ -53,7 +55,7 @@ class InvestmentCalculator:
         
         Args:
             year: The year to get contribution for
-            account_type: 'tax_deferred' or 'hsa'
+            account_type: 'tax_deferred', 'hsa', or 'employer_match'
             
         Returns:
             The contribution amount, or 0 if not a working year or no contribution
@@ -68,6 +70,8 @@ class InvestmentCalculator:
             return year_contribs.get('tax_deferred', year_contribs.get('401k', 0.0))
         elif account_type == 'hsa':
             return year_contribs.get('hsa', 0.0)
+        elif account_type == 'employer_match':
+            return year_contribs.get('employer_match', 0.0)
         
         return 0.0
     
@@ -77,6 +81,8 @@ class InvestmentCalculator:
         For each year:
         1. Add contributions at the beginning of the year (for working years)
         2. Apply appreciation to the total balance
+        
+        Employer match is added to the tax_deferred balance alongside employee contributions.
         """
         taxable = self.initial_taxable
         tax_deferred = self.initial_tax_deferred
@@ -85,11 +91,15 @@ class InvestmentCalculator:
         for year in range(self.first_year, self.last_year + 1):
             # Get contributions for this year (only during working years)
             tax_deferred_contrib = self._get_contribution(year, 'tax_deferred')
+            employer_match = self._get_contribution(year, 'employer_match')
             hsa_contrib = self._get_contribution(year, 'hsa')
+            
+            # Total contribution to tax-deferred account includes employer match
+            total_tax_deferred_contrib = tax_deferred_contrib + employer_match
             
             if year == self.first_year:
                 # First year: add contributions, then store (no appreciation yet)
-                tax_deferred = tax_deferred + tax_deferred_contrib
+                tax_deferred = tax_deferred + total_tax_deferred_contrib
                 hsa = hsa + hsa_contrib
                 
                 self._balances[year] = {
@@ -99,13 +109,14 @@ class InvestmentCalculator:
                     'total': taxable + tax_deferred + hsa,
                     'contributions': {
                         'tax_deferred': tax_deferred_contrib,
+                        'employer_match': employer_match,
                         'hsa': hsa_contrib
                     }
                 }
             else:
                 # Subsequent years: apply appreciation from previous year, then add contributions
                 taxable = taxable * (1 + self.taxable_rate)
-                tax_deferred = tax_deferred * (1 + self.tax_deferred_rate) + tax_deferred_contrib
+                tax_deferred = tax_deferred * (1 + self.tax_deferred_rate) + total_tax_deferred_contrib
                 hsa = hsa * (1 + self.hsa_rate) + hsa_contrib
                 
                 self._balances[year] = {
@@ -115,6 +126,7 @@ class InvestmentCalculator:
                     'total': taxable + tax_deferred + hsa,
                     'contributions': {
                         'tax_deferred': tax_deferred_contrib,
+                        'employer_match': employer_match,
                         'hsa': hsa_contrib
                     }
                 }
