@@ -199,6 +199,11 @@ Your `spec.json` can include:
 - Deferred compensation plan percentages
 - Medical/dental/vision premiums
 
+**Investments**
+- Investment account balances (taxable, tax-deferred, HSA)
+- Expected appreciation rates
+- HSA employer contribution (automatically inflated; only employee portion is tax-deductible)
+
 ## Running Unit Tests
 
 ```bash

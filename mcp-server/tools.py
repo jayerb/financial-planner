@@ -112,10 +112,11 @@ class FinancialPlannerTools:
             yearly_deferrals[year] = results.get('total_deferral', 0)
             
             # Get 401k and HSA contributions from deductions
+            # Note: HSA contribution uses employeeHSA (not maxHSA) since employer contribution is not employee's
             deductions = results.get('deductions', {})
             yearly_contributions[year] = {
                 'tax_deferred': deductions.get('max401k', 0),
-                'hsa': deductions.get('maxHSA', 0)
+                'hsa': deductions.get('employeeHSA', deductions.get('maxHSA', 0))
             }
         
         # Deferred comp calculator
@@ -256,6 +257,7 @@ class FinancialPlannerTools:
                 "standard_deduction": round(results['deductions']['standardDeduction'], 2),
                 "max_401k": round(results['deductions']['max401k'], 2),
                 "max_hsa": round(results['deductions']['maxHSA'], 2),
+                "employee_hsa": round(results['deductions'].get('employeeHSA', results['deductions']['maxHSA']), 2),
                 "medical_dental_vision": round(results['deductions'].get('medicalDentalVision', 0), 2),
                 "total_deductions": round(results['total_deductions'], 2)
             },

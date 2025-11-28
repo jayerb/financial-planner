@@ -128,3 +128,47 @@ def test_state_tax_inflation_applies_over_years():
 
     result = sd.taxBurden(gross, medical, year=2027)
     assert math.isclose(result, expected, rel_tol=1e-9, abs_tol=1e-9)
+
+
+def test_state_tax_with_employer_hsa_contribution():
+    """Test that employer HSA contribution reduces employee HSA deduction for state tax."""
+    inflation = 0.02
+    sd = StateDetails(inflation_rate=inflation, final_year=2027)
+
+    gross = 100000
+    medical = 2000
+    employer_hsa = 1500.00  # Employer contributes $1500 to HSA
+
+    # load reference base values
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    with open(os.path.join(repo_root, 'reference', 'flat-tax-details.json'), 'r') as f:
+        flat = json.load(f)
+    
+    fed_data = get_federal_base_year_data()
+
+    state = flat.get('state', {})
+    state_rate = state.get('rate', 0)
+    state_sd = state.get('standardDeduction', 0)
+    c401k = fed_data['401k']
+    hsa = fed_data['HSA']
+
+    base_year = fed_data['year']
+    years = 2027 - base_year
+    inflator = (1.0 + inflation) ** years
+
+    c401k_infl = c401k * inflator
+    hsa_infl = hsa * inflator
+    state_sd_infl = state_sd * inflator
+    
+    # Employee HSA is max HSA minus employer contribution
+    employee_hsa_infl = max(0, hsa_infl - employer_hsa)
+
+    # Expected tax with employer HSA contribution (higher tax due to lower employee deduction)
+    expected = max(0.0, gross - (c401k_infl + employee_hsa_infl) - medical - state_sd_infl) * state_rate
+
+    result = sd.taxBurden(gross, medical, year=2027, employer_hsa_contribution=employer_hsa)
+    assert math.isclose(result, expected, rel_tol=1e-9, abs_tol=1e-9)
+    
+    # Also verify that tax with employer contribution is higher (less deduction)
+    result_without_employer = sd.taxBurden(gross, medical, year=2027, employer_hsa_contribution=0)
+    assert result > result_without_employer

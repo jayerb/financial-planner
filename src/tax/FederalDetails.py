@@ -131,22 +131,37 @@ class FederalDetails:
 		# Should not reach here
 		raise ValueError("Income exceeds all bracket definitions.")
 
-	def totalDeductions(self, year: int) -> dict:
+	def totalDeductions(self, year: int, employer_hsa_contribution: float = 0.0) -> dict:
 		"""
 		Returns a dictionary with itemized deductions and total for the given year.
 		Uses specified values for years in the JSON, or inflated values for future years.
 		
+		The HSA contribution used for tax deduction is the employee portion only.
+		The employer contribution is subtracted from the statutory maximum to get
+		the employee's tax-deductible amount.
+		
+		Args:
+			year: The tax year
+			employer_hsa_contribution: The employer's HSA contribution (inflated to the year)
+		
 		Returns:
-			dict with keys: standardDeduction, max401k, maxHSA, total
+			dict with keys: standardDeduction, max401k, maxHSA, employeeHSA, total
 		"""
 		if year not in self.deductions_by_year:
 			raise ValueError(f"No deduction data available for year {year}")
 		d = self.deductions_by_year[year]
-		total = d["standardDeduction"] + d["max401k"] + d["maxHSA"]
+		
+		# Calculate employee HSA contribution (max HSA minus employer contribution)
+		max_hsa = d["maxHSA"]
+		employee_hsa = max(0, max_hsa - employer_hsa_contribution)
+		
+		# Total deductions uses employee HSA only (employer contribution not tax-deductible to employee)
+		total = d["standardDeduction"] + d["max401k"] + employee_hsa
 		return {
 			"standardDeduction": d["standardDeduction"],
 			"max401k": d["max401k"],
-			"maxHSA": d["maxHSA"],
+			"maxHSA": max_hsa,
+			"employeeHSA": employee_hsa,
 			"total": total
 		}
 

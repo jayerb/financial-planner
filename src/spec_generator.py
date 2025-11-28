@@ -475,6 +475,16 @@ def generate_spec(existing_spec: Optional[dict] = None) -> dict:
             default=ex_investments.get('hsaAppreciationRate', 0.07)
         )
     
+    # Always ask about HSA employer contribution if working and has HSA balance or participating in HSA
+    # The HSA max contribution is split between employer and employee
+    print()
+    print("Note: The statutory HSA maximum is the combined employer + employee contribution.")
+    print("Only the employee contribution is tax-deferred from your income.")
+    investments['hsaEmployerContribution'] = prompt_currency(
+        "Annual HSA employer contribution (will grow with inflation)",
+        default=ex_investments.get('hsaEmployerContribution', 0.0)
+    )
+    
     # Only add investments section if any accounts have balances
     if investments['taxableBalance'] > 0 or investments['taxDeferredBalance'] > 0 or investments['hsaBalance'] > 0:
         spec['investments'] = investments

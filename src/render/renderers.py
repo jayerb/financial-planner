@@ -66,7 +66,15 @@ class TaxDetailsRenderer(BaseRenderer):
         deductions = results['deductions']
         print(f"  {'Standard Deduction:':<40} ${deductions['standardDeduction']:>14,.2f}")
         print(f"  {'401(k) Contribution:':<40} ${deductions['max401k']:>14,.2f}")
-        print(f"  {'HSA Contribution:':<40} ${deductions['maxHSA']:>14,.2f}")
+        # Show employee HSA contribution (the tax-deductible portion)
+        employee_hsa = deductions.get('employeeHSA', deductions['maxHSA'])
+        max_hsa = deductions['maxHSA']
+        if employee_hsa != max_hsa:
+            print(f"  {'HSA Contribution (Employee):':<40} ${employee_hsa:>14,.2f}")
+            employer_hsa = max_hsa - employee_hsa
+            print(f"  {'HSA Contribution (Employer):':<40} ${employer_hsa:>14,.2f}")
+        else:
+            print(f"  {'HSA Contribution:':<40} ${max_hsa:>14,.2f}")
         print(f"  {'Medical/Dental/Vision:':<40} ${deductions['medicalDentalVision']:>14,.2f}")
         print(f"  {'-' * 40}")
         print(f"  {'Total Deductions:':<40} ${results['total_deductions']:>14,.2f}")

@@ -41,13 +41,21 @@ class StateDetails:
         except Exception:
             return amount
 
-    def taxBurden(self, gross_income: float, medical_dental_vision: float, year: Optional[int] = None) -> float:
+    def taxBurden(self, gross_income: float, medical_dental_vision: float, year: Optional[int] = None, employer_hsa_contribution: float = 0.0) -> float:
         """Calculate state tax burden given gross income and medical/dental/vision deductions.
 
         Calculation rules:
-        - State taxable income = gross_income - (401k + HSA contributions) - medical_dental_vision - state_standard_deduction
+        - State taxable income = gross_income - (401k + employee HSA contributions) - medical_dental_vision - state_standard_deduction
         - State tax = state_rate * max(0, state taxable income)
+        
+        The HSA deduction is the employee portion only (max HSA minus employer contribution).
         Contributions and deductions are inflated from the federal base year to the requested year.
+        
+        Args:
+            gross_income: The gross income for the year
+            medical_dental_vision: Medical/dental/vision premium deductions
+            year: The tax year (defaults to final_year)
+            employer_hsa_contribution: The employer's HSA contribution (inflated to the year)
         """
         tax_year = year if year is not None else self.final_year
 
@@ -63,8 +71,11 @@ class StateDetails:
 
         c401k_inflated = self._inflate(c401k, tax_year)
         hsa_inflated = self._inflate(hsa, tax_year)
+        
+        # Calculate employee HSA contribution (max HSA minus employer contribution)
+        employee_hsa_inflated = max(0, hsa_inflated - employer_hsa_contribution)
 
-        state_taxable = gross_income - (c401k_inflated + hsa_inflated) - (medical_dental_vision or 0) - state_sd_inflated
+        state_taxable = gross_income - (c401k_inflated + employee_hsa_inflated) - (medical_dental_vision or 0) - state_sd_inflated
         taxable = max(0.0, state_taxable)
         return taxable * state_rate
 

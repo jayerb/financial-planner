@@ -48,6 +48,23 @@ class TakeHomeCalculator:
         first_year = spec.get('firstYear', 2026)
         last_working_year = spec.get('lastWorkingYear', first_year + 10)
         is_working_year = tax_year <= last_working_year
+        
+        # Get employer HSA contribution (base amount that will be inflated)
+        investments = spec.get('investments', {})
+        base_employer_hsa = investments.get('hsaEmployerContribution', 0.0)
+        
+        # Inflate employer HSA contribution from first year to tax year
+        years_from_first = tax_year - first_year
+        if years_from_first > 0 and is_working_year:
+            employer_hsa_contribution = base_employer_hsa * ((1 + inflation_rate) ** years_from_first)
+        elif is_working_year:
+            employer_hsa_contribution = base_employer_hsa
+        else:
+            employer_hsa_contribution = 0.0
+
+        first_year = spec.get('firstYear', 2026)
+        last_working_year = spec.get('lastWorkingYear', first_year + 10)
+        is_working_year = tax_year <= last_working_year
 
         income_details = spec.get('income', {})
         short_term_capital_gains = income_details.get('shortTermCapitalGains', 0)
@@ -114,7 +131,8 @@ class TakeHomeCalculator:
         # Capital gains and deferred comp disbursements are NOT subject to FICA
         earned_income_for_fica = base_salary + bonus_amount + other_income + espp_income + rsu_vested_value
 
-        deductions = self.federal.totalDeductions(tax_year)
+        # Get deductions with employer HSA contribution to calculate employee-only HSA deduction
+        deductions = self.federal.totalDeductions(tax_year, employer_hsa_contribution)
         # Only include medical deductions during working years
         if is_working_year:
             deductions['medicalDentalVision'] = medical_dental_vision
@@ -123,6 +141,7 @@ class TakeHomeCalculator:
             # Post-working: no 401k or HSA contributions, only standard deduction
             deductions['max401k'] = 0
             deductions['maxHSA'] = 0
+            deductions['employeeHSA'] = 0
             deductions['medicalDentalVision'] = 0
             deductions['total'] = deductions['standardDeduction']
         total_deductions = deductions['total']
@@ -159,7 +178,7 @@ class TakeHomeCalculator:
         # State taxes are also reduced by deferrals (use adjusted_gross_income which includes deferral reduction)
         # Deferred comp disbursements ARE subject to state income tax
         state_taxable_income = gross_income_for_tax - total_deferral + long_term_capital_gains
-        state_income_tax = self.state.taxBurden(state_taxable_income, medical_dental_vision, year=tax_year)
+        state_income_tax = self.state.taxBurden(state_taxable_income, medical_dental_vision, year=tax_year, employer_hsa_contribution=employer_hsa_contribution)
         state_short_term_capital_gains_tax = self.state.shortTermCapitalGainsTax(short_term_capital_gains)
         state_tax = state_income_tax + state_short_term_capital_gains_tax
 

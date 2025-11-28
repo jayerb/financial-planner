@@ -23,18 +23,50 @@ class TestFederalDetails(unittest.TestCase):
         self.assertAlmostEqual(deductions_2025['standardDeduction'], std_ded, places=2)
         self.assertAlmostEqual(deductions_2025['max401k'], max_401k, places=2)
         self.assertAlmostEqual(deductions_2025['maxHSA'], max_hsa, places=2)
+        self.assertAlmostEqual(deductions_2025['employeeHSA'], max_hsa, places=2)  # No employer contribution
         self.assertAlmostEqual(deductions_2025['total'], base_total, places=2)
 
         # For 2026, no inflation applied since it's explicitly specified
         std_ded_2026 = 32200.00
         max_401k_2026 = 24000.00
-        max_hsa_2026 = 8806.50
+        max_hsa_2026 = 8750.00  # Value from reference/federal-details.json
         expected_2026 = std_ded_2026 + max_401k_2026 + max_hsa_2026
         deductions_2026 = self.fed.totalDeductions(2026)
         self.assertAlmostEqual(deductions_2026['standardDeduction'], std_ded_2026, places=2)
         self.assertAlmostEqual(deductions_2026['max401k'], max_401k_2026, places=2)
         self.assertAlmostEqual(deductions_2026['maxHSA'], max_hsa_2026, places=2)
+        self.assertAlmostEqual(deductions_2026['employeeHSA'], max_hsa_2026, places=2)  # No employer contribution
         self.assertAlmostEqual(deductions_2026['total'], expected_2026, places=2)
+
+    def test_total_deductions_with_employer_contribution(self):
+        # Test that employer HSA contribution reduces employee HSA (and total deductions)
+        employer_hsa = 1500.00
+        
+        # For 2025
+        max_hsa_2025 = 8550.00
+        expected_employee_hsa = max_hsa_2025 - employer_hsa
+        deductions_2025 = self.fed.totalDeductions(2025, employer_hsa_contribution=employer_hsa)
+        self.assertAlmostEqual(deductions_2025['maxHSA'], max_hsa_2025, places=2)
+        self.assertAlmostEqual(deductions_2025['employeeHSA'], expected_employee_hsa, places=2)
+        
+        # Total should be: std_ded + max_401k + employee_hsa (not max_hsa)
+        std_ded = 31500.00
+        max_401k = 23500.00
+        expected_total = std_ded + max_401k + expected_employee_hsa
+        self.assertAlmostEqual(deductions_2025['total'], expected_total, places=2)
+
+    def test_total_deductions_employer_exceeds_max(self):
+        # If employer contribution exceeds max HSA, employee HSA should be 0
+        employer_hsa = 10000.00  # More than max HSA of 8550
+        
+        deductions_2025 = self.fed.totalDeductions(2025, employer_hsa_contribution=employer_hsa)
+        self.assertAlmostEqual(deductions_2025['employeeHSA'], 0.0, places=2)
+        
+        # Total should be: std_ded + max_401k + 0 (no employee HSA)
+        std_ded = 31500.00
+        max_401k = 23500.00
+        expected_total = std_ded + max_401k
+        self.assertAlmostEqual(deductions_2025['total'], expected_total, places=2)
 
     def test_bracket_cache_years(self):
         # Should include 2025, 2026, 2027, 2028

@@ -29,7 +29,7 @@
             "standardDeduction": 32200.00,
             "maxContributions": {
                 "401k": 24000.00,
-                "HSA": 8806.50
+                "HSA": 8750.00
             },
             "brackets": [
                 { "maxIncome": 24800.00, "rate": 0.10, "baseAmount": 0 },
