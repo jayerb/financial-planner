@@ -67,3 +67,16 @@ class StateDetails:
         state_taxable = gross_income - (c401k_inflated + hsa_inflated) - (medical_dental_vision or 0) - state_sd_inflated
         taxable = max(0.0, state_taxable)
         return taxable * state_rate
+
+    def shortTermCapitalGainsTax(self, short_term_gains: float) -> float:
+        """Calculate state short term capital gains tax.
+
+        Args:
+            short_term_gains: The amount of short term capital gains.
+
+        Returns:
+            The state tax on short term capital gains.
+        """
+        state = self.flat.get('state', {})
+        stcg_rate = state.get('shortTermCapitalGains', 0)
+        return max(0.0, short_term_gains) * stcg_rate

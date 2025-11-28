@@ -27,6 +27,7 @@ def create_mock_state():
     """Create a mock StateDetails with sensible defaults."""
     mock = Mock()
     mock.taxBurden.return_value = 10000
+    mock.shortTermCapitalGainsTax.return_value = 0
     return mock
 
 

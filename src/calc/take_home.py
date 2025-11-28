@@ -79,7 +79,9 @@ class TakeHomeCalculator:
         total_medicare = medicare_charge + medicare_surcharge
 
         # State tax: use injected StateDetails
-        state_tax = self.state.taxBurden(gross_income, medical_dental_vision, year=tax_year)
+        state_income_tax = self.state.taxBurden(gross_income + long_term_capital_gains, medical_dental_vision, year=tax_year)
+        state_short_term_capital_gains_tax = self.state.shortTermCapitalGainsTax(short_term_capital_gains)
+        state_tax = state_income_tax + state_short_term_capital_gains_tax
 
         take_home_pay = gross_income - total_federal_tax - total_social_security - total_medicare - state_tax
 
@@ -98,6 +100,8 @@ class TakeHomeCalculator:
             'total_social_security': total_social_security,
             'medicare_charge': medicare_charge,
             'medicare_surcharge': medicare_surcharge,
+            'state_income_tax': state_income_tax,
+            'state_short_term_capital_gains_tax': state_short_term_capital_gains_tax,
             'state_tax': state_tax,
             'take_home_pay': take_home_pay,
             'rsu_vested_value': rsu_vested_value

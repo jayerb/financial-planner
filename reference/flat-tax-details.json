@@ -1,7 +1,8 @@
 {
     "state": {
         "rate": 0.05,
-        "standardDeduction": 8800.00
+        "standardDeduction": 8800.00,
+        "shortTermCapitalGains": 0.085
     },
     "medicare": 0.0145,
     "surchargeThreshold": 250000.00,

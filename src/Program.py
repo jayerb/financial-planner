@@ -86,7 +86,11 @@ def main():
     print(f"  Social Security + MA PFML: ${results['total_social_security']:,.2f}")
     print(f"  Medicare: ${results['medicare_charge']:,.2f}")
     print(f"  Medicare Surcharge: ${results['medicare_surcharge']:,.2f}")
-    print(f"  State Tax: ${results.get('state_tax', 0):,.2f}")
+    
+    print(f"\n--- State Taxes ---")
+    print(f"  State Income Tax: ${results.get('state_income_tax', 0):,.2f}")
+    print(f"  State Short-Term Capital Gains Tax: ${results.get('state_short_term_capital_gains_tax', 0):,.2f}")
+    print(f"  Total State Tax: ${results.get('state_tax', 0):,.2f}")
     
     print(f"\n=== Take Home Pay: ${results['take_home_pay']:,.2f} ===")
 
