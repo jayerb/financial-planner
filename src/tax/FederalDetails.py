@@ -146,19 +146,40 @@ class FederalDetails:
 
 	def longTermCapitalGainsTax(self, ordinary_taxable_income: float, ltcg_amount: float, year: int) -> float:
 		"""
-		Calculates the tax on long-term capital gains and qualified dividends.
+		Calculates the tax on long-term capital gains (LTCG) and qualified dividends.
 		
-		The LTCG tax brackets are based on total taxable income (ordinary + LTCG).
-		The tax is calculated by determining which bracket(s) the LTCG falls into,
-		based on where the ordinary income ends and where ordinary + LTCG ends.
+		LTCG are taxed at preferential rates (0%, 15%, or 20%) that are lower than
+		ordinary income tax rates. The rate that applies depends on your TOTAL taxable
+		income (ordinary income + LTCG), not just the LTCG amount.
+		
+		KEY CONCEPT - "STACKING":
+		LTCG is "stacked on top of" ordinary income to determine which bracket(s) it
+		falls into. This means:
+		1. Ordinary income fills the bottom of the income scale first
+		2. LTCG then fills the remaining space in the brackets
+		3. LTCG gets taxed at the rate of whichever bracket(s) it lands in
+		
+		EXAMPLE (2025 MFJ brackets: 0% up to $96,700, 15% up to $600,050, 20% above):
+		- Ordinary taxable income: $80,000
+		- Long-term capital gains: $30,000
+		- Total taxable income: $110,000
+		
+		The LTCG "starts" at $80,000 and extends to $110,000:
+		- $16,700 ($80,000 → $96,700) taxed at 0% = $0
+		- $13,300 ($96,700 → $110,000) taxed at 15% = $1,995
+		- Total LTCG tax: $1,995
+		
+		This stacking approach ensures LTCG benefits from the lowest available rates.
+		If ordinary income already exceeds a bracket threshold, LTCG skips that bracket.
 		
 		Args:
-			ordinary_taxable_income: Taxable income excluding LTCG (after deductions)
+			ordinary_taxable_income: Taxable income excluding LTCG (after deductions).
+			                         This is where the LTCG "stacking" starts from.
 			ltcg_amount: Long-term capital gains and qualified dividends amount
-			year: Tax year
+			year: Tax year (used to look up the correct LTCG brackets)
 			
 		Returns:
-			The federal tax on long-term capital gains
+			The federal tax owed on the long-term capital gains
 		"""
 		if year not in self.ltcg_brackets_by_year:
 			raise ValueError(f"No LTCG tax brackets available for year {year}")
@@ -170,7 +191,8 @@ class FederalDetails:
 		total_income = ordinary_taxable_income + ltcg_amount
 		ltcg_tax = 0.0
 		
-		# Start from where ordinary income ends
+		# income_floor: The starting point for LTCG taxation (where ordinary income ends)
+		# This is where LTCG gets "stacked" on top of ordinary income
 		income_floor = max(0, ordinary_taxable_income)
 		remaining_ltcg = ltcg_amount
 		
@@ -178,22 +200,28 @@ class FederalDetails:
 			if remaining_ltcg <= 0:
 				break
 			
-			# The bracket applies to income from previous bracket max to this bracket max
+			# Determine this bracket's income range
+			# bracket_floor: The bottom of this bracket (top of previous bracket, or 0 for first)
+			# bracket_ceiling: The top of this bracket (maxIncome)
 			bracket_floor = 0 if brackets.index(b) == 0 else brackets[brackets.index(b) - 1]["maxIncome"]
 			bracket_ceiling = b["maxIncome"]
 			
-			# If ordinary income is already past this bracket, skip it
+			# Skip brackets that ordinary income has already filled completely
+			# If ordinary income >= bracket ceiling, no LTCG falls in this bracket
 			if income_floor >= bracket_ceiling:
 				continue
 			
-			# Calculate the portion of LTCG that falls in this bracket
+			# Calculate the portion of LTCG that falls within this bracket:
+			# - Start: The higher of (where ordinary income ends) or (bracket floor)
+			# - End: The lower of (total income) or (bracket ceiling)
 			taxable_in_bracket_start = max(income_floor, bracket_floor)
 			taxable_in_bracket_end = min(total_income, bracket_ceiling)
 			taxable_in_bracket = max(0, taxable_in_bracket_end - taxable_in_bracket_start)
 			
-			# Can't tax more LTCG than we have remaining
+			# Don't tax more LTCG than we actually have remaining
 			taxable_in_bracket = min(taxable_in_bracket, remaining_ltcg)
 			
+			# Apply this bracket's rate to the LTCG portion in this bracket
 			ltcg_tax += taxable_in_bracket * b["rate"]
 			remaining_ltcg -= taxable_in_bracket
 		
