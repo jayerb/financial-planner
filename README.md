@@ -48,6 +48,103 @@ python src/Program.py program1
 - `input-parameters/` — Program-specific input directories, each with a `spec.json`
 - `reference/` — Reference data such as base federal tax brackets
 - `tests/` — Unit tests
+- `mcp-server/` — MCP server for AI assistant integration
+
+## MCP Server (AI Assistant Integration)
+
+The project includes an **MCP (Model Context Protocol) server** that enables AI assistants like GitHub Copilot and Claude to answer natural language questions about your financial plan.
+
+### Benefits
+
+- **Natural language queries**: Ask questions like "What's my ESPP income for 2026?" or "Compare my taxes between 2025 and 2035"
+- **No command-line needed**: Get financial projections directly in your chat interface
+- **Real-time calculations**: All calculations are generated on the fly from your `spec.json` configuration
+- **Comprehensive data access**: Query income breakdowns, tax details, retirement balances, deferred compensation, and more
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `get_program_overview` | Overview of the financial plan including dates and income sources |
+| `list_available_years` | List all years in the plan (working vs retirement) |
+| `get_annual_summary` | Income and tax summary for a specific year |
+| `get_tax_details` | Detailed tax breakdown for a specific year |
+| `get_income_breakdown` | Detailed income sources for a specific year |
+| `get_deferred_comp_info` | Deferred compensation info for a specific year |
+| `get_retirement_balances` | 401(k) and deferred comp balances |
+| `compare_years` | Compare financial metrics between two years |
+| `get_lifetime_totals` | Lifetime totals across the planning horizon |
+| `search_financial_data` | Search for specific metrics (e.g., "ESPP income in 2029") |
+
+### Running the MCP Server
+
+#### Prerequisites
+
+Install the MCP package:
+
+```bash
+pip install mcp
+```
+
+Or install all dependencies:
+
+```bash
+pip install -r mcp-server/requirements.txt
+```
+
+#### VS Code with GitHub Copilot
+
+Add the following to `.vscode/mcp.json` in your workspace:
+
+```json
+{
+  "servers": {
+    "financial-planner": {
+      "type": "stdio",
+      "command": "/path/to/.venv/bin/python",
+      "args": ["mcp-server/server.py"],
+      "env": {
+        "FINANCIAL_PLANNER_PROGRAM": "myprogram"
+      }
+    }
+  }
+}
+```
+
+Replace `/path/to/.venv/bin/python` with the path to your Python interpreter and set `FINANCIAL_PLANNER_PROGRAM` to your program folder name in `input-parameters/`.
+
+#### Claude Desktop
+
+Add to your Claude Desktop config:
+
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`  
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "financial-planner": {
+      "command": "python",
+      "args": ["/path/to/financial-planner/mcp-server/server.py"],
+      "env": {
+        "FINANCIAL_PLANNER_PROGRAM": "myprogram"
+      }
+    }
+  }
+}
+```
+
+### Example Questions
+
+Once configured, you can ask your AI assistant:
+
+- "What's my take-home pay in 2030?"
+- "How much federal tax will I pay in 2027?"
+- "When do my deferred comp disbursements start?"
+- "What's my total lifetime tax burden?"
+- "Compare my income between 2025 and 2040"
+
+See `mcp-server/README.md` for more details.
 
 ## State Tax Support
 
