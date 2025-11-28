@@ -175,3 +175,133 @@ def test_investment_calculator_year_outside_range():
     
     assert calc.get_balances(2020) is None
     assert calc.get_balances(2035) is None
+
+
+def test_investment_calculator_with_401k_contributions():
+    """Test that 401k contributions are added to tax-deferred balance."""
+    spec = {
+        'investments': {
+            'taxableBalance': 100000.0,
+            'taxableAppreciationRate': 0.10,
+            'taxDeferredBalance': 200000.0,
+            'taxDeferredAppreciationRate': 0.10,
+            'hsaBalance': 10000.0,
+            'hsaAppreciationRate': 0.10
+        }
+    }
+    
+    yearly_contributions = {
+        2025: {'tax_deferred': 23000.0, 'hsa': 4150.0},
+        2026: {'tax_deferred': 23500.0, 'hsa': 4250.0},
+        2027: {'tax_deferred': 24000.0, 'hsa': 4350.0}
+    }
+    
+    calc = InvestmentCalculator(
+        spec, first_year=2025, last_year=2030,
+        last_working_year=2027,
+        yearly_contributions=yearly_contributions
+    )
+    
+    # First year: initial balance + first year contribution (no appreciation yet)
+    balances_2025 = calc.get_balances(2025)
+    assert balances_2025['tax_deferred'] == pytest.approx(223000.0)  # 200000 + 23000
+    assert balances_2025['hsa'] == pytest.approx(14150.0)  # 10000 + 4150
+    
+    # Second year: (previous balance * 1.1) + contribution
+    balances_2026 = calc.get_balances(2026)
+    # (223000 * 1.1) + 23500 = 245300 + 23500 = 268800
+    assert balances_2026['tax_deferred'] == pytest.approx(268800.0)
+    # (14150 * 1.1) + 4250 = 15565 + 4250 = 19815
+    assert balances_2026['hsa'] == pytest.approx(19815.0)
+    
+    # Third year: (previous balance * 1.1) + contribution  
+    balances_2027 = calc.get_balances(2027)
+    # (268800 * 1.1) + 24000 = 295680 + 24000 = 319680
+    assert balances_2027['tax_deferred'] == pytest.approx(319680.0)
+
+
+def test_investment_calculator_no_contributions_after_retirement():
+    """Test that contributions stop after last working year."""
+    spec = {
+        'investments': {
+            'taxDeferredBalance': 100000.0,
+            'taxDeferredAppreciationRate': 0.10
+        }
+    }
+    
+    # Contributions are defined for 2025-2030, but last working year is 2026
+    yearly_contributions = {
+        2025: {'tax_deferred': 20000.0},
+        2026: {'tax_deferred': 20000.0},
+        2027: {'tax_deferred': 20000.0},  # Should be ignored
+        2028: {'tax_deferred': 20000.0},  # Should be ignored
+    }
+    
+    calc = InvestmentCalculator(
+        spec, first_year=2025, last_year=2030,
+        last_working_year=2026,
+        yearly_contributions=yearly_contributions
+    )
+    
+    # 2025: 100000 + 20000 = 120000
+    assert calc.get_balances(2025)['tax_deferred'] == pytest.approx(120000.0)
+    
+    # 2026: 120000 * 1.1 + 20000 = 132000 + 20000 = 152000
+    assert calc.get_balances(2026)['tax_deferred'] == pytest.approx(152000.0)
+    
+    # 2027: 152000 * 1.1 + 0 (no contribution, past last working year) = 167200
+    assert calc.get_balances(2027)['tax_deferred'] == pytest.approx(167200.0)
+    
+    # 2028: 167200 * 1.1 = 183920
+    assert calc.get_balances(2028)['tax_deferred'] == pytest.approx(183920.0)
+
+
+def test_investment_calculator_contributions_tracked():
+    """Test that contributions are tracked in the balance dict."""
+    spec = {
+        'investments': {
+            'taxDeferredBalance': 100000.0,
+            'taxDeferredAppreciationRate': 0.10
+        }
+    }
+    
+    yearly_contributions = {
+        2025: {'tax_deferred': 23000.0, 'hsa': 4000.0},
+        2026: {'tax_deferred': 24000.0, 'hsa': 4200.0}
+    }
+    
+    calc = InvestmentCalculator(
+        spec, first_year=2025, last_year=2030,
+        last_working_year=2026,
+        yearly_contributions=yearly_contributions
+    )
+    
+    balances_2025 = calc.get_balances(2025)
+    assert 'contributions' in balances_2025
+    assert balances_2025['contributions']['tax_deferred'] == 23000.0
+    assert balances_2025['contributions']['hsa'] == 4000.0
+    
+    balances_2027 = calc.get_balances(2027)
+    assert balances_2027['contributions']['tax_deferred'] == 0.0  # Past working years
+
+
+def test_investment_calculator_supports_401k_key():
+    """Test that '401k' key is supported in addition to 'tax_deferred'."""
+    spec = {
+        'investments': {
+            'taxDeferredBalance': 100000.0,
+            'taxDeferredAppreciationRate': 0.0
+        }
+    }
+    
+    yearly_contributions = {
+        2025: {'401k': 25000.0},  # Using '401k' instead of 'tax_deferred'
+    }
+    
+    calc = InvestmentCalculator(
+        spec, first_year=2025, last_year=2027,
+        last_working_year=2027,
+        yearly_contributions=yearly_contributions
+    )
+    
+    assert calc.get_balances(2025)['tax_deferred'] == pytest.approx(125000.0)

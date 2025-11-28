@@ -104,11 +104,19 @@ class FinancialPlannerTools:
             self.social_security, self.medicare, self.rsu_calculator
         )
         
-        # Calculate yearly deferrals for deferred comp calculator
+        # Calculate yearly deferrals and contributions for working years
         yearly_deferrals = {}
+        yearly_contributions = {}
         for year in range(first_year, last_working_year + 1):
             results = self.calculator.calculate(self.spec, year)
             yearly_deferrals[year] = results.get('total_deferral', 0)
+            
+            # Get 401k and HSA contributions from deductions
+            deductions = results.get('deductions', {})
+            yearly_contributions[year] = {
+                'tax_deferred': deductions.get('max401k', 0),
+                'hsa': deductions.get('maxHSA', 0)
+            }
         
         # Deferred comp calculator
         self.deferred_comp = DeferredCompCalculator(self.spec, yearly_deferrals)
@@ -117,9 +125,11 @@ class FinancialPlannerTools:
         # Balance calculator
         self.balance_calculator = BalanceCalculator(self.calculator, self.fed)
         
-        # Investment calculator
+        # Investment calculator with yearly contributions
         self.investment_calculator = InvestmentCalculator(
-            self.spec, first_year, final_year
+            self.spec, first_year, final_year,
+            last_working_year=last_working_year,
+            yearly_contributions=yearly_contributions
         )
     
     def _cache_results(self):
@@ -361,7 +371,7 @@ class FinancialPlannerTools:
             if balances is None:
                 return {"error": f"No balance data for year {year}"}
             
-            return {
+            result = {
                 "year": year,
                 "is_working_year": year <= self.last_working_year,
                 "balances": {
@@ -376,6 +386,15 @@ class FinancialPlannerTools:
                     "hsa": investments.get('hsaAppreciationRate', 0)
                 }
             }
+            
+            # Include contributions if available
+            if 'contributions' in balances:
+                result["contributions"] = {
+                    "401k_contribution": round(balances['contributions'].get('tax_deferred', 0), 2),
+                    "hsa_contribution": round(balances['contributions'].get('hsa', 0), 2)
+                }
+            
+            return result
         
         # Return all years summary
         all_balances = self.investment_calculator.get_all_balances()
