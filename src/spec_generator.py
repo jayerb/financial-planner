@@ -120,18 +120,54 @@ def print_section(title: str) -> None:
     print()
 
 
-def generate_spec() -> dict:
-    """Interactive wizard to generate a spec.json configuration."""
-    current_year = datetime.now().year
+def load_existing_spec(program_name: str, base_path: str) -> Optional[dict]:
+    """Load an existing spec.json if it exists.
     
-    print()
-    print("╔════════════════════════════════════════════════════════════╗")
-    print("║      Financial Planner - Configuration Generator          ║")
-    print("╚════════════════════════════════════════════════════════════╝")
-    print()
-    print("This wizard will guide you through creating your financial plan.")
-    print("Press Enter to accept default values shown in [brackets].")
-    print()
+    Args:
+        program_name: Name of the program folder
+        base_path: Base path to the financial-planner directory
+        
+    Returns:
+        The spec dictionary if it exists, None otherwise
+    """
+    spec_path = os.path.join(base_path, 'input-parameters', program_name, 'spec.json')
+    if os.path.exists(spec_path):
+        try:
+            with open(spec_path, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return None
+    return None
+
+
+def get_nested(d: dict, *keys, default=None):
+    """Safely get a nested dictionary value.
+    
+    Args:
+        d: The dictionary to search
+        *keys: The sequence of keys to traverse
+        default: Default value if path doesn't exist
+        
+    Returns:
+        The value at the nested path, or default
+    """
+    for key in keys:
+        if not isinstance(d, dict):
+            return default
+        d = d.get(key, default)
+        if d is None:
+            return default
+    return d
+
+
+def generate_spec(existing_spec: Optional[dict] = None) -> dict:
+    """Interactive wizard to generate a spec.json configuration.
+    
+    Args:
+        existing_spec: Optional existing spec to use for default values
+    """
+    current_year = datetime.now().year
+    ex = existing_spec or {}
 
     spec: dict[str, Any] = {}
 
@@ -142,26 +178,26 @@ def generate_spec() -> dict:
     
     spec['firstYear'] = prompt_int(
         "First year of your plan",
-        default=current_year,
+        default=ex.get('firstYear', current_year),
         min_val=current_year - 5,
         max_val=current_year + 5
     )
     
     spec['lastWorkingYear'] = prompt_int(
         "Last year you plan to work (retirement year)",
-        default=spec['firstYear'] + 10,
+        default=ex.get('lastWorkingYear', spec['firstYear'] + 10),
         min_val=spec['firstYear']
     )
     
     spec['lastPlanningYear'] = prompt_int(
         "Last year of your financial plan",
-        default=spec['lastWorkingYear'] + 30,
+        default=ex.get('lastPlanningYear', spec['lastWorkingYear'] + 30),
         min_val=spec['lastWorkingYear']
     )
     
     spec['federalBracketInflation'] = prompt_percent(
         "Expected annual inflation rate for tax brackets",
-        default=0.03
+        default=ex.get('federalBracketInflation', 0.03)
     )
 
     # =========================================================================
@@ -170,25 +206,27 @@ def generate_spec() -> dict:
     print_section("Income")
     
     income: dict[str, Any] = {}
+    ex_income = ex.get('income', {})
     
     income['baseSalary'] = prompt_currency(
         "Annual base salary",
+        default=ex_income.get('baseSalary'),
         min_val=0
     )
     
     income['bonusFraction'] = prompt_percent(
         "Annual bonus as percentage of base salary",
-        default=0.0
+        default=ex_income.get('bonusFraction', 0.0)
     )
     
     income['annualBaseIncreaseFraction'] = prompt_percent(
         "Expected annual salary increase",
-        default=0.03
+        default=ex_income.get('annualBaseIncreaseFraction', 0.03)
     )
     
     income['otherIncome'] = prompt_currency(
         "Other annual income (side jobs, etc.)",
-        default=0.0
+        default=ex_income.get('otherIncome', 0.0)
     )
 
     # Investment Income
@@ -197,12 +235,12 @@ def generate_spec() -> dict:
     
     income['shortTermCapitalGains'] = prompt_currency(
         "Expected annual short-term capital gains",
-        default=0.0
+        default=ex_income.get('shortTermCapitalGains', 0.0)
     )
     
     income['longTermCapitalGains'] = prompt_currency(
         "Expected annual long-term capital gains",
-        default=0.0
+        default=ex_income.get('longTermCapitalGains', 0.0)
     )
 
     spec['income'] = income
@@ -212,38 +250,42 @@ def generate_spec() -> dict:
     # =========================================================================
     print_section("Deferred Compensation")
     
-    has_deferred = prompt_yes_no("Do you have a deferred compensation plan?", default=False)
+    # Check if existing spec has deferred compensation
+    has_existing_deferred = 'deferredCompensationPlan' in ex or ex_income.get('baseDeferralFraction', 0) > 0
+    has_deferred = prompt_yes_no("Do you have a deferred compensation plan?", default=has_existing_deferred)
+    
+    ex_deferred = ex.get('deferredCompensationPlan', {})
     
     if has_deferred:
         spec['income']['baseDeferralFraction'] = prompt_percent(
             "Percentage of base salary to defer",
-            default=0.0,
+            default=ex_income.get('baseDeferralFraction', 0.0),
             max_val=75.0
         )
         
         spec['income']['bonusDeferralFraction'] = prompt_percent(
             "Percentage of bonus to defer",
-            default=0.0,
+            default=ex_income.get('bonusDeferralFraction', 0.0),
             max_val=75.0
         )
         
         deferred_plan: dict[str, Any] = {}
         deferred_plan['maxDeferralFraction'] = prompt_percent(
             "Maximum allowed deferral fraction",
-            default=0.75,
+            default=ex_deferred.get('maxDeferralFraction', 0.75),
             max_val=100.0
         )
         
         deferred_plan['dispursementYears'] = prompt_int(
             "Number of years for disbursements after retirement",
-            default=10,
+            default=ex_deferred.get('dispursementYears', 10),
             min_val=1,
             max_val=30
         )
         
         deferred_plan['annualGrowthFraction'] = prompt_percent(
             "Expected annual growth rate on deferred balance",
-            default=0.05
+            default=ex_deferred.get('annualGrowthFraction', 0.05)
         )
         
         spec['deferredCompensationPlan'] = deferred_plan
@@ -253,17 +295,18 @@ def generate_spec() -> dict:
     # =========================================================================
     print_section("Employee Stock Purchase Plan (ESPP)")
     
-    has_espp = prompt_yes_no("Do you participate in an ESPP?", default=False)
+    has_existing_espp = ex.get('esppDiscount', 0) > 0 or ex_income.get('esppIncome', 0) > 0
+    has_espp = prompt_yes_no("Do you participate in an ESPP?", default=has_existing_espp)
     
     if has_espp:
         spec['esppDiscount'] = prompt_percent(
             "ESPP discount percentage",
-            default=0.15
+            default=ex.get('esppDiscount', 0.15)
         )
         
         spec['income']['esppIncome'] = prompt_currency(
             "Annual ESPP taxable income (discount benefit)",
-            default=0.0
+            default=ex_income.get('esppIncome', 0.0)
         )
 
     # =========================================================================
@@ -271,44 +314,63 @@ def generate_spec() -> dict:
     # =========================================================================
     print_section("Restricted Stock Units (RSUs)")
     
-    has_rsu = prompt_yes_no("Do you have RSU grants?", default=False)
+    has_existing_rsu = 'restrictedStockUnits' in ex
+    has_rsu = prompt_yes_no("Do you have RSU grants?", default=has_existing_rsu)
+    
+    ex_rsu = ex.get('restrictedStockUnits', {})
     
     if has_rsu:
         rsu: dict[str, Any] = {}
         
         rsu['currentStockPrice'] = prompt_currency(
             "Current stock price",
+            default=ex_rsu.get('currentStockPrice'),
             min_val=0.01
         )
         
         rsu['expectedSharePriceGrowthFraction'] = prompt_percent(
             "Expected annual stock price growth",
-            default=0.07
+            default=ex_rsu.get('expectedSharePriceGrowthFraction', 0.07)
         )
         
         rsu['vestingPeriodYears'] = prompt_int(
             "Vesting period (years)",
-            default=4,
+            default=ex_rsu.get('vestingPeriodYears', 4),
             min_val=1,
             max_val=10
         )
         
         rsu['initialAnnualGrantValue'] = prompt_currency(
             "Expected annual RSU grant value (in dollars)",
-            default=0.0
+            default=ex_rsu.get('initialAnnualGrantValue', 0.0)
         )
         
         rsu['annualGrantIncreaseFraction'] = prompt_percent(
             "Expected annual increase in grant value",
-            default=0.05
+            default=ex_rsu.get('annualGrantIncreaseFraction', 0.05)
         )
         
         # Previous grants
         print()
-        has_previous = prompt_yes_no("Do you have unvested grants from previous years?", default=False)
+        ex_previous_grants = ex_rsu.get('previousGrants', [])
+        has_existing_previous = len(ex_previous_grants) > 0
+        if has_existing_previous:
+            print(f"Existing previous grants: {len(ex_previous_grants)} grant(s)")
+            for grant in ex_previous_grants:
+                print(f"  - Year {grant.get('year')}: {grant.get('grantShares')} shares, "
+                      f"{grant.get('vestingPeriodYears')}-year vesting")
+            keep_existing = prompt_yes_no("Keep existing previous grants?", default=True)
+            if keep_existing:
+                previous_grants = ex_previous_grants.copy()
+                add_more = prompt_yes_no("Add more grants?", default=False)
+            else:
+                previous_grants = []
+                add_more = prompt_yes_no("Do you have unvested grants from previous years?", default=False)
+        else:
+            previous_grants = []
+            add_more = prompt_yes_no("Do you have unvested grants from previous years?", default=False)
         
-        previous_grants = []
-        if has_previous:
+        if add_more:
             print()
             print("Enter previous grants (press Enter with no year to finish):")
             while True:
@@ -335,14 +397,16 @@ def generate_spec() -> dict:
     # =========================================================================
     print_section("Deductions")
     
+    ex_deductions = ex.get('deductions', {})
     deductions: dict[str, Any] = {}
     
     deductions['medicalDentalVision'] = prompt_currency(
         "Annual medical/dental/vision premiums (pre-tax)",
-        default=0.0
+        default=ex_deductions.get('medicalDentalVision', 0.0)
     )
     
-    if deductions['medicalDentalVision'] > 0 or prompt_yes_no("Add any deductions?", default=False):
+    has_existing_deductions = len(ex_deductions) > 0
+    if deductions['medicalDentalVision'] > 0 or prompt_yes_no("Add any deductions?", default=has_existing_deductions):
         spec['deductions'] = deductions
 
     # =========================================================================
@@ -350,13 +414,15 @@ def generate_spec() -> dict:
     # =========================================================================
     print_section("Company Benefits")
     
-    has_life_insurance = prompt_yes_no("Does your company provide taxable life insurance?", default=False)
+    ex_life_insurance = ex.get('companyProvidedLifeInsurance', {})
+    has_existing_life = 'companyProvidedLifeInsurance' in ex
+    has_life_insurance = prompt_yes_no("Does your company provide taxable life insurance?", default=has_existing_life)
     
     if has_life_insurance:
         spec['companyProvidedLifeInsurance'] = {
             'annualPremium': prompt_currency(
                 "Annual taxable life insurance premium",
-                default=0.0
+                default=ex_life_insurance.get('annualPremium', 0.0)
             )
         }
 
@@ -365,19 +431,20 @@ def generate_spec() -> dict:
     # =========================================================================
     print_section("Investment Accounts")
     
+    ex_investments = ex.get('investments', {})
     investments: dict[str, Any] = {}
     
     # Taxable brokerage accounts
     print("--- Taxable Accounts ---")
     investments['taxableBalance'] = prompt_currency(
         "Current taxable brokerage account balance",
-        default=0.0
+        default=ex_investments.get('taxableBalance', 0.0)
     )
     
     if investments['taxableBalance'] > 0:
         investments['taxableAppreciationRate'] = prompt_percent(
             "Expected annual appreciation rate for taxable accounts",
-            default=0.07
+            default=ex_investments.get('taxableAppreciationRate', 0.07)
         )
     
     # Tax-deferred accounts (401k, Traditional IRA)
@@ -385,13 +452,13 @@ def generate_spec() -> dict:
     print("--- Tax-Deferred Accounts (401k, Traditional IRA) ---")
     investments['taxDeferredBalance'] = prompt_currency(
         "Current 401(k) and Traditional IRA balance",
-        default=0.0
+        default=ex_investments.get('taxDeferredBalance', 0.0)
     )
     
     if investments['taxDeferredBalance'] > 0:
         investments['taxDeferredAppreciationRate'] = prompt_percent(
             "Expected annual appreciation rate for tax-deferred accounts",
-            default=0.07
+            default=ex_investments.get('taxDeferredAppreciationRate', 0.07)
         )
     
     # HSA
@@ -399,13 +466,13 @@ def generate_spec() -> dict:
     print("--- Health Savings Account (HSA) ---")
     investments['hsaBalance'] = prompt_currency(
         "Current HSA balance",
-        default=0.0
+        default=ex_investments.get('hsaBalance', 0.0)
     )
     
     if investments['hsaBalance'] > 0:
         investments['hsaAppreciationRate'] = prompt_percent(
             "Expected annual appreciation rate for HSA",
-            default=0.07
+            default=ex_investments.get('hsaAppreciationRate', 0.07)
         )
     
     # Only add investments section if any accounts have balances
@@ -438,35 +505,73 @@ def save_spec(spec: dict, program_name: str, base_path: str) -> str:
     return spec_path
 
 
+def list_existing_programs(base_path: str) -> list[str]:
+    """List all existing programs in the input-parameters directory.
+    
+    Args:
+        base_path: Base path to the financial-planner directory
+        
+    Returns:
+        List of program names
+    """
+    input_params_path = os.path.join(base_path, 'input-parameters')
+    if not os.path.exists(input_params_path):
+        return []
+    
+    programs = []
+    for name in os.listdir(input_params_path):
+        program_dir = os.path.join(input_params_path, name)
+        spec_path = os.path.join(program_dir, 'spec.json')
+        if os.path.isdir(program_dir) and os.path.exists(spec_path):
+            programs.append(name)
+    
+    return sorted(programs)
+
+
 def run_generator() -> Optional[str]:
     """Run the interactive generator and return the program name if successful."""
     try:
-        spec = generate_spec()
+        # Determine base path
+        base_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '..'))
         
-        print_section("Save Configuration")
+        print()
+        print("╔════════════════════════════════════════════════════════════╗")
+        print("║      Financial Planner - Configuration Generator          ║")
+        print("╚════════════════════════════════════════════════════════════╝")
+        print()
         
-        # Get program name
+        # List existing programs
+        existing_programs = list_existing_programs(base_path)
+        if existing_programs:
+            print("Existing plans:")
+            for prog in existing_programs:
+                print(f"  - {prog}")
+            print()
+            print("Enter an existing plan name to update it, or a new name to create.")
+        else:
+            print("No existing plans found. Enter a name for your new plan.")
+        print()
+        
+        # Get program name first
         program_name = prompt_string(
-            "Enter a name for this plan (used as folder name)",
+            "Plan name",
             default="myplan"
         )
         
         # Clean up the name (remove spaces, special chars)
         program_name = "".join(c if c.isalnum() or c in '-_' else '_' for c in program_name)
         
-        # Determine base path
-        base_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '..'))
+        # Check if program exists and load it
+        existing_spec = load_existing_spec(program_name, base_path)
+        if existing_spec:
+            print()
+            print(f"Found existing plan '{program_name}'. Values will be used as defaults.")
+        else:
+            print()
+            print(f"Creating new plan '{program_name}'.")
         
-        # Check if it already exists
-        program_dir = os.path.join(base_path, 'input-parameters', program_name)
-        if os.path.exists(program_dir):
-            overwrite = prompt_yes_no(
-                f"'{program_name}' already exists. Overwrite?",
-                default=False
-            )
-            if not overwrite:
-                print("Cancelled. No changes made.")
-                return None
+        # Generate spec with existing values as defaults
+        spec = generate_spec(existing_spec)
         
         # Save
         spec_path = save_spec(spec, program_name, base_path)

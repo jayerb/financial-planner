@@ -8,7 +8,7 @@ import shutil
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
-from spec_generator import save_spec
+from spec_generator import save_spec, load_existing_spec, get_nested, list_existing_programs
 
 
 def test_save_spec_creates_directory_and_file():
@@ -129,3 +129,108 @@ def test_investments_section_optional():
     
     assert 'investments' in spec_with_investments
     assert spec_with_investments['investments']['taxableBalance'] == 50000.0
+
+
+def test_load_existing_spec():
+    """Test loading an existing spec.json file."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        spec = {
+            'firstYear': 2025,
+            'lastWorkingYear': 2035,
+            'lastPlanningYear': 2065,
+            'income': {'baseSalary': 150000}
+        }
+        
+        # Create the program directory and save the spec
+        os.makedirs(os.path.join(tmpdir, 'input-parameters'))
+        save_spec(spec, 'testprogram', tmpdir)
+        
+        # Load the spec
+        loaded_spec = load_existing_spec('testprogram', tmpdir)
+        
+        assert loaded_spec is not None
+        assert loaded_spec['firstYear'] == 2025
+        assert loaded_spec['income']['baseSalary'] == 150000
+
+
+def test_load_existing_spec_nonexistent():
+    """Test that loading a nonexistent spec returns None."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        os.makedirs(os.path.join(tmpdir, 'input-parameters'))
+        
+        result = load_existing_spec('nonexistent', tmpdir)
+        
+        assert result is None
+
+
+def test_get_nested():
+    """Test the get_nested helper function."""
+    data = {
+        'level1': {
+            'level2': {
+                'value': 42
+            }
+        },
+        'simple': 'test'
+    }
+    
+    # Test nested access
+    assert get_nested(data, 'level1', 'level2', 'value') == 42
+    
+    # Test simple access
+    assert get_nested(data, 'simple') == 'test'
+    
+    # Test missing key with default
+    assert get_nested(data, 'missing', default='default') == 'default'
+    
+    # Test missing nested key with default
+    assert get_nested(data, 'level1', 'missing', default=100) == 100
+    
+    # Test None default
+    assert get_nested(data, 'missing') is None
+
+
+def test_list_existing_programs():
+    """Test listing existing programs."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create input-parameters directory
+        input_params = os.path.join(tmpdir, 'input-parameters')
+        os.makedirs(input_params)
+        
+        # Create some program directories with spec.json files
+        for name in ['program1', 'program2', 'program3']:
+            prog_dir = os.path.join(input_params, name)
+            os.makedirs(prog_dir)
+            with open(os.path.join(prog_dir, 'spec.json'), 'w') as f:
+                json.dump({'firstYear': 2025}, f)
+        
+        # Create a directory without spec.json (should be ignored)
+        invalid_dir = os.path.join(input_params, 'invalid')
+        os.makedirs(invalid_dir)
+        
+        # List programs
+        programs = list_existing_programs(tmpdir)
+        
+        assert len(programs) == 3
+        assert 'program1' in programs
+        assert 'program2' in programs
+        assert 'program3' in programs
+        assert 'invalid' not in programs
+
+
+def test_list_existing_programs_empty():
+    """Test listing programs when none exist."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        os.makedirs(os.path.join(tmpdir, 'input-parameters'))
+        
+        programs = list_existing_programs(tmpdir)
+        
+        assert programs == []
+
+
+def test_list_existing_programs_no_directory():
+    """Test listing programs when input-parameters doesn't exist."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        programs = list_existing_programs(tmpdir)
+        
+        assert programs == []
