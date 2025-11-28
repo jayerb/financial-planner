@@ -360,6 +360,58 @@ def generate_spec() -> dict:
             )
         }
 
+    # =========================================================================
+    # INVESTMENT ACCOUNTS
+    # =========================================================================
+    print_section("Investment Accounts")
+    
+    investments: dict[str, Any] = {}
+    
+    # Taxable brokerage accounts
+    print("--- Taxable Accounts ---")
+    investments['taxableBalance'] = prompt_currency(
+        "Current taxable brokerage account balance",
+        default=0.0
+    )
+    
+    if investments['taxableBalance'] > 0:
+        investments['taxableAppreciationRate'] = prompt_percent(
+            "Expected annual appreciation rate for taxable accounts",
+            default=0.07
+        )
+    
+    # Tax-deferred accounts (401k, Traditional IRA)
+    print()
+    print("--- Tax-Deferred Accounts (401k, Traditional IRA) ---")
+    investments['taxDeferredBalance'] = prompt_currency(
+        "Current 401(k) and Traditional IRA balance",
+        default=0.0
+    )
+    
+    if investments['taxDeferredBalance'] > 0:
+        investments['taxDeferredAppreciationRate'] = prompt_percent(
+            "Expected annual appreciation rate for tax-deferred accounts",
+            default=0.07
+        )
+    
+    # HSA
+    print()
+    print("--- Health Savings Account (HSA) ---")
+    investments['hsaBalance'] = prompt_currency(
+        "Current HSA balance",
+        default=0.0
+    )
+    
+    if investments['hsaBalance'] > 0:
+        investments['hsaAppreciationRate'] = prompt_percent(
+            "Expected annual appreciation rate for HSA",
+            default=0.07
+        )
+    
+    # Only add investments section if any accounts have balances
+    if investments['taxableBalance'] > 0 or investments['taxDeferredBalance'] > 0 or investments['hsaBalance'] > 0:
+        spec['investments'] = investments
+
     return spec
 
 
