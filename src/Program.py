@@ -11,7 +11,8 @@ from calc.take_home import TakeHomeCalculator
 from calc.rsu_calculator import RSUCalculator
 from calc.balance_calculator import BalanceCalculator
 from calc.deferred_comp_calculator import DeferredCompCalculator
-from render.renderers import TaxDetailsRenderer, BalancesRenderer, AnnualSummaryRenderer, RENDERER_REGISTRY
+from render.renderers import TaxDetailsRenderer, BalancesRenderer, AnnualSummaryRenderer, ContributionsRenderer, RENDERER_REGISTRY
+from calc.investment_calculator import InvestmentCalculator
 from spec_generator import run_generator
 
 
@@ -48,12 +49,14 @@ Modes:
   TaxDetails     Print detailed tax breakdown for the first year (default)
   Balances       Print accumulated balances for 401(k) and deferred compensation plans
   AnnualSummary  Print summary table of income and tax burden for each working year
+  Contributions  Print yearly contributions to each account type
 
 Examples:
   python src/Program.py myprogram
   python src/Program.py myprogram --mode TaxDetails
   python src/Program.py myprogram --mode Balances
   python src/Program.py myprogram --mode AnnualSummary
+  python src/Program.py myprogram --mode Contributions
   python src/Program.py --generate
         """
     )
@@ -172,6 +175,65 @@ Examples:
             yearly_results[year] = calculator.calculate(spec, year)
         renderer = AnnualSummaryRenderer()
         renderer.render(yearly_results)
+    elif args.mode == 'Contributions':
+        last_working_year = spec.get('lastWorkingYear', tax_year + 10)
+        last_planning_year = spec.get('lastPlanningYear', tax_year + 30)
+        
+        # Calculate yearly results for working years
+        yearly_results = {}
+        yearly_contributions = {}
+        for year in range(tax_year, last_working_year + 1):
+            results = calculator.calculate(spec, year)
+            yearly_results[year] = results
+            
+            # Build contribution data for InvestmentCalculator
+            deductions = results.get('deductions', {})
+            employee_401k = deductions.get('max401k', 0)
+            employee_hsa = deductions.get('employeeHSA', deductions.get('maxHSA', 0))
+            
+            # Calculate employer 401k match
+            investments = spec.get('investments', {})
+            match_percent = investments.get('employer401kMatchPercent', 0)
+            match_max_salary_percent = investments.get('employer401kMatchMaxSalaryPercent', 0)
+            
+            # Calculate base salary and bonus for this year (with inflation)
+            income = spec.get('income', {})
+            base_salary = income.get('baseSalary', 0)
+            bonus_fraction = income.get('bonusFraction', 0)
+            annual_increase = income.get('annualBaseIncreaseFraction', 0)
+            years_from_first = year - tax_year
+            if years_from_first > 0:
+                base_salary = base_salary * ((1 + annual_increase) ** years_from_first)
+            bonus = base_salary * bonus_fraction
+            
+            # Deduct deferred compensation from salary + bonus for match calculation
+            total_deferral = results.get('total_deferral', 0)
+            matchable_compensation = base_salary + bonus - total_deferral
+            
+            # Employer match: match_percent of employee contribution up to match_max_salary_percent of compensation
+            max_matchable = matchable_compensation * match_max_salary_percent
+            matchable_contribution = min(employee_401k, max_matchable)
+            employer_match = matchable_contribution * match_percent
+            
+            yearly_contributions[year] = {
+                '401k': employee_401k,
+                'hsa': employee_hsa,
+                'employer_match': employer_match
+            }
+        
+        # Create investment calculator with contributions
+        investment_calc = InvestmentCalculator(
+            spec, tax_year, last_planning_year,
+            last_working_year=last_working_year,
+            yearly_contributions=yearly_contributions
+        )
+        
+        renderer = ContributionsRenderer()
+        renderer.render({
+            'yearly_results': yearly_results,
+            'investment_balances': investment_calc.get_all_balances(),
+            'last_working_year': last_working_year
+        })
 
 if __name__ == "__main__":
     main()

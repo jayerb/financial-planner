@@ -240,9 +240,92 @@ class AnnualSummaryRenderer(BaseRenderer):
         print()
 
 
+class ContributionsRenderer(BaseRenderer):
+    """Renderer for yearly contributions to investment accounts."""
+    
+    def render(self, data: Dict) -> None:
+        """Render the yearly contributions breakdown.
+        
+        Args:
+            data: Dictionary containing:
+                - yearly_results: Dict[int, Dict] from TakeHomeCalculator
+                - investment_balances: Dict[int, dict] from InvestmentCalculator
+                - last_working_year: int
+        """
+        yearly_results = data['yearly_results']
+        investment_balances = data.get('investment_balances', {})
+        last_working_year = data.get('last_working_year', max(yearly_results.keys()))
+        
+        print()
+        print("=" * 130)
+        print(f"{'YEARLY CONTRIBUTIONS':^130}")
+        print("=" * 130)
+        print()
+        print(f"  {'Year':<6} {'401(k) Emp':>14} {'401(k) Empr':>14} {'401(k) Total':>14} {'HSA Emp':>12} {'HSA Empr':>12} {'Deferred':>14} {'Taxable':>14} {'Total':>14}")
+        print(f"  {'-' * 6} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 12} {'-' * 12} {'-' * 14} {'-' * 14} {'-' * 14}")
+        
+        total_401k_employee = 0
+        total_401k_employer = 0
+        total_401k = 0
+        total_hsa_employee = 0
+        total_hsa_employer = 0
+        total_deferred = 0
+        total_taxable = 0
+        total_all = 0
+        
+        for year in sorted(yearly_results.keys()):
+            if year > last_working_year:
+                break
+                
+            results = yearly_results[year]
+            deductions = results.get('deductions', {})
+            
+            # 401(k) contributions
+            employee_401k = deductions.get('max401k', 0)
+            
+            # Get employer match from investment balances if available
+            inv_balance = investment_balances.get(year, {})
+            contributions = inv_balance.get('contributions', {})
+            employer_401k = contributions.get('employer_match', 0)
+            total_401k_year = employee_401k + employer_401k
+            
+            # HSA contributions
+            employee_hsa = deductions.get('employeeHSA', deductions.get('maxHSA', 0))
+            max_hsa = deductions.get('maxHSA', 0)
+            employer_hsa = max_hsa - employee_hsa
+            
+            # Deferred compensation
+            deferred = results.get('total_deferral', 0)
+            
+            # Taxable account contribution (take home minus spending)
+            # For now, we'll show 0 as taxable contributions aren't explicitly tracked
+            taxable_contrib = 0
+            
+            # Total contributions for this year
+            year_total = total_401k_year + employee_hsa + employer_hsa + deferred + taxable_contrib
+            
+            print(f"  {year:<6} ${employee_401k:>12,.0f} ${employer_401k:>12,.0f} ${total_401k_year:>12,.0f} ${employee_hsa:>10,.0f} ${employer_hsa:>10,.0f} ${deferred:>12,.0f} ${taxable_contrib:>12,.0f} ${year_total:>12,.0f}")
+            
+            total_401k_employee += employee_401k
+            total_401k_employer += employer_401k
+            total_401k += total_401k_year
+            total_hsa_employee += employee_hsa
+            total_hsa_employer += employer_hsa
+            total_deferred += deferred
+            total_taxable += taxable_contrib
+            total_all += year_total
+        
+        print(f"  {'-' * 6} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 12} {'-' * 12} {'-' * 14} {'-' * 14} {'-' * 14}")
+        print(f"  {'TOTAL':<6} ${total_401k_employee:>12,.0f} ${total_401k_employer:>12,.0f} ${total_401k:>12,.0f} ${total_hsa_employee:>10,.0f} ${total_hsa_employer:>10,.0f} ${total_deferred:>12,.0f} ${total_taxable:>12,.0f} ${total_all:>12,.0f}")
+        print()
+        print("=" * 130)
+        print()
+
+
 # Registry mapping mode names to renderer classes
 RENDERER_REGISTRY = {
     'TaxDetails': TaxDetailsRenderer,
     'Balances': BalancesRenderer,
     'AnnualSummary': AnnualSummaryRenderer,
+    'Contributions': ContributionsRenderer,
 }
