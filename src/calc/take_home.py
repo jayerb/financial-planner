@@ -27,6 +27,7 @@ class TakeHomeCalculator:
         self.medicare = medicare
         self.rsu_calculator = rsu_calculator
         self.deferred_comp_calculator = deferred_comp_calculator
+        self._taxable_balances: Dict[int, float] = {}
     
     def set_deferred_comp_calculator(self, calculator: 'DeferredCompCalculator') -> None:
         """Set the deferred compensation calculator after initialization.
@@ -38,6 +39,16 @@ class TakeHomeCalculator:
             calculator: The DeferredCompCalculator instance
         """
         self.deferred_comp_calculator = calculator
+    
+    def set_taxable_balances(self, balances: Dict[int, float]) -> None:
+        """Set the taxable account balances for each year.
+        
+        Used to calculate capital gains as a percentage of the account balance.
+        
+        Args:
+            balances: Dictionary mapping year to taxable account balance
+        """
+        self._taxable_balances = balances
 
     def calculate(self, spec: dict, tax_year: int = 2026) -> Dict:
         final_year = spec.get('lastPlanningYear')
@@ -67,8 +78,21 @@ class TakeHomeCalculator:
         is_working_year = tax_year <= last_working_year
 
         income_details = spec.get('income', {})
-        short_term_capital_gains = income_details.get('shortTermCapitalGains', 0)
-        long_term_capital_gains = income_details.get('longTermCapitalGains', 0)
+        
+        # Capital gains calculation - supports both fixed amounts and percentage-based
+        # If percentage fields exist, calculate from taxable balance; otherwise use fixed amounts
+        investments = spec.get('investments', {})
+        taxable_balance = self._taxable_balances.get(tax_year, investments.get('taxableBalance', 0))
+        
+        if 'shortTermCapitalGainsPercent' in income_details:
+            short_term_capital_gains = taxable_balance * income_details.get('shortTermCapitalGainsPercent', 0)
+        else:
+            short_term_capital_gains = income_details.get('shortTermCapitalGains', 0)
+        
+        if 'longTermCapitalGainsPercent' in income_details:
+            long_term_capital_gains = taxable_balance * income_details.get('longTermCapitalGainsPercent', 0)
+        else:
+            long_term_capital_gains = income_details.get('longTermCapitalGains', 0)
         
         # Working income only applies during working years
         if is_working_year:

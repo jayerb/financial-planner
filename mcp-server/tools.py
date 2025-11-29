@@ -152,6 +152,11 @@ class FinancialPlannerTools:
         self.deferred_comp = DeferredCompCalculator(self.spec, yearly_deferrals)
         self.calculator.set_deferred_comp_calculator(self.deferred_comp)
         
+        # Calculate taxable balances for capital gains calculation
+        # This needs to be done before investment calculator so we can use percentages
+        taxable_balances = self._calculate_taxable_balances()
+        self.calculator.set_taxable_balances(taxable_balances)
+        
         # Balance calculator
         self.balance_calculator = BalanceCalculator(self.calculator, self.fed)
         
@@ -161,6 +166,28 @@ class FinancialPlannerTools:
             last_working_year=last_working_year,
             yearly_contributions=yearly_contributions
         )
+    
+    def _calculate_taxable_balances(self) -> Dict[int, float]:
+        """Calculate taxable account balances for each year.
+        
+        Used to compute capital gains as a percentage of the balance.
+        
+        Returns:
+            Dictionary mapping year to taxable balance
+        """
+        investments = self.spec.get('investments', {})
+        initial_balance = investments.get('taxableBalance', 0.0)
+        appreciation_rate = investments.get('taxableAppreciationRate', 0.07)
+        
+        balances = {}
+        balance = initial_balance
+        
+        for year in range(self.first_year, self.last_planning_year + 1):
+            balances[year] = balance
+            # Apply appreciation for next year
+            balance = balance * (1 + appreciation_rate)
+        
+        return balances
     
     def _cache_results(self):
         """Pre-calculate and cache results for all years."""

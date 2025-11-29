@@ -132,6 +132,24 @@ Examples:
 
     calculator = TakeHomeCalculator(fed, state, espp, social_security, medicare, rsu_calculator)
 
+    # Calculate taxable balances for capital gains percentage calculation
+    def calculate_taxable_balances(spec: dict) -> dict:
+        investments = spec.get('investments', {})
+        initial_balance = investments.get('taxableBalance', 0.0)
+        appreciation_rate = investments.get('taxableAppreciationRate', 0.07)
+        first_yr = spec.get('firstYear', 2026)
+        last_yr = spec.get('lastPlanningYear', first_yr + 30)
+        
+        balances = {}
+        balance = initial_balance
+        for year in range(first_yr, last_yr + 1):
+            balances[year] = balance
+            balance = balance * (1 + appreciation_rate)
+        return balances
+    
+    taxable_balances = calculate_taxable_balances(spec)
+    calculator.set_taxable_balances(taxable_balances)
+
     # Calculate yearly deferrals and create deferred comp calculator
     yearly_deferrals = calculate_yearly_deferrals(calculator, spec)
     deferred_comp_calculator = DeferredCompCalculator(spec, yearly_deferrals)

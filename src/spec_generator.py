@@ -229,18 +229,20 @@ def generate_spec(existing_spec: Optional[dict] = None) -> dict:
         default=ex_income.get('otherIncome', 0.0)
     )
 
-    # Investment Income
+    # Investment Income - as percentages of taxable account balance
     print()
-    print("--- Investment Income ---")
+    print("--- Investment Income (as % of taxable account balance) ---")
+    print("Note: Capital gains are calculated as a percentage of your taxable account balance.")
+    print("As your balance grows, so will your capital gains income.")
     
-    income['shortTermCapitalGains'] = prompt_currency(
-        "Expected annual short-term capital gains",
-        default=ex_income.get('shortTermCapitalGains', 0.0)
+    income['shortTermCapitalGainsPercent'] = prompt_percent(
+        "Annual short-term capital gains as % of taxable balance",
+        default=ex_income.get('shortTermCapitalGainsPercent', 0.01)
     )
     
-    income['longTermCapitalGains'] = prompt_currency(
-        "Expected annual long-term capital gains",
-        default=ex_income.get('longTermCapitalGains', 0.0)
+    income['longTermCapitalGainsPercent'] = prompt_percent(
+        "Annual long-term capital gains as % of taxable balance",
+        default=ex_income.get('longTermCapitalGainsPercent', 0.02)
     )
 
     spec['income'] = income

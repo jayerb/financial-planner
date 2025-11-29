@@ -604,3 +604,127 @@ def test_medical_inflation_not_set_defaults_to_no_inflation():
     # Later year - should still be same without inflation rate set
     results_2028 = calculator.calculate(spec, tax_year=2028)
     assert results_2028['deductions']['medicalDentalVision'] == base_medical
+
+
+def test_capital_gains_percent_based_on_taxable_balance():
+    """Test that capital gains can be calculated as a percentage of taxable balance."""
+    mock_federal = create_mock_federal()
+    mock_state = create_mock_state()
+    mock_espp = create_mock_espp()
+    mock_social_security = create_mock_social_security()
+    mock_medicare = create_mock_medicare()
+    mock_rsu = create_mock_rsu_calculator()
+
+    calculator = TakeHomeCalculator(
+        federal=mock_federal,
+        state=mock_state,
+        espp=mock_espp,
+        social_security=mock_social_security,
+        medicare=mock_medicare,
+        rsu_calculator=mock_rsu
+    )
+
+    base_salary = 100000
+    taxable_balance = 500000
+    stcg_percent = 0.01  # 1%
+    ltcg_percent = 0.02  # 2%
+    
+    spec = create_spec(base_salary=base_salary)
+    spec['income']['shortTermCapitalGainsPercent'] = stcg_percent
+    spec['income']['longTermCapitalGainsPercent'] = ltcg_percent
+    spec['investments'] = {'taxableBalance': taxable_balance}
+    
+    # Set taxable balances for the calculator
+    calculator.set_taxable_balances({2026: taxable_balance})
+
+    results = calculator.calculate(spec, tax_year=2026)
+
+    # Capital gains should be calculated from percentage of balance
+    expected_stcg = taxable_balance * stcg_percent  # 5000
+    expected_ltcg = taxable_balance * ltcg_percent  # 10000
+    
+    assert results['short_term_capital_gains'] == expected_stcg
+    assert results['long_term_capital_gains'] == expected_ltcg
+    
+    # Gross income should include short-term capital gains
+    expected_gross = base_salary + expected_stcg
+    assert results['gross_income'] == expected_gross
+
+
+def test_capital_gains_percent_grows_with_balance():
+    """Test that capital gains grow as the taxable balance grows over years."""
+    mock_federal = create_mock_federal()
+    mock_state = create_mock_state()
+    mock_espp = create_mock_espp()
+    mock_social_security = create_mock_social_security()
+    mock_medicare = create_mock_medicare()
+    mock_rsu = create_mock_rsu_calculator()
+    mock_rsu.vested_value = {2026: 0, 2027: 0}
+
+    calculator = TakeHomeCalculator(
+        federal=mock_federal,
+        state=mock_state,
+        espp=mock_espp,
+        social_security=mock_social_security,
+        medicare=mock_medicare,
+        rsu_calculator=mock_rsu
+    )
+
+    base_salary = 100000
+    initial_balance = 100000
+    appreciation_rate = 0.10  # 10%
+    ltcg_percent = 0.02  # 2%
+    
+    spec = create_spec(base_salary=base_salary)
+    spec['income']['longTermCapitalGainsPercent'] = ltcg_percent
+    spec['investments'] = {
+        'taxableBalance': initial_balance,
+        'taxableAppreciationRate': appreciation_rate
+    }
+    
+    # Set taxable balances for multiple years (simulating appreciation)
+    calculator.set_taxable_balances({
+        2026: initial_balance,
+        2027: initial_balance * (1 + appreciation_rate)  # 110000
+    })
+
+    results_2026 = calculator.calculate(spec, tax_year=2026)
+    results_2027 = calculator.calculate(spec, tax_year=2027)
+
+    # LTCG should grow with the balance
+    assert results_2026['long_term_capital_gains'] == initial_balance * ltcg_percent  # 2000
+    assert results_2027['long_term_capital_gains'] == initial_balance * (1 + appreciation_rate) * ltcg_percent  # 2200
+
+
+def test_capital_gains_fixed_amounts_still_work():
+    """Test backward compatibility - fixed capital gains amounts still work."""
+    mock_federal = create_mock_federal()
+    mock_state = create_mock_state()
+    mock_espp = create_mock_espp()
+    mock_social_security = create_mock_social_security()
+    mock_medicare = create_mock_medicare()
+    mock_rsu = create_mock_rsu_calculator()
+
+    calculator = TakeHomeCalculator(
+        federal=mock_federal,
+        state=mock_state,
+        espp=mock_espp,
+        social_security=mock_social_security,
+        medicare=mock_medicare,
+        rsu_calculator=mock_rsu
+    )
+
+    base_salary = 100000
+    fixed_stcg = 3000
+    fixed_ltcg = 5000
+    
+    spec = create_spec(base_salary=base_salary)
+    spec['income']['shortTermCapitalGains'] = fixed_stcg
+    spec['income']['longTermCapitalGains'] = fixed_ltcg
+    # Note: No percent fields, should use fixed amounts
+
+    results = calculator.calculate(spec, tax_year=2026)
+
+    # Should use fixed amounts, not percentages
+    assert results['short_term_capital_gains'] == fixed_stcg
+    assert results['long_term_capital_gains'] == fixed_ltcg
