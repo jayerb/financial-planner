@@ -93,6 +93,12 @@ class PlanCalculator:
         initial_local_tax = local_tax_spec.get('realEstate', 0)
         local_tax_inflation = local_tax_spec.get('inflationRate', 0.03)
         
+        # Expense parameters
+        expenses_spec = spec.get('expenses', {})
+        initial_annual_expenses = expenses_spec.get('annualAmount', 0)
+        expense_inflation = expenses_spec.get('inflationRate', 0.03)
+        special_expenses = {se['year']: se['amount'] for se in expenses_spec.get('specialExpenses', [])}
+        
         # Life insurance
         life_premium = spec.get('companyProvidedLifeInsurance', {}).get('annualPremium', 0)
         
@@ -108,6 +114,7 @@ class PlanCalculator:
         current_medical = initial_medical
         current_employer_hsa = initial_employer_hsa
         current_local_tax = initial_local_tax
+        current_annual_expenses = initial_annual_expenses
         
         # Track balances
         balance_taxable = initial_taxable
@@ -131,6 +138,7 @@ class PlanCalculator:
                 current_medical = current_medical * (1 + medical_inflation)
                 current_employer_hsa = current_employer_hsa * (1 + inflation_rate)
                 current_local_tax = current_local_tax * (1 + local_tax_inflation)
+                current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
                 balance_taxable = balance_taxable * (1 + taxable_appreciation)
                 balance_401k = balance_401k * (1 + tax_deferred_appreciation)
                 balance_hsa = balance_hsa * (1 + hsa_appreciation)
@@ -215,6 +223,16 @@ class PlanCalculator:
             yd.effective_tax_rate = yd.total_taxes / yd.gross_income if yd.gross_income > 0 else 0
             yd.take_home_pay = yd.gross_income - yd.total_taxes - yd.total_deferral
             
+            # Expenses and money movement
+            yd.annual_expenses = current_annual_expenses
+            yd.special_expenses = special_expenses.get(year, 0)
+            yd.total_expenses = yd.annual_expenses + yd.special_expenses
+            yd.income_expense_difference = yd.take_home_pay - yd.total_expenses
+            yd.taxable_account_adjustment = yd.income_expense_difference
+            
+            # Adjust taxable account balance based on income vs expenses
+            balance_taxable += yd.taxable_account_adjustment
+            
             # Contributions
             yd.employee_401k_contribution = yd.max_401k
             matchable_compensation = yd.base_salary + yd.bonus - yd.total_deferral
@@ -264,6 +282,7 @@ class PlanCalculator:
             balance_401k = balance_401k * (1 + tax_deferred_appreciation)
             balance_hsa = balance_hsa * (1 + hsa_appreciation)
             current_local_tax = current_local_tax * (1 + local_tax_inflation)
+            current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
             
             yd.local_tax = current_local_tax
             yd.deferred_comp_disbursement = yearly_disbursement
@@ -302,6 +321,16 @@ class PlanCalculator:
             yd.effective_tax_rate = yd.total_taxes / yd.gross_income if yd.gross_income > 0 else 0
             yd.take_home_pay = yd.gross_income - yd.total_taxes
             
+            # Expenses and money movement
+            yd.annual_expenses = current_annual_expenses
+            yd.special_expenses = special_expenses.get(year, 0)
+            yd.total_expenses = yd.annual_expenses + yd.special_expenses
+            yd.income_expense_difference = yd.take_home_pay - yd.total_expenses
+            yd.taxable_account_adjustment = yd.income_expense_difference
+            
+            # Adjust taxable account balance based on income vs expenses
+            balance_taxable += yd.taxable_account_adjustment
+            
             # Update deferred comp balance
             balance_deferred_comp -= yearly_disbursement
             
@@ -331,6 +360,7 @@ class PlanCalculator:
             balance_401k = balance_401k * (1 + tax_deferred_appreciation)
             balance_hsa = balance_hsa * (1 + hsa_appreciation)
             current_local_tax = current_local_tax * (1 + local_tax_inflation)
+            current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
             
             yd.local_tax = current_local_tax
             
@@ -367,6 +397,37 @@ class PlanCalculator:
             yd.total_taxes = yd.federal_tax + yd.state_tax
             yd.effective_tax_rate = yd.total_taxes / yd.gross_income if yd.gross_income > 0 else 0
             yd.take_home_pay = yd.gross_income - yd.total_taxes
+            
+            # Expenses and money movement
+            yd.annual_expenses = current_annual_expenses
+            yd.special_expenses = special_expenses.get(year, 0)
+            yd.total_expenses = yd.annual_expenses + yd.special_expenses
+            yd.income_expense_difference = yd.take_home_pay - yd.total_expenses
+            
+            # Calculate expense shortfall (amount needed beyond take-home pay)
+            expense_shortfall = max(0, yd.total_expenses - yd.take_home_pay)
+            
+            # Calculate IRA annuity: balance divided by remaining years in plan
+            remaining_years = last_planning_year - year + 1
+            ira_annuity = balance_401k / remaining_years if remaining_years > 0 else 0
+            
+            # Withdraw from IRA up to the lesser of annuity or expense shortfall
+            if expense_shortfall > 0 and balance_401k > 0:
+                yd.ira_withdrawal = min(ira_annuity, expense_shortfall, balance_401k)
+                balance_401k -= yd.ira_withdrawal
+                expense_shortfall -= yd.ira_withdrawal
+            
+            # Any remaining shortfall comes from taxable account
+            # If there's excess income, it goes to taxable account
+            if expense_shortfall > 0:
+                # Still need money after IRA withdrawal - take from taxable
+                yd.taxable_account_adjustment = -expense_shortfall
+            else:
+                # Excess income (take_home + ira_withdrawal - expenses) goes to taxable
+                yd.taxable_account_adjustment = yd.take_home_pay + yd.ira_withdrawal - yd.total_expenses
+            
+            # Adjust taxable account balance
+            balance_taxable += yd.taxable_account_adjustment
             
             yd.balance_401k = balance_401k
             yd.balance_hsa = balance_hsa

@@ -9,7 +9,7 @@ from tax.SocialSecurityDetails import SocialSecurityDetails
 from tax.MedicareDetails import MedicareDetails
 from calc.rsu_calculator import RSUCalculator
 from calc.plan_calculator import PlanCalculator
-from render.renderers import TaxDetailsRenderer, BalancesRenderer, AnnualSummaryRenderer, ContributionsRenderer, RENDERER_REGISTRY
+from render.renderers import TaxDetailsRenderer, BalancesRenderer, AnnualSummaryRenderer, ContributionsRenderer, MoneyMovementRenderer, RENDERER_REGISTRY
 from spec_generator import run_generator
 
 
@@ -127,6 +127,9 @@ Examples:
         renderer.render(plan_data)
     elif args.mode == 'Contributions':
         renderer = ContributionsRenderer()
+        renderer.render(plan_data)
+    elif args.mode == 'MoneyMovement':
+        renderer = MoneyMovementRenderer()
         renderer.render(plan_data)
 
 

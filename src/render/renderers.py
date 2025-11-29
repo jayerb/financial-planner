@@ -152,27 +152,28 @@ class BalancesRenderer(BaseRenderer):
             data: PlanData containing all yearly calculations
         """
         print()
-        print("=" * 116)
-        print(f"{'ACCUMULATED BALANCES':^116}")
-        print("=" * 116)
+        print("=" * 136)
+        print(f"{'ACCUMULATED BALANCES':^136}")
+        print("=" * 136)
         print()
-        print(f"  {'Year':<8} {'401(k) Contrib':>16} {'401(k) Balance':>18} {'Deferred Contrib':>18} {'Deferred Balance':>18} {'HSA Contrib':>14} {'HSA Balance':>16}")
-        print(f"  {'-' * 8} {'-' * 16} {'-' * 18} {'-' * 18} {'-' * 18} {'-' * 14} {'-' * 16}")
+        print(f"  {'Year':<8} {'401(k) Contrib':>16} {'401(k) Balance':>18} {'Deferred Contrib':>18} {'Deferred Balance':>18} {'HSA Contrib':>14} {'HSA Balance':>16} {'Taxable Bal':>16}")
+        print(f"  {'-' * 8} {'-' * 16} {'-' * 18} {'-' * 18} {'-' * 18} {'-' * 14} {'-' * 16} {'-' * 16}")
         
         for year in sorted(data.yearly_data.keys()):
             yd = data.yearly_data[year]
-            print(f"  {year:<8} ${yd.total_401k_contribution:>14,.2f} ${yd.balance_401k:>16,.2f} ${yd.deferred_comp_contribution:>16,.2f} ${yd.balance_deferred_comp:>16,.2f} ${yd.hsa_contribution:>12,.2f} ${yd.balance_hsa:>14,.2f}")
+            print(f"  {year:<8} ${yd.total_401k_contribution:>14,.2f} ${yd.balance_401k:>16,.2f} ${yd.deferred_comp_contribution:>16,.2f} ${yd.balance_deferred_comp:>16,.2f} ${yd.hsa_contribution:>12,.2f} ${yd.balance_hsa:>14,.2f} ${yd.balance_taxable:>14,.2f}")
         
         print()
-        print("=" * 116)
-        print(f"{'FINAL BALANCES':^116}")
-        print("=" * 116)
+        print("=" * 136)
+        print(f"{'FINAL BALANCES':^136}")
+        print("=" * 136)
         print(f"  {'401(k) Balance:':<40} ${data.final_401k_balance:>18,.2f}")
         print(f"  {'Deferred Compensation Balance:':<40} ${data.final_deferred_comp_balance:>18,.2f}")
         print(f"  {'HSA Balance:':<40} ${data.final_hsa_balance:>18,.2f}")
+        print(f"  {'Taxable Account Balance:':<40} ${data.final_taxable_balance:>18,.2f}")
         print(f"  {'-' * 60}")
-        print(f"  {'TOTAL RETIREMENT ASSETS:':<40} ${data.total_retirement_assets:>18,.2f}")
-        print("=" * 116)
+        print(f"  {'TOTAL ASSETS:':<40} ${data.total_retirement_assets:>18,.2f}")
+        print("=" * 136)
         print()
 
 
@@ -260,10 +261,65 @@ class ContributionsRenderer(BaseRenderer):
         print()
 
 
+class MoneyMovementRenderer(BaseRenderer):
+    """Renderer for yearly expenses vs income and money movement to/from taxable account."""
+    
+    def render(self, data: PlanData) -> None:
+        """Render the yearly money movement breakdown.
+        
+        Shows take-home pay, expenses, and the net adjustment to taxable account.
+        Positive adjustment = excess income added to taxable account.
+        Negative adjustment = withdrawal from taxable account to cover expenses.
+        
+        Args:
+            data: PlanData containing all yearly calculations
+        """
+        print()
+        print("=" * 148)
+        print(f"{'MONEY MOVEMENT - INCOME VS EXPENSES':^148}")
+        print("=" * 148)
+        print()
+        print(f"  {'Year':<6} {'Take Home':>14} {'Annual Exp':>14} {'Special Exp':>14} {'Total Exp':>14} {'IRA W/D':>14} {'Taxable Adj':>14} {'Taxable Bal':>16} {'IRA Bal':>16}")
+        print(f"  {'-' * 6} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 16} {'-' * 16}")
+        
+        total_take_home = 0
+        total_annual_expenses = 0
+        total_special_expenses = 0
+        total_expenses = 0
+        total_ira_withdrawal = 0
+        total_adjustment = 0
+        
+        for year in sorted(data.yearly_data.keys()):
+            yd = data.yearly_data[year]
+            
+            # Format adjustment with +/- sign
+            adj_str = f"+${yd.taxable_account_adjustment:>11,.0f}" if yd.taxable_account_adjustment >= 0 else f"-${abs(yd.taxable_account_adjustment):>11,.0f}"
+            ira_str = f"${yd.ira_withdrawal:>12,.0f}" if yd.ira_withdrawal > 0 else f"{'':>14}"
+            
+            print(f"  {year:<6} ${yd.take_home_pay:>12,.0f} ${yd.annual_expenses:>12,.0f} ${yd.special_expenses:>12,.0f} ${yd.total_expenses:>12,.0f} {ira_str:>14} {adj_str:>14} ${yd.balance_taxable:>14,.0f} ${yd.balance_401k:>14,.0f}")
+            
+            total_take_home += yd.take_home_pay
+            total_annual_expenses += yd.annual_expenses
+            total_special_expenses += yd.special_expenses
+            total_expenses += yd.total_expenses
+            total_ira_withdrawal += yd.ira_withdrawal
+            total_adjustment += yd.taxable_account_adjustment
+        
+        print(f"  {'-' * 6} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 16} {'-' * 16}")
+        
+        adj_total_str = f"+${total_adjustment:>11,.0f}" if total_adjustment >= 0 else f"-${abs(total_adjustment):>11,.0f}"
+        
+        print(f"  {'TOTAL':<6} ${total_take_home:>12,.0f} ${total_annual_expenses:>12,.0f} ${total_special_expenses:>12,.0f} ${total_expenses:>12,.0f} ${total_ira_withdrawal:>12,.0f} {adj_total_str:>14}")
+        print()
+        print("=" * 148)
+        print()
+
+
 # Registry mapping mode names to renderer classes
 RENDERER_REGISTRY = {
     'TaxDetails': TaxDetailsRenderer,
     'Balances': BalancesRenderer,
     'AnnualSummary': AnnualSummaryRenderer,
     'Contributions': ContributionsRenderer,
+    'MoneyMovement': MoneyMovementRenderer,
 }

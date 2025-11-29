@@ -83,6 +83,14 @@ class YearlyData:
     taxable_contribution: float = 0.0
     total_contributions: float = 0.0
     
+    # Expenses and money movement
+    annual_expenses: float = 0.0
+    special_expenses: float = 0.0
+    total_expenses: float = 0.0
+    income_expense_difference: float = 0.0  # take_home - total_expenses
+    ira_withdrawal: float = 0.0  # Amount withdrawn from 401k/IRA to cover expenses
+    taxable_account_adjustment: float = 0.0  # positive = add to taxable, negative = withdraw
+    
     # Account balances (end of year)
     balance_401k: float = 0.0
     balance_deferred_comp: float = 0.0
