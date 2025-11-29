@@ -2,7 +2,7 @@
 
 # Financial Planner
 
-A retirement planning application that estimates tax burden and financial projections using AI-powered natural language queries. Create your financial plan, start the MCP server, and ask questions like "What's my take-home pay in 2030?" directly in your AI assistant.
+A retirement planning application that estimates tax burden and financial projections over a multi-decade planning horizon. Create your financial plan, then query any data you want using the interactive shell.
 
 > **Note**: Tax calculations are approximations and should not be used for tax filing purposes.
 
@@ -25,96 +25,91 @@ cp -r input-parameters/myprogram input-parameters/myplan
 # Edit input-parameters/myplan/spec.json with your details
 ```
 
-### Step 2: Start the MCP Server
+### Step 2: Query Your Data with the Interactive Shell
 
-The MCP (Model Context Protocol) server enables AI assistants to answer questions about your financial plan.
+The interactive shell loads your complete financial plan and lets you query any data fields across any year range:
 
-**Install dependencies:**
 ```bash
-pip install mcp
-# Or: pip install -r mcp-server/requirements.txt
+python src/shell.py myprogram
 ```
 
-**Configure your AI assistant:**
+Once loaded, you'll see an interactive prompt:
 
-<details>
-<summary><strong>VS Code with GitHub Copilot</strong></summary>
-
-Create `.vscode/mcp.json` in your workspace:
-
-```json
-{
-  "servers": {
-    "financial-planner": {
-      "type": "stdio",
-      "command": "/path/to/.venv/bin/python",
-      "args": ["mcp-server/server.py"]
-    }
-  }
-}
 ```
-Replace the Python path with your interpreter. Restart VS Code to activate.
-</details>
+Financial Plan Interactive Shell
+=================================
+Program: myprogram
+Years: 2025 - 2076
+Working years: 2025 - 2031
 
-<details>
-<summary><strong>Claude Desktop</strong></summary>
+Type 'help' for available commands.
+Type 'fields' to see available data fields.
+Type 'exit' or 'quit' to exit.
 
-Edit your config file:
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "financial-planner": {
-      "command": "python",
-      "args": ["/path/to/financial-planner/mcp-server/server.py"]
-    }
-  }
-}
+>
 ```
-</details>
 
-<details>
-<summary><strong>Other MCP Clients</strong></summary>
+### Shell Commands
 
-The server uses stdio transport. Run directly:
-```bash
-python mcp-server/server.py
+| Command | Description |
+|---------|-------------|
+| `get <fields> [year_range]` | Query one or more fields from yearly data |
+| `fields` | List all available field names (50+ fields) |
+| `years` | Show available year range and categorization |
+| `summary` | Show lifetime summary totals |
+| `help` | Show help message |
+| `exit` / `quit` | Exit the shell |
+
+### Query Examples
+
+**Single field, all years:**
 ```
-</details>
+> get gross_income
+```
 
-### Step 3: Ask Questions!
+**Multiple fields (comma-separated):**
+```
+> get gross_income, federal_tax, state_tax
+```
 
-Once configured, ask your AI assistant questions like:
+**Specific year range:**
+```
+> get take_home_pay 2026-2030
+```
 
-- "What programs are available?"
-- "What's my take-home pay in 2030 for myprogram?"
-- "How much federal tax will I pay in 2027 for quickexample?"
-- "Compare my income between 2025 and 2040 for myprogram"
-- "What's my effective tax rate for myprogram?"
-- "When do my deferred comp disbursements start for myprogram?"
-- "What's my total lifetime tax burden for myprogram?"
+**Complex query:**
+```
+> get base_salary, bonus, rsu_vested_value, total_taxes 2026-2035
+```
 
-The MCP server automatically discovers **all programs** in `input-parameters/` at startup. When multiple programs exist, you must specify which program to query by including the program name in your question.
+**Sample output:**
+```
+  Year  take_home_pay  federal_tax  state_tax
+---------------------------------------------
+  2026    $218,295.63   $59,295.26  $19,124.08
+  2027    $220,655.20   $58,007.56  $18,545.74
+  2028    $216,109.88   $52,138.63  $15,917.37
+  2029    $211,583.07   $47,851.06  $14,161.21
+  2030    $218,043.36   $49,629.00  $14,629.32
+---------------------------------------------
+ Total  $1,084,687.13  $266,921.51  $82,377.72
+```
 
-## Available MCP Tools
+### Available Data Fields
 
-| Tool | Description |
-|------|-------------|
-| `list_programs` | List all available programs and their basic info |
-| `get_program_overview` | Overview of the financial plan including dates and income sources |
-| `list_available_years` | List all years in the plan (working vs retirement) |
-| `get_annual_summary` | Income and tax summary for a specific year |
-| `get_tax_details` | Detailed tax breakdown for a specific year |
-| `get_income_breakdown` | Detailed income sources for a specific year |
-| `get_deferred_comp_info` | Deferred compensation info for a specific year |
-| `get_retirement_balances` | 401(k) and deferred comp balances |
-| `compare_years` | Compare financial metrics between two years |
-| `get_lifetime_totals` | Lifetime totals across the planning horizon |
-| `search_financial_data` | Search for specific metrics (e.g., "ESPP income in 2029") |
+The shell can query 50+ fields organized by category:
 
-All tools accept an optional `program` parameter to specify which plan to query.
+| Category | Example Fields |
+|----------|----------------|
+| **Income** | `base_salary`, `bonus`, `rsu_vested_value`, `espp_income`, `gross_income` |
+| **Taxes** | `federal_tax`, `state_tax`, `total_fica`, `total_taxes`, `effective_tax_rate` |
+| **Deductions** | `standard_deduction`, `itemized_deduction`, `max_401k`, `max_hsa` |
+| **Take Home** | `take_home_pay`, `adjusted_gross_income` |
+| **Contributions** | `employee_401k_contribution`, `employer_401k_match`, `hsa_contribution` |
+| **Balances** | `balance_401k`, `balance_deferred_comp`, `balance_hsa`, `balance_taxable`, `total_assets` |
+| **Expenses** | `annual_expenses`, `special_expenses`, `income_expense_difference` |
+
+Use the `fields` command in the shell to see the complete list.
 
 ## Command-Line Interface
 
@@ -137,12 +132,13 @@ python src/Program.py myprogram --mode AnnualSummary
 financial-planner/
 ├── src/                    # Main source code
 │   ├── Program.py          # CLI entry point
+│   ├── shell.py            # Interactive query shell
 │   ├── spec_generator.py   # Interactive configuration wizard
 │   ├── calc/               # Calculators (take-home, RSU, balances)
 │   ├── tax/                # Tax computation (federal, state, FICA)
 │   ├── model/              # Data models
 │   └── render/             # Output renderers
-├── mcp-server/             # MCP server for AI assistant integration
+├── mcp-server/             # MCP server for AI assistant integration (alternative)
 │   ├── server.py           # MCP server entry point
 │   └── tools.py            # Tool implementations
 ├── input-parameters/       # Your financial plan configurations
@@ -150,6 +146,10 @@ financial-planner/
 ├── reference/              # Tax brackets and statutory parameters
 └── tests/                  # Unit tests
 ```
+
+## MCP Server (Alternative)
+
+For AI assistant integration, an MCP (Model Context Protocol) server is also available. See `mcp-server/README.md` for setup instructions.
 
 ## Technical Details
 

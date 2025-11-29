@@ -1,7 +1,7 @@
 #!/bin/bash
-# Financial Planner wrapper script
-# Usage: ./fp [arguments]
-# Example: ./fp myprogram --mode TaxDetails
+# Financial Planner Command-Line Interface
+# Usage: ./fp [plan_name]
+# Example: ./fp myprograms
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-python "$SCRIPT_DIR/src/Program.py" "$@"
+python "$SCRIPT_DIR/src/shell.py" "$@"
