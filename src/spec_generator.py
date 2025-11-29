@@ -418,6 +418,37 @@ def generate_spec(existing_spec: Optional[dict] = None) -> dict:
         spec['deductions'] = deductions
 
     # =========================================================================
+    # INSURANCE (for retirement)
+    # =========================================================================
+    print_section("Insurance (Post-Retirement)")
+    
+    print("Note: These values represent your full insurance costs as of your plan start year.")
+    print("They will be used after your working years end (e.g., for COBRA or private insurance).")
+    print("The costs will be inflated from the plan start year to when you actually need them.")
+    print()
+    
+    ex_insurance = ex.get('insurance', {})
+    has_existing_insurance = 'insurance' in ex
+    has_insurance = prompt_yes_no("Do you want to plan for post-retirement insurance costs?", default=has_existing_insurance)
+    
+    if has_insurance:
+        insurance: dict[str, Any] = {}
+        
+        insurance['fullInsurancePremiums'] = prompt_currency(
+            "Annual full insurance premiums (as of plan start year)",
+            default=ex_insurance.get('fullInsurancePremiums', 0.0)
+        )
+        
+        if insurance['fullInsurancePremiums'] > 0:
+            insurance['medicalInflationRate'] = prompt_percent(
+                "Expected annual medical/insurance inflation rate",
+                default=ex_insurance.get('medicalInflationRate', 0.05)
+            )
+        
+        if insurance['fullInsurancePremiums'] > 0:
+            spec['insurance'] = insurance
+
+    # =========================================================================
     # LOCAL TAXES
     # =========================================================================
     print_section("Local Taxes")

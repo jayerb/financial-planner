@@ -234,3 +234,107 @@ def test_list_existing_programs_no_directory():
         programs = list_existing_programs(tmpdir)
         
         assert programs == []
+
+
+def test_save_spec_with_insurance():
+    """Test that save_spec correctly saves insurance data for post-retirement."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        spec = {
+            'firstYear': 2025,
+            'lastWorkingYear': 2035,
+            'lastPlanningYear': 2065,
+            'income': {'baseSalary': 100000},
+            'insurance': {
+                'fullInsurancePremiums': 30000.0,
+                'medicalInflationRate': 0.04
+            }
+        }
+        
+        os.makedirs(os.path.join(tmpdir, 'input-parameters'))
+        
+        result_path = save_spec(spec, 'testprogram', tmpdir)
+        
+        with open(result_path, 'r') as f:
+            saved_spec = json.load(f)
+        
+        assert 'insurance' in saved_spec
+        assert saved_spec['insurance']['fullInsurancePremiums'] == 30000.0
+        assert saved_spec['insurance']['medicalInflationRate'] == 0.04
+
+
+def test_insurance_section_structure():
+    """Test that the insurance section has the expected structure."""
+    insurance = {
+        'fullInsurancePremiums': 30000.0,
+        'medicalInflationRate': 0.05
+    }
+    
+    # Verify all expected keys are present
+    expected_keys = [
+        'fullInsurancePremiums',
+        'medicalInflationRate'
+    ]
+    
+    for key in expected_keys:
+        assert key in insurance, f"Missing expected key: {key}"
+    
+    # Verify types
+    assert isinstance(insurance['fullInsurancePremiums'], float)
+    assert isinstance(insurance['medicalInflationRate'], float)
+    
+    # Verify inflation rate is a fraction (0-1), not a percentage
+    assert 0 <= insurance['medicalInflationRate'] <= 1
+    
+    # Verify premiums are positive
+    assert insurance['fullInsurancePremiums'] >= 0
+
+
+def test_insurance_section_optional():
+    """Test that the insurance section is optional in the spec."""
+    spec_without_insurance = {
+        'firstYear': 2025,
+        'lastWorkingYear': 2035,
+        'lastPlanningYear': 2065,
+        'income': {'baseSalary': 100000}
+    }
+    
+    # Should not have insurance section
+    assert 'insurance' not in spec_without_insurance
+    
+    # Adding insurance section should work
+    spec_with_insurance = spec_without_insurance.copy()
+    spec_with_insurance['insurance'] = {
+        'fullInsurancePremiums': 25000.0,
+        'medicalInflationRate': 0.04
+    }
+    
+    assert 'insurance' in spec_with_insurance
+    assert spec_with_insurance['insurance']['fullInsurancePremiums'] == 25000.0
+    assert spec_with_insurance['insurance']['medicalInflationRate'] == 0.04
+
+
+def test_load_existing_spec_with_insurance():
+    """Test loading an existing spec.json file with insurance data."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        spec = {
+            'firstYear': 2025,
+            'lastWorkingYear': 2035,
+            'lastPlanningYear': 2065,
+            'income': {'baseSalary': 150000},
+            'insurance': {
+                'fullInsurancePremiums': 35000.0,
+                'medicalInflationRate': 0.05
+            }
+        }
+        
+        # Create the program directory and save the spec
+        os.makedirs(os.path.join(tmpdir, 'input-parameters'))
+        save_spec(spec, 'testprogram', tmpdir)
+        
+        # Load the spec
+        loaded_spec = load_existing_spec('testprogram', tmpdir)
+        
+        assert loaded_spec is not None
+        assert 'insurance' in loaded_spec
+        assert loaded_spec['insurance']['fullInsurancePremiums'] == 35000.0
+        assert loaded_spec['insurance']['medicalInflationRate'] == 0.05
