@@ -679,3 +679,203 @@ class TestCapitalGains:
         # Second year should have higher capital gains due to balance growth
         assert y2.short_term_capital_gains > y1.short_term_capital_gains
         assert y2.long_term_capital_gains > y1.long_term_capital_gains
+
+
+class TestAccountAppreciation:
+    """Test appreciation tracking for all account types."""
+    
+    @pytest.fixture
+    def calculator(self):
+        return PlanCalculator(
+            federal=create_mock_federal(),
+            state=create_mock_state(),
+            espp=create_mock_espp(),
+            social_security=create_mock_social_security(),
+            medicare=create_mock_medicare(),
+            rsu_calculator=create_mock_rsu_calculator()
+        )
+    
+    def test_first_year_has_zero_appreciation(self, calculator):
+        """Test that first year has zero appreciation (no prior balance to appreciate)."""
+        spec = create_basic_spec()
+        result = calculator.calculate(spec)
+        
+        first_year = result.yearly_data[2026]
+        
+        assert first_year.appreciation_ira == 0
+        assert first_year.appreciation_deferred_comp == 0
+        assert first_year.appreciation_hsa == 0
+        assert first_year.appreciation_taxable == 0
+        assert first_year.total_appreciation == 0
+    
+    def test_working_years_have_appreciation(self, calculator):
+        """Test that working years (after first) have appreciation."""
+        spec = create_basic_spec()
+        result = calculator.calculate(spec)
+        
+        second_year = result.yearly_data[2027]
+        
+        # All accounts should have appreciation
+        assert second_year.appreciation_ira > 0
+        assert second_year.appreciation_deferred_comp > 0
+        assert second_year.appreciation_hsa > 0
+        assert second_year.appreciation_taxable > 0
+        assert second_year.total_appreciation > 0
+    
+    def test_appreciation_matches_rates(self, calculator):
+        """Test that appreciation is calculated using correct rates."""
+        spec = create_basic_spec()
+        result = calculator.calculate(spec)
+        
+        y1 = result.yearly_data[2026]
+        y2 = result.yearly_data[2027]
+        
+        taxable_rate = spec['investments']['taxableAppreciationRate']
+        ira_rate = spec['investments']['taxDeferredAppreciationRate']
+        hsa_rate = spec['investments']['hsaAppreciationRate']
+        deferred_rate = spec['deferredCompensationPlan']['annualGrowthFraction']
+        
+        # Appreciation should be prior balance * rate
+        expected_taxable = y1.balance_taxable * taxable_rate
+        expected_ira = y1.balance_ira * ira_rate
+        expected_hsa = y1.balance_hsa * hsa_rate
+        expected_deferred = y1.balance_deferred_comp * deferred_rate
+        
+        assert abs(y2.appreciation_taxable - expected_taxable) < 0.01
+        assert abs(y2.appreciation_ira - expected_ira) < 0.01
+        assert abs(y2.appreciation_hsa - expected_hsa) < 0.01
+        assert abs(y2.appreciation_deferred_comp - expected_deferred) < 0.01
+    
+    def test_total_appreciation_is_sum(self, calculator):
+        """Test that total_appreciation is sum of all components."""
+        spec = create_basic_spec()
+        result = calculator.calculate(spec)
+        
+        for year, data in result.yearly_data.items():
+            expected_total = (data.appreciation_ira + data.appreciation_deferred_comp + 
+                            data.appreciation_hsa + data.appreciation_taxable)
+            assert abs(data.total_appreciation - expected_total) < 0.01, f"Year {year} total mismatch"
+    
+    def test_appreciation_grows_over_time(self, calculator):
+        """Test that appreciation amounts grow as balances grow."""
+        spec = create_basic_spec()
+        result = calculator.calculate(spec)
+        
+        y2 = result.yearly_data[2027]
+        y3 = result.yearly_data[2028]
+        
+        # Later years should have more appreciation due to larger balances
+        assert y3.appreciation_ira > y2.appreciation_ira
+        assert y3.appreciation_hsa > y2.appreciation_hsa
+        assert y3.total_appreciation > y2.total_appreciation
+    
+    def test_first_retirement_year_has_deferred_comp_appreciation(self, calculator):
+        """Test that first retirement year captures deferred comp appreciation."""
+        spec = create_basic_spec()
+        result = calculator.calculate(spec)
+        
+        last_working = spec['lastWorkingYear']
+        first_retirement = last_working + 1
+        
+        retirement_data = result.yearly_data[first_retirement]
+        
+        # First retirement year should have deferred comp appreciation
+        assert retirement_data.appreciation_deferred_comp > 0
+        # All other accounts should also have appreciation
+        assert retirement_data.appreciation_ira > 0
+        assert retirement_data.appreciation_hsa > 0
+        assert retirement_data.appreciation_taxable > 0
+    
+    def test_first_retirement_year_deferred_comp_appreciation_value(self, calculator):
+        """Test that first retirement year deferred comp appreciation is correct."""
+        spec = create_basic_spec()
+        result = calculator.calculate(spec)
+        
+        last_working = spec['lastWorkingYear']
+        first_retirement = last_working + 1
+        
+        last_working_data = result.yearly_data[last_working]
+        first_retirement_data = result.yearly_data[first_retirement]
+        
+        deferred_rate = spec['deferredCompensationPlan']['annualGrowthFraction']
+        expected_appreciation = last_working_data.balance_deferred_comp * deferred_rate
+        
+        assert abs(first_retirement_data.appreciation_deferred_comp - expected_appreciation) < 0.01
+    
+    def test_retirement_years_have_appreciation(self, calculator):
+        """Test that retirement years continue to have appreciation."""
+        spec = create_basic_spec()
+        result = calculator.calculate(spec)
+        
+        first_retirement = spec['lastWorkingYear'] + 1
+        second_retirement = first_retirement + 1
+        
+        if second_retirement <= spec['lastPlanningYear']:
+            data = result.yearly_data[second_retirement]
+            
+            # All accounts should have appreciation
+            assert data.appreciation_ira > 0
+            assert data.appreciation_hsa > 0
+            assert data.appreciation_taxable > 0
+            # Deferred comp should have appreciation if there's still balance
+            if data.balance_deferred_comp > 0 or result.yearly_data[first_retirement].balance_deferred_comp > 0:
+                assert data.appreciation_deferred_comp > 0
+    
+    def test_post_withdrawal_years_have_zero_deferred_appreciation(self, calculator):
+        """Test that post-withdrawal years have zero deferred comp appreciation."""
+        spec = create_basic_spec()
+        spec['lastPlanningYear'] = 2050  # Extend to have post-withdrawal years
+        result = calculator.calculate(spec)
+        
+        disbursement_years = spec['deferredCompensationPlan']['disbursementYears']
+        first_retirement = spec['lastWorkingYear'] + 1
+        post_withdrawal_start = first_retirement + disbursement_years
+        
+        if post_withdrawal_start <= spec['lastPlanningYear']:
+            data = result.yearly_data[post_withdrawal_start]
+            
+            # Deferred comp balance is zero, so appreciation should be zero
+            assert data.appreciation_deferred_comp == 0
+            # Other accounts should still have appreciation
+            assert data.appreciation_ira > 0
+            assert data.appreciation_hsa > 0
+            assert data.appreciation_taxable > 0
+    
+    def test_no_appreciation_with_zero_balances(self, calculator):
+        """Test that appreciation is zero when starting with zero balances."""
+        spec = create_basic_spec()
+        spec['investments']['taxableBalance'] = 0
+        spec['investments']['taxDeferredBalance'] = 0
+        spec['investments']['hsaBalance'] = 0
+        spec['income']['baseDeferralFraction'] = 0
+        spec['income']['bonusDeferralFraction'] = 0
+        
+        result = calculator.calculate(spec)
+        
+        # First year should have zero appreciation
+        first_year = result.yearly_data[2026]
+        assert first_year.appreciation_ira == 0
+        assert first_year.appreciation_hsa == 0
+        assert first_year.appreciation_taxable == 0
+        assert first_year.appreciation_deferred_comp == 0
+    
+    def test_appreciation_accumulates_correctly(self, calculator):
+        """Test that balance growth matches appreciation + contributions."""
+        spec = create_basic_spec()
+        result = calculator.calculate(spec)
+        
+        y1 = result.yearly_data[2026]
+        y2 = result.yearly_data[2027]
+        
+        # IRA balance growth should be appreciation + contributions
+        expected_ira_balance = y1.balance_ira + y2.appreciation_ira + y2.total_401k_contribution
+        assert abs(y2.balance_ira - expected_ira_balance) < 0.01
+        
+        # HSA balance growth should be appreciation + contributions
+        expected_hsa_balance = y1.balance_hsa + y2.appreciation_hsa + y2.hsa_contribution
+        assert abs(y2.balance_hsa - expected_hsa_balance) < 0.01
+        
+        # Deferred comp balance growth should be appreciation + contributions
+        expected_deferred_balance = (y1.balance_deferred_comp + y2.appreciation_deferred_comp + 
+                                     y2.deferred_comp_contribution)
+        assert abs(y2.balance_deferred_comp - expected_deferred_balance) < 0.01

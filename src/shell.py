@@ -366,6 +366,8 @@ Type 'exit' or 'quit' to exit.
                              "hsa_contribution", "deferred_comp_contribution", "taxable_contribution", "total_contributions"],
             "Expenses": ["annual_expenses", "special_expenses", "total_expenses", "income_expense_difference",
                         "ira_withdrawal", "taxable_account_adjustment"],
+            "Appreciation": ["appreciation_ira", "appreciation_deferred_comp", "appreciation_hsa", 
+                            "appreciation_taxable", "total_appreciation"],
             "Balances": ["balance_ira", "balance_deferred_comp", "balance_hsa", "balance_taxable", "total_assets"]
         }
         

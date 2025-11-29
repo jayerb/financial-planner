@@ -91,6 +91,13 @@ class YearlyData:
     ira_withdrawal: float = 0.0  # Amount withdrawn from 401k/IRA to cover expenses
     taxable_account_adjustment: float = 0.0  # positive = add to taxable, negative = withdraw
     
+    # Account appreciation (growth for the year)
+    appreciation_ira: float = 0.0
+    appreciation_deferred_comp: float = 0.0
+    appreciation_hsa: float = 0.0
+    appreciation_taxable: float = 0.0
+    total_appreciation: float = 0.0
+    
     # Account balances (end of year)
     balance_ira: float = 0.0
     balance_deferred_comp: float = 0.0

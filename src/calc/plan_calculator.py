@@ -139,10 +139,20 @@ class PlanCalculator:
                 current_employer_hsa = current_employer_hsa * (1 + inflation_rate)
                 current_local_tax = current_local_tax * (1 + local_tax_inflation)
                 current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
-                balance_taxable = balance_taxable * (1 + taxable_appreciation)
-                balance_401k = balance_401k * (1 + tax_deferred_appreciation)
-                balance_hsa = balance_hsa * (1 + hsa_appreciation)
-                balance_deferred_comp = balance_deferred_comp * (1 + deferred_comp_growth)
+                
+                # Calculate appreciation amounts before applying growth
+                yd.appreciation_taxable = balance_taxable * taxable_appreciation
+                yd.appreciation_ira = balance_401k * tax_deferred_appreciation
+                yd.appreciation_hsa = balance_hsa * hsa_appreciation
+                yd.appreciation_deferred_comp = balance_deferred_comp * deferred_comp_growth
+                yd.total_appreciation = (yd.appreciation_taxable + yd.appreciation_ira + 
+                                        yd.appreciation_hsa + yd.appreciation_deferred_comp)
+                
+                # Apply growth to balances
+                balance_taxable = balance_taxable + yd.appreciation_taxable
+                balance_401k = balance_401k + yd.appreciation_ira
+                balance_hsa = balance_hsa + yd.appreciation_hsa
+                balance_deferred_comp = balance_deferred_comp + yd.appreciation_deferred_comp
             
             # Income
             yd.base_salary = current_salary
@@ -266,7 +276,9 @@ class PlanCalculator:
             plan.total_take_home += yd.take_home_pay
         
         # Apply final growth to deferred comp before disbursement phase
-        balance_deferred_comp = balance_deferred_comp * (1 + deferred_comp_growth)
+        # Track this appreciation for the first retirement year
+        first_retirement_year_deferred_comp_appreciation = balance_deferred_comp * deferred_comp_growth
+        balance_deferred_comp = balance_deferred_comp + first_retirement_year_deferred_comp_appreciation
         
         # ============================================================
         # LOOP 2: Deferred Compensation Withdrawal Years
@@ -274,12 +286,29 @@ class PlanCalculator:
         for year in range(disbursement_start, min(disbursement_end + 1, last_planning_year + 1)):
             yd = YearlyData(year=year, is_working_year=False)
             
-            # Apply appreciation (first retirement year already had growth applied above)
-            if year > disbursement_start:
-                balance_deferred_comp = balance_deferred_comp * (1 + deferred_comp_growth)
-            balance_taxable = balance_taxable * (1 + taxable_appreciation)
-            balance_401k = balance_401k * (1 + tax_deferred_appreciation)
-            balance_hsa = balance_hsa * (1 + hsa_appreciation)
+            # Calculate appreciation amounts before applying growth
+            # For first retirement year, deferred comp growth was already applied before this loop
+            if year == disbursement_start:
+                # Taxable, 401k, HSA get appreciation this year; deferred comp appreciation was tracked above
+                yd.appreciation_taxable = balance_taxable * taxable_appreciation
+                yd.appreciation_ira = balance_401k * tax_deferred_appreciation
+                yd.appreciation_hsa = balance_hsa * hsa_appreciation
+                yd.appreciation_deferred_comp = first_retirement_year_deferred_comp_appreciation
+            else:
+                yd.appreciation_deferred_comp = balance_deferred_comp * deferred_comp_growth
+                yd.appreciation_taxable = balance_taxable * taxable_appreciation
+                yd.appreciation_ira = balance_401k * tax_deferred_appreciation
+                yd.appreciation_hsa = balance_hsa * hsa_appreciation
+                balance_deferred_comp = balance_deferred_comp + yd.appreciation_deferred_comp
+            
+            yd.total_appreciation = (yd.appreciation_taxable + yd.appreciation_ira + 
+                                    yd.appreciation_hsa + yd.appreciation_deferred_comp)
+            
+            # Apply growth to balances (except deferred comp for first year - already done)
+            balance_taxable = balance_taxable + yd.appreciation_taxable
+            balance_401k = balance_401k + yd.appreciation_ira
+            balance_hsa = balance_hsa + yd.appreciation_hsa
+            
             current_local_tax = current_local_tax * (1 + local_tax_inflation)
             current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
             
@@ -358,10 +387,19 @@ class PlanCalculator:
         for year in range(post_disbursement_start, last_planning_year + 1):
             yd = YearlyData(year=year, is_working_year=False)
             
-            # Apply appreciation
-            balance_taxable = balance_taxable * (1 + taxable_appreciation)
-            balance_401k = balance_401k * (1 + tax_deferred_appreciation)
-            balance_hsa = balance_hsa * (1 + hsa_appreciation)
+            # Calculate appreciation amounts before applying growth
+            yd.appreciation_taxable = balance_taxable * taxable_appreciation
+            yd.appreciation_ira = balance_401k * tax_deferred_appreciation
+            yd.appreciation_hsa = balance_hsa * hsa_appreciation
+            yd.appreciation_deferred_comp = 0  # Deferred comp is depleted
+            yd.total_appreciation = (yd.appreciation_taxable + yd.appreciation_ira + 
+                                    yd.appreciation_hsa)
+            
+            # Apply growth to balances
+            balance_taxable = balance_taxable + yd.appreciation_taxable
+            balance_401k = balance_401k + yd.appreciation_ira
+            balance_hsa = balance_hsa + yd.appreciation_hsa
+            
             current_local_tax = current_local_tax * (1 + local_tax_inflation)
             current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
             
