@@ -162,8 +162,24 @@ class TakeHomeCalculator:
         # Capital gains and deferred comp disbursements are NOT subject to FICA
         earned_income_for_fica = base_salary + bonus_amount + other_income + espp_income + rsu_vested_value
 
-        # Get deductions with employer HSA contribution to calculate employee-only HSA deduction
-        deductions = self.federal.totalDeductions(tax_year, employer_hsa_contribution)
+        # Calculate local tax (property tax) with inflation
+        local_tax_spec = spec.get('localTax', {})
+        base_local_tax = local_tax_spec.get('realEstate', 0.0)
+        local_tax_inflation = local_tax_spec.get('inflationRate', 0.0)
+        if years_from_first > 0 and local_tax_inflation > 0:
+            local_tax = base_local_tax * ((1 + local_tax_inflation) ** years_from_first)
+        else:
+            local_tax = base_local_tax
+
+        # Calculate state income tax early (needed for itemized deduction calculation)
+        # State taxes are reduced by deferrals; deferred comp disbursements ARE subject to state income tax
+        state_taxable_income = gross_income_for_tax - total_deferral + long_term_capital_gains
+        state_income_tax = self.state.taxBurden(state_taxable_income, medical_dental_vision, year=tax_year, employer_hsa_contribution=employer_hsa_contribution)
+        state_short_term_capital_gains_tax = self.state.shortTermCapitalGainsTax(short_term_capital_gains)
+        state_tax = state_income_tax + state_short_term_capital_gains_tax
+
+        # Get deductions with employer HSA contribution and state/local tax for itemized deduction
+        deductions = self.federal.totalDeductions(tax_year, employer_hsa_contribution, state_income_tax, local_tax)
         # Only include medical deductions during working years
         if is_working_year:
             deductions['medicalDentalVision'] = medical_dental_vision
@@ -204,14 +220,6 @@ class TakeHomeCalculator:
         medicare_charge = self.medicare.base_contribution(medicare_base)
         medicare_surcharge = self.medicare.surcharge(earned_income_for_fica)
         total_medicare = medicare_charge + medicare_surcharge
-
-        # State tax: use injected StateDetails
-        # State taxes are also reduced by deferrals (use adjusted_gross_income which includes deferral reduction)
-        # Deferred comp disbursements ARE subject to state income tax
-        state_taxable_income = gross_income_for_tax - total_deferral + long_term_capital_gains
-        state_income_tax = self.state.taxBurden(state_taxable_income, medical_dental_vision, year=tax_year, employer_hsa_contribution=employer_hsa_contribution)
-        state_short_term_capital_gains_tax = self.state.shortTermCapitalGainsTax(short_term_capital_gains)
-        state_tax = state_income_tax + state_short_term_capital_gains_tax
 
         # Take home pay: gross income minus all taxes and deferrals (deferrals go to deferred account, not take-home)
         # Include deferred comp disbursement in take home (it's income received)

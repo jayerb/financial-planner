@@ -22,7 +22,8 @@
                 { "maxIncome": 96700.00, "rate": 0.0 },
                 { "maxIncome": 600050.00, "rate": 0.15 },
                 { "maxIncome": 99999999999.00, "rate": 0.20 }
-            ]
+            ],
+            "maximumSALTDeduction": 40000.00
         },
         {
             "year": 2026,
@@ -44,7 +45,9 @@
                 { "maxIncome": 98900.00, "rate": 0.0 },
                 { "maxIncome": 613700.00, "rate": 0.15 },
                 { "maxIncome": 99999999999.00, "rate": 0.20 }
-            ]        }
+            ],
+            "maximumSALTDeduction": 40400.00
+        }
 
     ]
 }

@@ -14,6 +14,7 @@ class FederalDetails:
 		self.brackets_by_year = {}
 		self.deductions_by_year = {}
 		self.ltcg_brackets_by_year = {}
+		self.salt_cap_by_year = {}
 		self._load_and_build_brackets()
 
 	def _load_and_build_brackets(self):
@@ -68,17 +69,22 @@ class FederalDetails:
 				})
 			self.ltcg_brackets_by_year[year] = ltcg_brackets
 
+			# Load maximum SALT deduction for this year (defaults to 10000 if not specified)
+			self.salt_cap_by_year[year] = year_data.get("maximumSALTDeduction", 10000.0)
+
 		# Get the last specified year to use as base for inflation
 		last_specified_year = tax_years[-1]["year"]
 		last_brackets = self.brackets_by_year[last_specified_year]
 		last_deductions = self.deductions_by_year[last_specified_year]
 		last_ltcg_brackets = self.ltcg_brackets_by_year[last_specified_year]
+		last_salt_cap = self.salt_cap_by_year[last_specified_year]
 
 		# Build inflated brackets for years after the last specified year
 		year = last_specified_year + 1
 		brackets = last_brackets
 		deductions = last_deductions
 		ltcg_brackets = last_ltcg_brackets
+		salt_cap = last_salt_cap
 		while year <= self.final_year:
 			# Inflate brackets
 			brackets = [
@@ -109,6 +115,10 @@ class FederalDetails:
 			]
 			self.ltcg_brackets_by_year[year] = [dict(b) for b in ltcg_brackets]
 
+			# Inflate SALT cap
+			salt_cap = salt_cap * (1 + self.inflation_rate)
+			self.salt_cap_by_year[year] = salt_cap
+
 			year += 1
 
 	def taxBurden(self, income: float, year: int) -> FederalResult:
@@ -131,7 +141,8 @@ class FederalDetails:
 		# Should not reach here
 		raise ValueError("Income exceeds all bracket definitions.")
 
-	def totalDeductions(self, year: int, employer_hsa_contribution: float = 0.0) -> dict:
+	def totalDeductions(self, year: int, employer_hsa_contribution: float = 0.0, 
+					  state_income_tax: float = 0.0, local_tax: float = 0.0) -> dict:
 		"""
 		Returns a dictionary with itemized deductions and total for the given year.
 		Uses specified values for years in the JSON, or inflated values for future years.
@@ -140,12 +151,17 @@ class FederalDetails:
 		The employer contribution is subtracted from the statutory maximum to get
 		the employee's tax-deductible amount.
 		
+		Itemized deductions are calculated from state income tax and local tax (SALT),
+		capped at $10,000. The higher of standard or itemized deduction is used.
+		
 		Args:
 			year: The tax year
 			employer_hsa_contribution: The employer's HSA contribution (inflated to the year)
+			state_income_tax: State income tax paid (for itemized deduction)
+			local_tax: Local/property tax paid (for itemized deduction)
 		
 		Returns:
-			dict with keys: standardDeduction, max401k, maxHSA, employeeHSA, total
+			dict with keys: standardDeduction, itemizedDeduction, max401k, maxHSA, employeeHSA, total
 		"""
 		if year not in self.deductions_by_year:
 			raise ValueError(f"No deduction data available for year {year}")
@@ -155,10 +171,21 @@ class FederalDetails:
 		max_hsa = d["maxHSA"]
 		employee_hsa = max(0, max_hsa - employer_hsa_contribution)
 		
+		# Calculate itemized deduction from SALT (State And Local Tax)
+		# SALT deduction is capped at the maximum for the year
+		salt_cap = self.salt_cap_by_year.get(year, 10000.0)
+		salt_deduction = min(state_income_tax + local_tax, salt_cap)
+		itemized_deduction = salt_deduction
+		
+		# Use the higher of standard or itemized deduction
+		standard_deduction = d["standardDeduction"]
+		effective_deduction = max(standard_deduction, itemized_deduction)
+		
 		# Total deductions uses employee HSA only (employer contribution not tax-deductible to employee)
-		total = d["standardDeduction"] + d["max401k"] + employee_hsa
+		total = effective_deduction + d["max401k"] + employee_hsa
 		return {
-			"standardDeduction": d["standardDeduction"],
+			"standardDeduction": standard_deduction,
+			"itemizedDeduction": itemized_deduction,
 			"max401k": d["max401k"],
 			"maxHSA": max_hsa,
 			"employeeHSA": employee_hsa,

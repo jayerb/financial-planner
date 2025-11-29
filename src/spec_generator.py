@@ -418,6 +418,30 @@ def generate_spec(existing_spec: Optional[dict] = None) -> dict:
         spec['deductions'] = deductions
 
     # =========================================================================
+    # LOCAL TAXES
+    # =========================================================================
+    print_section("Local Taxes")
+    
+    ex_local_tax = ex.get('localTax', {})
+    has_existing_local_tax = 'localTax' in ex
+    has_local_tax = prompt_yes_no("Do you have local taxes (e.g., property/real estate tax)?", default=has_existing_local_tax)
+    
+    if has_local_tax:
+        local_tax: dict[str, Any] = {}
+        
+        local_tax['realEstate'] = prompt_currency(
+            "Annual real estate/property tax",
+            default=ex_local_tax.get('realEstate', 0.0)
+        )
+        
+        local_tax['inflationRate'] = prompt_percent(
+            "Expected annual property tax inflation rate",
+            default=ex_local_tax.get('inflationRate', 0.03)
+        )
+        
+        spec['localTax'] = local_tax
+
+    # =========================================================================
     # COMPANY BENEFITS
     # =========================================================================
     print_section("Company Benefits")

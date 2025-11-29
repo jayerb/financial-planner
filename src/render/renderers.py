@@ -64,7 +64,16 @@ class TaxDetailsRenderer(BaseRenderer):
         print("DEDUCTIONS")
         print("-" * 60)
         deductions = results['deductions']
-        print(f"  {'Standard Deduction:':<40} ${deductions['standardDeduction']:>14,.2f}")
+        standard_deduction = deductions['standardDeduction']
+        itemized_deduction = deductions.get('itemizedDeduction', 0)
+        # Show which deduction type is being used
+        if itemized_deduction > standard_deduction:
+            print(f"  {'Itemized Deduction (SALT):':<40} ${itemized_deduction:>14,.2f}  <- used")
+            print(f"  {'Standard Deduction:':<40} ${standard_deduction:>14,.2f}")
+        else:
+            print(f"  {'Standard Deduction:':<40} ${standard_deduction:>14,.2f}  <- used")
+            if itemized_deduction > 0:
+                print(f"  {'Itemized Deduction (SALT):':<40} ${itemized_deduction:>14,.2f}")
         print(f"  {'401(k) Contribution:':<40} ${deductions['max401k']:>14,.2f}")
         # Show employee HSA contribution (the tax-deductible portion)
         employee_hsa = deductions.get('employeeHSA', deductions['maxHSA'])
