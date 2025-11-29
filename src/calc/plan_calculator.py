@@ -1,0 +1,394 @@
+"""Unified plan calculator that builds yearly data in three phases.
+
+This calculator creates a complete PlanData object containing all
+financial calculations for every year in the planning horizon.
+
+The calculation is organized into three distinct loops:
+1. Working years - income, contributions, taxes while employed
+2. Deferred comp withdrawal years - retirement with disbursements
+3. Post-withdrawal years - retirement without disbursements
+"""
+
+from model.PlanData import YearlyData, PlanData
+from tax.FederalDetails import FederalDetails
+from tax.StateDetails import StateDetails
+from tax.ESPPDetails import ESPPDetails
+from tax.SocialSecurityDetails import SocialSecurityDetails
+from tax.MedicareDetails import MedicareDetails
+from calc.rsu_calculator import RSUCalculator
+
+
+class PlanCalculator:
+    """Calculator that builds complete plan data in three phases.
+    
+    Uses incremental calculations based on prior year values to avoid
+    redundant inflation calculations.
+    """
+    
+    def __init__(self, 
+                 federal: FederalDetails,
+                 state: StateDetails,
+                 espp: ESPPDetails,
+                 social_security: SocialSecurityDetails,
+                 medicare: MedicareDetails,
+                 rsu_calculator: RSUCalculator):
+        self.federal = federal
+        self.state = state
+        self.espp = espp
+        self.social_security = social_security
+        self.medicare = medicare
+        self.rsu_calculator = rsu_calculator
+    
+    def calculate(self, spec: dict) -> PlanData:
+        """Calculate complete financial plan data for all years.
+        
+        Args:
+            spec: The program specification dictionary
+            
+        Returns:
+            PlanData containing all yearly calculations and totals
+        """
+        first_year = spec.get('firstYear', 2026)
+        last_working_year = spec.get('lastWorkingYear', first_year + 10)
+        last_planning_year = spec.get('lastPlanningYear', last_working_year + 30)
+        inflation_rate = spec.get('federalBracketInflation', 0.03)
+        
+        # Extract spec values
+        income_spec = spec.get('income', {})
+        investments_spec = spec.get('investments', {})
+        deductions_spec = spec.get('deductions', {})
+        deferred_comp_spec = spec.get('deferredCompensationPlan', {})
+        local_tax_spec = spec.get('localTax', {})
+        
+        # Initial values from spec
+        initial_base_salary = income_spec.get('baseSalary', 0)
+        bonus_fraction = income_spec.get('bonusFraction', 0)
+        salary_increase_rate = income_spec.get('annualBaseIncreaseFraction', 0)
+        other_income = income_spec.get('otherIncome', 0)
+        base_deferral_fraction = income_spec.get('baseDeferralFraction', 0)
+        bonus_deferral_fraction = income_spec.get('bonusDeferralFraction', 0)
+        short_term_cg_percent = income_spec.get('shortTermCapitalGainsPercent', 0)
+        long_term_cg_percent = income_spec.get('longTermCapitalGainsPercent', 0)
+        
+        # Investment parameters
+        initial_taxable = investments_spec.get('taxableBalance', 0)
+        taxable_appreciation = investments_spec.get('taxableAppreciationRate', 0.06)
+        initial_tax_deferred = investments_spec.get('taxDeferredBalance', 0)
+        tax_deferred_appreciation = investments_spec.get('taxDeferredAppreciationRate', 0.08)
+        initial_hsa = investments_spec.get('hsaBalance', 0)
+        hsa_appreciation = investments_spec.get('hsaAppreciationRate', 0.07)
+        employer_401k_match_percent = investments_spec.get('employer401kMatchPercent', 0)
+        employer_401k_match_max_salary_percent = investments_spec.get('employer401kMatchMaxSalaryPercent', 0)
+        initial_employer_hsa = investments_spec.get('hsaEmployerContribution', 0)
+        
+        # Deferred comp parameters
+        deferred_comp_growth = deferred_comp_spec.get('annualGrowthFraction', 0.05)
+        disbursement_years = deferred_comp_spec.get('dispursementYears', 10)
+        
+        # Medical parameters
+        initial_medical = deductions_spec.get('medicalDentalVision', 0)
+        medical_inflation = deductions_spec.get('medicalInflationRate', 0.04)
+        
+        # Local tax parameters
+        initial_local_tax = local_tax_spec.get('realEstate', 0)
+        local_tax_inflation = local_tax_spec.get('inflationRate', 0.03)
+        
+        # Life insurance
+        life_premium = spec.get('companyProvidedLifeInsurance', {}).get('annualPremium', 0)
+        
+        # Initialize plan data
+        plan = PlanData(
+            first_year=first_year,
+            last_working_year=last_working_year,
+            last_planning_year=last_planning_year
+        )
+        
+        # Track running values that get inflated/accumulated year over year
+        current_salary = initial_base_salary
+        current_medical = initial_medical
+        current_employer_hsa = initial_employer_hsa
+        current_local_tax = initial_local_tax
+        
+        # Track balances
+        balance_taxable = initial_taxable
+        balance_401k = initial_tax_deferred
+        balance_hsa = initial_hsa
+        balance_deferred_comp = 0.0
+        
+        # Deferred comp disbursement boundaries
+        disbursement_start = last_working_year + 1
+        disbursement_end = disbursement_start + disbursement_years - 1
+        
+        # ============================================================
+        # LOOP 1: Working Years
+        # ============================================================
+        for year in range(first_year, last_working_year + 1):
+            yd = YearlyData(year=year, is_working_year=True)
+            
+            # Apply inflation from prior year (except first year)
+            if year > first_year:
+                current_salary = current_salary * (1 + salary_increase_rate)
+                current_medical = current_medical * (1 + medical_inflation)
+                current_employer_hsa = current_employer_hsa * (1 + inflation_rate)
+                current_local_tax = current_local_tax * (1 + local_tax_inflation)
+                balance_taxable = balance_taxable * (1 + taxable_appreciation)
+                balance_401k = balance_401k * (1 + tax_deferred_appreciation)
+                balance_hsa = balance_hsa * (1 + hsa_appreciation)
+                balance_deferred_comp = balance_deferred_comp * (1 + deferred_comp_growth)
+            
+            # Income
+            yd.base_salary = current_salary
+            yd.bonus = current_salary * bonus_fraction
+            yd.other_income = other_income
+            yd.medical_dental_vision = current_medical
+            yd.local_tax = current_local_tax
+            
+            # Deferrals
+            yd.base_deferral = current_salary * base_deferral_fraction
+            yd.bonus_deferral = yd.bonus * bonus_deferral_fraction
+            yd.total_deferral = yd.base_deferral + yd.bonus_deferral
+            
+            # ESPP income
+            if year == first_year and 'esppIncome' in income_spec:
+                yd.espp_income = income_spec.get('esppIncome', 0)
+            else:
+                yd.espp_income = self.espp.taxable_from_spec(spec)
+            
+            # RSU income
+            yd.rsu_vested_value = self.rsu_calculator.vested_value.get(year, 0)
+            
+            # Capital gains
+            yd.short_term_capital_gains = balance_taxable * short_term_cg_percent
+            yd.long_term_capital_gains = balance_taxable * long_term_cg_percent
+            
+            # HSA contributions
+            yd.employer_hsa = current_employer_hsa
+            
+            # Gross income
+            yd.gross_income = (yd.base_salary + yd.bonus + yd.other_income + 
+                              yd.short_term_capital_gains + yd.espp_income + 
+                              yd.rsu_vested_value)
+            
+            yd.earned_income_for_fica = yd.gross_income
+            
+            # State tax (for SALT itemized deduction)
+            state_taxable = yd.gross_income - yd.total_deferral + yd.long_term_capital_gains
+            preliminary_state_tax = self.state.taxBurden(state_taxable, yd.medical_dental_vision, 
+                                                          year=year, employer_hsa_contribution=yd.employer_hsa)
+            
+            # Federal deductions
+            deductions = self.federal.totalDeductions(year, yd.employer_hsa, 
+                                                       preliminary_state_tax, yd.local_tax)
+            
+            yd.standard_deduction = deductions['standardDeduction']
+            yd.itemized_deduction = deductions.get('itemizedDeduction', 0)
+            yd.max_401k = deductions['max401k']
+            yd.max_hsa = deductions['maxHSA']
+            yd.employee_hsa = deductions.get('employeeHSA', deductions['maxHSA'])
+            yd.total_deductions = deductions['total'] + yd.medical_dental_vision
+            
+            # Adjusted gross income
+            yd.adjusted_gross_income = yd.gross_income - yd.total_deductions - yd.total_deferral
+            
+            # Federal taxes
+            federal_result = self.federal.taxBurden(yd.adjusted_gross_income, year)
+            yd.ordinary_income_tax = federal_result.totalFederalTax
+            yd.marginal_bracket = federal_result.marginalBracket
+            yd.long_term_capital_gains_tax = self.federal.longTermCapitalGainsTax(
+                yd.adjusted_gross_income, yd.long_term_capital_gains, year)
+            yd.federal_tax = yd.ordinary_income_tax + yd.long_term_capital_gains_tax
+            
+            # FICA taxes
+            yd.social_security_tax = self.social_security.total_contribution(yd.earned_income_for_fica, year)
+            medicare_base = yd.earned_income_for_fica - yd.medical_dental_vision + life_premium
+            yd.medicare_tax = self.medicare.base_contribution(medicare_base)
+            yd.medicare_surcharge = self.medicare.surcharge(yd.earned_income_for_fica)
+            yd.total_fica = yd.social_security_tax + yd.medicare_tax + yd.medicare_surcharge
+            
+            # State taxes
+            yd.state_income_tax = preliminary_state_tax
+            yd.state_short_term_capital_gains_tax = self.state.shortTermCapitalGainsTax(yd.short_term_capital_gains)
+            yd.state_tax = yd.state_income_tax + yd.state_short_term_capital_gains_tax
+            
+            # Total taxes and take home
+            yd.total_taxes = yd.federal_tax + yd.total_fica + yd.state_tax
+            yd.effective_tax_rate = yd.total_taxes / yd.gross_income if yd.gross_income > 0 else 0
+            yd.take_home_pay = yd.gross_income - yd.total_taxes - yd.total_deferral
+            
+            # Contributions
+            yd.employee_401k_contribution = yd.max_401k
+            matchable_compensation = yd.base_salary + yd.bonus - yd.total_deferral
+            max_matchable = matchable_compensation * employer_401k_match_max_salary_percent
+            matchable_contribution = min(yd.employee_401k_contribution, max_matchable)
+            yd.employer_401k_match = matchable_contribution * employer_401k_match_percent
+            yd.total_401k_contribution = yd.employee_401k_contribution + yd.employer_401k_match
+            yd.hsa_contribution = yd.employee_hsa + yd.employer_hsa
+            yd.deferred_comp_contribution = yd.total_deferral
+            yd.total_contributions = (yd.total_401k_contribution + yd.hsa_contribution + 
+                                      yd.deferred_comp_contribution + yd.taxable_contribution)
+            
+            # Update balances
+            balance_401k += yd.total_401k_contribution
+            balance_hsa += yd.hsa_contribution
+            balance_deferred_comp += yd.deferred_comp_contribution
+            
+            yd.balance_401k = balance_401k
+            yd.balance_hsa = balance_hsa
+            yd.balance_deferred_comp = balance_deferred_comp
+            yd.balance_taxable = balance_taxable
+            yd.total_assets = yd.balance_401k + yd.balance_hsa + yd.balance_deferred_comp + yd.balance_taxable
+            
+            # Add to plan and update totals
+            plan.yearly_data[year] = yd
+            plan.total_gross_income += yd.gross_income
+            plan.total_federal_tax += yd.federal_tax
+            plan.total_fica += yd.total_fica
+            plan.total_state_tax += yd.state_tax
+            plan.total_taxes += yd.total_taxes
+            plan.total_take_home += yd.take_home_pay
+        
+        # Calculate yearly disbursement after working years (balance has final growth)
+        balance_deferred_comp = balance_deferred_comp * (1 + deferred_comp_growth)
+        yearly_disbursement = balance_deferred_comp / disbursement_years if disbursement_years > 0 else 0
+        
+        # ============================================================
+        # LOOP 2: Deferred Compensation Withdrawal Years
+        # ============================================================
+        for year in range(disbursement_start, min(disbursement_end + 1, last_planning_year + 1)):
+            yd = YearlyData(year=year, is_working_year=False)
+            
+            # Apply appreciation (first retirement year already had growth applied above)
+            if year > disbursement_start:
+                balance_deferred_comp = balance_deferred_comp * (1 + deferred_comp_growth)
+            balance_taxable = balance_taxable * (1 + taxable_appreciation)
+            balance_401k = balance_401k * (1 + tax_deferred_appreciation)
+            balance_hsa = balance_hsa * (1 + hsa_appreciation)
+            current_local_tax = current_local_tax * (1 + local_tax_inflation)
+            
+            yd.local_tax = current_local_tax
+            yd.deferred_comp_disbursement = yearly_disbursement
+            
+            # Capital gains
+            yd.short_term_capital_gains = balance_taxable * short_term_cg_percent
+            yd.long_term_capital_gains = balance_taxable * long_term_cg_percent
+            
+            # Gross income from disbursement and capital gains
+            yd.gross_income = yd.deferred_comp_disbursement + yd.short_term_capital_gains
+            
+            # Federal deductions (only standard deduction in retirement)
+            deductions = self.federal.totalDeductions(year, 0, 0, yd.local_tax)
+            yd.standard_deduction = deductions['standardDeduction']
+            yd.total_deductions = yd.standard_deduction
+            
+            # Adjusted gross income
+            yd.adjusted_gross_income = yd.gross_income - yd.total_deductions
+            
+            # Federal taxes
+            federal_result = self.federal.taxBurden(yd.adjusted_gross_income, year)
+            yd.ordinary_income_tax = federal_result.totalFederalTax
+            yd.marginal_bracket = federal_result.marginalBracket
+            yd.long_term_capital_gains_tax = self.federal.longTermCapitalGainsTax(
+                yd.adjusted_gross_income, yd.long_term_capital_gains, year)
+            yd.federal_tax = yd.ordinary_income_tax + yd.long_term_capital_gains_tax
+            
+            # State taxes
+            state_taxable = yd.gross_income + yd.long_term_capital_gains
+            yd.state_income_tax = self.state.taxBurden(state_taxable, 0, year=year, employer_hsa_contribution=0)
+            yd.state_short_term_capital_gains_tax = self.state.shortTermCapitalGainsTax(yd.short_term_capital_gains)
+            yd.state_tax = yd.state_income_tax + yd.state_short_term_capital_gains_tax
+            
+            # Total taxes and take home (no FICA in retirement)
+            yd.total_taxes = yd.federal_tax + yd.state_tax
+            yd.effective_tax_rate = yd.total_taxes / yd.gross_income if yd.gross_income > 0 else 0
+            yd.take_home_pay = yd.gross_income - yd.total_taxes
+            
+            # Update deferred comp balance
+            balance_deferred_comp -= yearly_disbursement
+            
+            yd.balance_401k = balance_401k
+            yd.balance_hsa = balance_hsa
+            yd.balance_deferred_comp = max(0, balance_deferred_comp)
+            yd.balance_taxable = balance_taxable
+            yd.total_assets = yd.balance_401k + yd.balance_hsa + yd.balance_deferred_comp + yd.balance_taxable
+            
+            # Add to plan and update totals
+            plan.yearly_data[year] = yd
+            plan.total_gross_income += yd.gross_income
+            plan.total_federal_tax += yd.federal_tax
+            plan.total_state_tax += yd.state_tax
+            plan.total_taxes += yd.total_taxes
+            plan.total_take_home += yd.take_home_pay
+        
+        # ============================================================
+        # LOOP 3: Post-Deferred Comp Years (if any)
+        # ============================================================
+        post_disbursement_start = disbursement_end + 1
+        for year in range(post_disbursement_start, last_planning_year + 1):
+            yd = YearlyData(year=year, is_working_year=False)
+            
+            # Apply appreciation
+            balance_taxable = balance_taxable * (1 + taxable_appreciation)
+            balance_401k = balance_401k * (1 + tax_deferred_appreciation)
+            balance_hsa = balance_hsa * (1 + hsa_appreciation)
+            current_local_tax = current_local_tax * (1 + local_tax_inflation)
+            
+            yd.local_tax = current_local_tax
+            
+            # Capital gains only (no disbursement)
+            yd.short_term_capital_gains = balance_taxable * short_term_cg_percent
+            yd.long_term_capital_gains = balance_taxable * long_term_cg_percent
+            
+            # Gross income from capital gains only
+            yd.gross_income = yd.short_term_capital_gains
+            
+            # Federal deductions (standard deduction only)
+            deductions = self.federal.totalDeductions(year, 0, 0, yd.local_tax)
+            yd.standard_deduction = deductions['standardDeduction']
+            yd.total_deductions = yd.standard_deduction
+            
+            # Adjusted gross income
+            yd.adjusted_gross_income = yd.gross_income - yd.total_deductions
+            
+            # Federal taxes
+            federal_result = self.federal.taxBurden(yd.adjusted_gross_income, year)
+            yd.ordinary_income_tax = federal_result.totalFederalTax
+            yd.marginal_bracket = federal_result.marginalBracket
+            yd.long_term_capital_gains_tax = self.federal.longTermCapitalGainsTax(
+                yd.adjusted_gross_income, yd.long_term_capital_gains, year)
+            yd.federal_tax = yd.ordinary_income_tax + yd.long_term_capital_gains_tax
+            
+            # State taxes
+            state_taxable = yd.gross_income + yd.long_term_capital_gains
+            yd.state_income_tax = self.state.taxBurden(state_taxable, 0, year=year, employer_hsa_contribution=0)
+            yd.state_short_term_capital_gains_tax = self.state.shortTermCapitalGainsTax(yd.short_term_capital_gains)
+            yd.state_tax = yd.state_income_tax + yd.state_short_term_capital_gains_tax
+            
+            # Total taxes and take home (no FICA)
+            yd.total_taxes = yd.federal_tax + yd.state_tax
+            yd.effective_tax_rate = yd.total_taxes / yd.gross_income if yd.gross_income > 0 else 0
+            yd.take_home_pay = yd.gross_income - yd.total_taxes
+            
+            yd.balance_401k = balance_401k
+            yd.balance_hsa = balance_hsa
+            yd.balance_deferred_comp = 0
+            yd.balance_taxable = balance_taxable
+            yd.total_assets = yd.balance_401k + yd.balance_hsa + yd.balance_taxable
+            
+            # Add to plan and update totals
+            plan.yearly_data[year] = yd
+            plan.total_gross_income += yd.gross_income
+            plan.total_federal_tax += yd.federal_tax
+            plan.total_state_tax += yd.state_tax
+            plan.total_taxes += yd.total_taxes
+            plan.total_take_home += yd.take_home_pay
+        
+        # Set final balances
+        final_year_data = plan.yearly_data.get(last_planning_year)
+        if final_year_data:
+            plan.final_401k_balance = final_year_data.balance_401k
+            plan.final_deferred_comp_balance = final_year_data.balance_deferred_comp
+            plan.final_hsa_balance = final_year_data.balance_hsa
+            plan.final_taxable_balance = final_year_data.balance_taxable
+            plan.total_retirement_assets = final_year_data.total_assets
+        
+        return plan
