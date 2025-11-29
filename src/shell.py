@@ -6,12 +6,14 @@ at startup and allows querying any field(s) from the yearly data
 across a specified date range.
 
 Usage:
-    python src/shell.py <program_name>
+    python src/shell.py [program_name]
     
 Commands:
     get <fields> [year_or_range]  - Query fields from yearly data
     fields                        - List all available fields
     years                         - Show available year range
+    load <program_name>           - Load a financial plan
+    generate                      - Create or update a financial plan
     help                          - Show help message
     exit/quit                     - Exit the shell
     
@@ -21,6 +23,7 @@ Examples:
     > get take_home_pay 2026
     > get take_home_pay 2026-2030
     > get base_salary, bonus 2028-
+    > load myprogram
 """
 
 import sys
@@ -41,6 +44,7 @@ from tax.MedicareDetails import MedicareDetails
 from calc.rsu_calculator import RSUCalculator
 from calc.plan_calculator import PlanCalculator
 from model.PlanData import PlanData, YearlyData
+from spec_generator import run_generator
 
 
 def load_plan(program_name: str) -> PlanData:
@@ -143,22 +147,43 @@ Type 'exit' or 'quit' to exit.
 """
     prompt = '> '
     
-    def __init__(self, plan_data: PlanData, program_name: str):
+    def __init__(self, plan_data: PlanData = None, program_name: str = None):
         super().__init__()
         self.plan_data = plan_data
         self.program_name = program_name
         self.available_fields = get_yearly_fields()
-        self.intro = f"""
+        self._update_intro()
+    
+    def _update_intro(self):
+        """Update the intro message based on current state."""
+        if self.plan_data and self.program_name:
+            self.intro = f"""
 Financial Plan Interactive Shell
 =================================
-Program: {program_name}
-Years: {plan_data.first_year} - {plan_data.last_planning_year}
-Working years: {plan_data.first_year} - {plan_data.last_working_year}
+Program: {self.program_name}
+Years: {self.plan_data.first_year} - {self.plan_data.last_planning_year}
+Working years: {self.plan_data.first_year} - {self.plan_data.last_working_year}
 
 Type 'help' for available commands.
 Type 'fields' to see available data fields.
 Type 'exit' or 'quit' to exit.
 """
+        else:
+            self.intro = """
+Financial Plan Interactive Shell
+=================================
+No plan loaded. Use 'load <program_name>' or 'generate' to get started.
+
+Type 'help' for available commands.
+Type 'exit' or 'quit' to exit.
+"""
+    
+    def _require_plan(self) -> bool:
+        """Check if a plan is loaded. Returns True if loaded, False otherwise."""
+        if self.plan_data is None:
+            print("No plan loaded. Use 'load <program_name>' or 'generate' first.")
+            return False
+        return True
     
     def do_get(self, arg: str):
         """Query field(s) from yearly data.
@@ -177,6 +202,9 @@ Type 'exit' or 'quit' to exit.
             get take_home_pay 2026-2030
             get base_salary, bonus 2028-
         """
+        if not self._require_plan():
+            return
+        
         if not arg.strip():
             print("Error: Please specify at least one field to query.")
             print("Usage: get <fields> [year_or_range]")
@@ -350,6 +378,9 @@ Type 'exit' or 'quit' to exit.
     
     def do_years(self, arg: str):
         """Show the available year range and categorization."""
+        if not self._require_plan():
+            return
+        
         print(f"\nPlan Year Range:")
         print(f"  First year: {self.plan_data.first_year}")
         print(f"  Last working year: {self.plan_data.last_working_year}")
@@ -367,6 +398,9 @@ Type 'exit' or 'quit' to exit.
     
     def do_summary(self, arg: str):
         """Show lifetime summary totals from the plan."""
+        if not self._require_plan():
+            return
+        
         print(f"\nLifetime Summary for '{self.program_name}':")
         print("=" * 40)
         print(f"Total Gross Income:    {format_value(self.plan_data.total_gross_income)}")
@@ -383,6 +417,53 @@ Type 'exit' or 'quit' to exit.
         print(f"  Taxable:             {format_value(self.plan_data.final_taxable_balance)}")
         print(f"  Total Assets:        {format_value(self.plan_data.total_retirement_assets)}")
         print()
+    
+    def do_generate(self, arg: str):
+        """Launch the interactive wizard to create or update a financial plan.
+        
+        Usage: generate
+        
+        This runs the spec generator wizard. After generating a plan,
+        you will be prompted to load it.
+        """
+        print()
+        program_name = run_generator()
+        if program_name:
+            print()
+            reload_choice = input(f"Would you like to load '{program_name}' now? [Y/n]: ").strip().lower()
+            if reload_choice in ('', 'y', 'yes'):
+                self.do_load(program_name)
+    
+    def do_load(self, arg: str):
+        """Load a financial plan.
+        
+        Usage: load <program_name>
+        
+        If no program name is given and a plan is already loaded, reloads it.
+        """
+        program_name = arg.strip() if arg.strip() else self.program_name
+        
+        if not program_name:
+            print("Please specify a program name.")
+            print("Available programs:")
+            input_params_dir = os.path.join(os.path.dirname(__file__), '../input-parameters')
+            if os.path.exists(input_params_dir):
+                for item in sorted(os.listdir(input_params_dir)):
+                    if os.path.isdir(os.path.join(input_params_dir, item)):
+                        print(f"  - {item}")
+            return
+        
+        try:
+            print(f"Loading financial plan '{program_name}'...")
+            self.plan_data = load_plan(program_name)
+            self.program_name = program_name
+            print(f"Plan loaded successfully!")
+            print(f"Years: {self.plan_data.first_year} - {self.plan_data.last_planning_year}")
+            print(f"Working years: {self.plan_data.first_year} - {self.plan_data.last_working_year}")
+        except FileNotFoundError as e:
+            print(f"Error: {e}")
+        except Exception as e:
+            print(f"Error loading plan: {e}")
     
     def do_help(self, arg: str):
         """Show help for available commands."""
@@ -417,6 +498,12 @@ Available Commands:
 
   summary
       Show lifetime summary totals.
+
+  generate
+      Launch the interactive wizard to create or update a financial plan.
+
+  load [program_name]
+      Load a financial plan. Shows available programs if none specified.
 
   help [command]
       Show this help message or help for a specific command.
@@ -462,34 +549,29 @@ Available Commands:
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python src/shell.py <program_name>")
-        print("\nAvailable programs:")
-        input_params_dir = os.path.join(os.path.dirname(__file__), '../input-parameters')
-        if os.path.exists(input_params_dir):
-            for item in os.listdir(input_params_dir):
-                if os.path.isdir(os.path.join(input_params_dir, item)):
-                    print(f"  - {item}")
-        sys.exit(1)
+    program_name = sys.argv[1] if len(sys.argv) > 1 else None
     
-    program_name = sys.argv[1]
-    
-    try:
-        print(f"Loading financial plan '{program_name}'...")
-        plan_data = load_plan(program_name)
-        print("Plan loaded successfully!")
-        
-        shell = FinancialPlanShell(plan_data, program_name)
+    if program_name:
+        try:
+            print(f"Loading financial plan '{program_name}'...")
+            plan_data = load_plan(program_name)
+            print("Plan loaded successfully!")
+            
+            shell = FinancialPlanShell(plan_data, program_name)
+            shell.cmdloop()
+            
+        except FileNotFoundError as e:
+            print(f"Error: {e}")
+            sys.exit(1)
+        except Exception as e:
+            print(f"Error loading plan: {e}")
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
+    else:
+        # Start shell without a loaded plan
+        shell = FinancialPlanShell()
         shell.cmdloop()
-        
-    except FileNotFoundError as e:
-        print(f"Error: {e}")
-        sys.exit(1)
-    except Exception as e:
-        print(f"Error loading plan: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
 
 
 if __name__ == "__main__":
