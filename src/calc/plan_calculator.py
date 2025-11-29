@@ -83,7 +83,7 @@ class PlanCalculator:
         
         # Deferred comp parameters
         deferred_comp_growth = deferred_comp_spec.get('annualGrowthFraction', 0.05)
-        disbursement_years = deferred_comp_spec.get('dispursementYears', 10)
+        disbursement_years = deferred_comp_spec.get('disbursementYears', 10)
         
         # Medical parameters
         initial_medical = deductions_spec.get('medicalDentalVision', 0)

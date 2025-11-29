@@ -26,7 +26,7 @@ class DeferredCompCalculator:
         
         deferred_plan = spec.get('deferredCompensationPlan', {})
         self.growth_rate = deferred_plan.get('annualGrowthFraction', 0.05)
-        self.disbursement_years = deferred_plan.get('dispursementYears', 10)
+        self.disbursement_years = deferred_plan.get('disbursementYears', 10)
         
         self.initial_balance = spec.get('initialDeferredBalance', 0)
         self.yearly_deferrals = yearly_deferrals

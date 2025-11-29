@@ -105,7 +105,7 @@ def create_spec_with_expenses():
         },
         'deferredCompensationPlan': {
             'annualGrowthFraction': 0.05,
-            'dispursementYears': 5
+            'disbursementYears': 5
         },
         'localTax': {
             'realEstate': 8000,
@@ -369,7 +369,7 @@ class TestIRAWithdrawals:
         spec = create_spec_with_expenses()
         result = calculator.calculate(spec)
         
-        disbursement_years = spec['deferredCompensationPlan']['dispursementYears']
+        disbursement_years = spec['deferredCompensationPlan']['disbursementYears']
         first_retirement = spec['lastWorkingYear'] + 1
         
         for year in range(first_retirement, first_retirement + disbursement_years):
@@ -383,7 +383,7 @@ class TestIRAWithdrawals:
         spec['expenses']['annualAmount'] = 200000
         result = calculator.calculate(spec)
         
-        disbursement_years = spec['deferredCompensationPlan']['dispursementYears']
+        disbursement_years = spec['deferredCompensationPlan']['disbursementYears']
         first_retirement = spec['lastWorkingYear'] + 1
         post_deferred_start = first_retirement + disbursement_years
         
@@ -398,7 +398,7 @@ class TestIRAWithdrawals:
         spec['expenses']['annualAmount'] = 500000  # Very high expenses
         result = calculator.calculate(spec)
         
-        disbursement_years = spec['deferredCompensationPlan']['dispursementYears']
+        disbursement_years = spec['deferredCompensationPlan']['disbursementYears']
         first_retirement = spec['lastWorkingYear'] + 1
         post_deferred_start = first_retirement + disbursement_years
         
@@ -416,7 +416,7 @@ class TestIRAWithdrawals:
         spec['expenses']['annualAmount'] = 200000  # High expenses
         result = calculator.calculate(spec)
         
-        disbursement_years = spec['deferredCompensationPlan']['dispursementYears']
+        disbursement_years = spec['deferredCompensationPlan']['disbursementYears']
         first_retirement = spec['lastWorkingYear'] + 1
         post_deferred_start = first_retirement + disbursement_years
         
@@ -437,7 +437,7 @@ class TestIRAWithdrawals:
         spec['expenses']['annualAmount'] = 50000
         result = calculator.calculate(spec)
         
-        disbursement_years = spec['deferredCompensationPlan']['dispursementYears']
+        disbursement_years = spec['deferredCompensationPlan']['disbursementYears']
         first_retirement = spec['lastWorkingYear'] + 1
         post_deferred_start = first_retirement + disbursement_years
         

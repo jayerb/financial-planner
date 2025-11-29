@@ -224,7 +224,7 @@ class FinancialPlannerTools:
             "deferred_compensation": {
                 "base_deferral_fraction": income.get('baseDeferralFraction', 0),
                 "bonus_deferral_fraction": income.get('bonusDeferralFraction', 0),
-                "disbursement_years": deferred_plan.get('dispursementYears', 0),
+                "disbursement_years": deferred_plan.get('disbursementYears', 0),
                 "growth_rate": deferred_plan.get('annualGrowthFraction', 0)
             },
             "rsu_info": {

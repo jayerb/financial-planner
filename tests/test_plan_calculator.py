@@ -107,7 +107,7 @@ def create_basic_spec():
         },
         'deferredCompensationPlan': {
             'annualGrowthFraction': 0.05,
-            'dispursementYears': 10
+            'disbursementYears': 10
         },
         'localTax': {
             'realEstate': 8000,
@@ -299,7 +299,7 @@ class TestDeferredCompWithdrawalYearsLoop:
         spec = create_basic_spec()
         result = calculator.calculate(spec)
         
-        disbursement_years = spec['deferredCompensationPlan']['dispursementYears']
+        disbursement_years = spec['deferredCompensationPlan']['disbursementYears']
         first_retirement = spec['lastWorkingYear'] + 1
         
         disbursements = []
@@ -368,7 +368,7 @@ class TestPostWithdrawalYearsLoop:
         spec['lastPlanningYear'] = 2050  # Extend to have post-withdrawal years
         result = calculator.calculate(spec)
         
-        disbursement_years = spec['deferredCompensationPlan']['dispursementYears']
+        disbursement_years = spec['deferredCompensationPlan']['disbursementYears']
         first_retirement = spec['lastWorkingYear'] + 1
         post_withdrawal_start = first_retirement + disbursement_years
         
@@ -381,7 +381,7 @@ class TestPostWithdrawalYearsLoop:
         spec['lastPlanningYear'] = 2050  # Extend to have post-withdrawal years
         result = calculator.calculate(spec)
         
-        disbursement_years = spec['deferredCompensationPlan']['dispursementYears']
+        disbursement_years = spec['deferredCompensationPlan']['disbursementYears']
         first_retirement = spec['lastWorkingYear'] + 1
         post_withdrawal_start = first_retirement + disbursement_years
         
@@ -394,7 +394,7 @@ class TestPostWithdrawalYearsLoop:
         spec['lastPlanningYear'] = 2050
         result = calculator.calculate(spec)
         
-        disbursement_years = spec['deferredCompensationPlan']['dispursementYears']
+        disbursement_years = spec['deferredCompensationPlan']['disbursementYears']
         first_retirement = spec['lastWorkingYear'] + 1
         post_withdrawal_year = first_retirement + disbursement_years
         
@@ -546,7 +546,7 @@ class TestEdgeCases:
     def test_zero_disbursement_years(self, calculator):
         """Test with zero disbursement years configured."""
         spec = create_basic_spec()
-        spec['deferredCompensationPlan']['dispursementYears'] = 0
+        spec['deferredCompensationPlan']['disbursementYears'] = 0
         
         result = calculator.calculate(spec)
         

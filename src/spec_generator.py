@@ -278,9 +278,9 @@ def generate_spec(existing_spec: Optional[dict] = None) -> dict:
             max_val=100.0
         )
         
-        deferred_plan['dispursementYears'] = prompt_int(
+        deferred_plan['disbursementYears'] = prompt_int(
             "Number of years for disbursements after retirement",
-            default=ex_deferred.get('dispursementYears', 10),
+            default=ex_deferred.get('disbursementYears', 10),
             min_val=1,
             max_val=30
         )
