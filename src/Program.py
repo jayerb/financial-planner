@@ -9,7 +9,7 @@ from tax.SocialSecurityDetails import SocialSecurityDetails
 from tax.MedicareDetails import MedicareDetails
 from calc.rsu_calculator import RSUCalculator
 from calc.plan_calculator import PlanCalculator
-from render.renderers import TaxDetailsRenderer, BalancesRenderer, AnnualSummaryRenderer, ContributionsRenderer, MoneyMovementRenderer, RENDERER_REGISTRY
+from render.renderers import TaxDetailsRenderer, BalancesRenderer, AnnualSummaryRenderer, ContributionsRenderer, MoneyMovementRenderer, CashFlowRenderer, RENDERER_REGISTRY
 from spec_generator import run_generator
 
 
@@ -23,6 +23,8 @@ Modes:
   Balances       Print accumulated balances for 401(k) and deferred compensation plans
   AnnualSummary  Print summary table of income and tax burden for each working year
   Contributions  Print yearly contributions to each account type
+  MoneyMovement  Print income vs expenses and taxable account adjustments
+  CashFlow       Print expense funding breakdown by source (take-home, deferred comp, IRA, taxable)
 
 Examples:
   python src/Program.py myprogram
@@ -30,6 +32,7 @@ Examples:
   python src/Program.py myprogram --mode Balances
   python src/Program.py myprogram --mode AnnualSummary
   python src/Program.py myprogram --mode Contributions
+  python src/Program.py myprogram --mode CashFlow
   python src/Program.py --generate
         """
     )
@@ -130,6 +133,9 @@ Examples:
         renderer.render(plan_data)
     elif args.mode == 'MoneyMovement':
         renderer = MoneyMovementRenderer()
+        renderer.render(plan_data)
+    elif args.mode == 'CashFlow':
+        renderer = CashFlowRenderer()
         renderer.render(plan_data)
 
 

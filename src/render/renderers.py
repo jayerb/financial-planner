@@ -315,6 +315,145 @@ class MoneyMovementRenderer(BaseRenderer):
         print()
 
 
+class CashFlowRenderer(BaseRenderer):
+    """Renderer for cash flow showing expenses and funding sources breakdown."""
+    
+    def render(self, data: PlanData) -> None:
+        """Render the cash flow breakdown.
+        
+        Shows total expenses for each year and how they are funded from
+        different sources: take-home pay, deferred comp disbursements,
+        IRA/401k withdrawals, and taxable account withdrawals.
+        Also shows account balances at end of each year.
+        
+        Args:
+            data: PlanData containing all yearly calculations
+        """
+        print()
+        print("=" * 180)
+        print(f"{'CASH FLOW - EXPENSE FUNDING BY SOURCE':^180}")
+        print("=" * 180)
+        print()
+        print(f"  {'Year':<6} {'Total Exp':>14} {'|':^3} {'Take Home':>14} {'Def Comp':>14} {'IRA/401k':>14} {'Taxable':>14} {'|':^3} {'Surplus':>14} {'|':^3} {'Def Comp Bal':>14} {'IRA/401k Bal':>16} {'Taxable Bal':>14}")
+        print(f"  {'-' * 6} {'-' * 14} {'-':^3} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-':^3} {'-' * 14} {'-':^3} {'-' * 14} {'-' * 16} {'-' * 14}")
+        
+        total_expenses = 0
+        total_take_home_used = 0
+        total_deferred_comp_used = 0
+        total_ira_used = 0
+        total_taxable_used = 0
+        total_surplus = 0
+        
+        for year in sorted(data.yearly_data.keys()):
+            yd = data.yearly_data[year]
+            
+            # Calculate how expenses are funded
+            expenses = yd.total_expenses
+            
+            # Available income sources (in order of priority)
+            # 1. Take-home pay (after-tax income from work or capital gains)
+            # 2. Deferred comp disbursements (already included in take_home_pay for retirement)
+            # 3. IRA/401k withdrawals
+            # 4. Taxable account withdrawals (if needed)
+            
+            # For working years: take_home_pay covers expenses, excess goes to taxable
+            # For retirement: take_home_pay includes deferred comp disbursement income
+            
+            remaining_expenses = expenses
+            
+            # Take-home pay (net of deferred comp for clearer breakdown)
+            if yd.is_working_year:
+                take_home_available = yd.take_home_pay
+                deferred_comp_income = 0
+            else:
+                # In retirement, take_home_pay includes the after-tax value of deferred comp
+                # We want to show deferred comp separately
+                deferred_comp_income = yd.deferred_comp_disbursement - (
+                    yd.federal_tax + yd.state_tax) if yd.deferred_comp_disbursement > 0 else 0
+                # Approximate: take_home is from capital gains and deferred comp
+                # We'll attribute take_home proportionally
+                if yd.gross_income > 0:
+                    deferred_comp_fraction = yd.deferred_comp_disbursement / yd.gross_income
+                    deferred_comp_income = yd.take_home_pay * deferred_comp_fraction
+                    take_home_available = yd.take_home_pay - deferred_comp_income
+                else:
+                    deferred_comp_income = 0
+                    take_home_available = yd.take_home_pay
+            
+            # Fund from take-home pay first
+            take_home_used = min(take_home_available, remaining_expenses)
+            remaining_expenses -= take_home_used
+            
+            # Fund from deferred comp (retirement years)
+            deferred_comp_used = min(deferred_comp_income, remaining_expenses)
+            remaining_expenses -= deferred_comp_used
+            
+            # Fund from IRA/401k withdrawal
+            ira_used = min(yd.ira_withdrawal, remaining_expenses)
+            remaining_expenses -= ira_used
+            
+            # Fund from taxable account (negative adjustment means withdrawal)
+            taxable_withdrawal = -yd.taxable_account_adjustment if yd.taxable_account_adjustment < 0 else 0
+            taxable_used = min(taxable_withdrawal, remaining_expenses)
+            remaining_expenses -= taxable_used
+            
+            # Calculate surplus (positive taxable adjustment or excess income)
+            surplus = yd.taxable_account_adjustment if yd.taxable_account_adjustment > 0 else 0
+            
+            # Format output
+            take_home_str = f"${take_home_used:>12,.0f}" if take_home_used > 0 else f"{'':>14}"
+            deferred_str = f"${deferred_comp_used:>12,.0f}" if deferred_comp_used > 0 else f"{'':>14}"
+            ira_str = f"${ira_used:>12,.0f}" if ira_used > 0 else f"{'':>14}"
+            taxable_str = f"${taxable_used:>12,.0f}" if taxable_used > 0 else f"{'':>14}"
+            surplus_str = f"+${surplus:>11,.0f}" if surplus > 0 else f"{'':>14}"
+            
+            print(f"  {year:<6} ${yd.total_expenses:>12,.0f} {'|':^3} {take_home_str:>14} {deferred_str:>14} {ira_str:>14} {taxable_str:>14} {'|':^3} {surplus_str:>14} {'|':^3} ${yd.balance_deferred_comp:>12,.0f} ${yd.balance_401k:>14,.0f} ${yd.balance_taxable:>12,.0f}")
+            
+            # Accumulate totals
+            total_expenses += yd.total_expenses
+            total_take_home_used += take_home_used
+            total_deferred_comp_used += deferred_comp_used
+            total_ira_used += ira_used
+            total_taxable_used += taxable_used
+            total_surplus += surplus
+        
+        print(f"  {'-' * 6} {'-' * 14} {'-':^3} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-':^3} {'-' * 14} {'-':^3} {'-' * 14} {'-' * 16} {'-' * 14}")
+        
+        # Format totals
+        surplus_total_str = f"+${total_surplus:>11,.0f}" if total_surplus > 0 else f"{'':>14}"
+        
+        # Get final balances
+        final_year = max(data.yearly_data.keys())
+        final_yd = data.yearly_data[final_year]
+        
+        print(f"  {'TOTAL':<6} ${total_expenses:>12,.0f} {'|':^3} ${total_take_home_used:>12,.0f} ${total_deferred_comp_used:>12,.0f} ${total_ira_used:>12,.0f} ${total_taxable_used:>12,.0f} {'|':^3} {surplus_total_str:>14} {'|':^3} ${final_yd.balance_deferred_comp:>12,.0f} ${final_yd.balance_401k:>14,.0f} ${final_yd.balance_taxable:>12,.0f}")
+        print()
+        
+        # Summary section
+        total_funded = total_take_home_used + total_deferred_comp_used + total_ira_used + total_taxable_used
+        print(f"  {'Funding Sources Summary:':40}")
+        print(f"    {'Take-Home Pay:':<36} ${total_take_home_used:>14,.0f} ({100*total_take_home_used/total_funded if total_funded > 0 else 0:>5.1f}%)")
+        print(f"    {'Deferred Compensation:':<36} ${total_deferred_comp_used:>14,.0f} ({100*total_deferred_comp_used/total_funded if total_funded > 0 else 0:>5.1f}%)")
+        print(f"    {'IRA/401k Withdrawals:':<36} ${total_ira_used:>14,.0f} ({100*total_ira_used/total_funded if total_funded > 0 else 0:>5.1f}%)")
+        print(f"    {'Taxable Account Withdrawals:':<36} ${total_taxable_used:>14,.0f} ({100*total_taxable_used/total_funded if total_funded > 0 else 0:>5.1f}%)")
+        print(f"    {'-' * 52}")
+        print(f"    {'Total Expenses Funded:':<36} ${total_funded:>14,.0f}")
+        print(f"    {'Total Surplus to Taxable:':<36} ${total_surplus:>14,.0f}")
+        print()
+        
+        # Final balances summary
+        print(f"  {'Final Account Balances:':40}")
+        print(f"    {'Deferred Compensation:':<36} ${final_yd.balance_deferred_comp:>14,.0f}")
+        print(f"    {'IRA/401k:':<36} ${final_yd.balance_401k:>14,.0f}")
+        print(f"    {'Taxable Account:':<36} ${final_yd.balance_taxable:>14,.0f}")
+        print(f"    {'-' * 52}")
+        total_final_balance = final_yd.balance_deferred_comp + final_yd.balance_401k + final_yd.balance_taxable
+        print(f"    {'Total Assets:':<36} ${total_final_balance:>14,.0f}")
+        print()
+        print("=" * 180)
+        print()
+
+
 # Registry mapping mode names to renderer classes
 RENDERER_REGISTRY = {
     'TaxDetails': TaxDetailsRenderer,
@@ -322,4 +461,5 @@ RENDERER_REGISTRY = {
     'AnnualSummary': AnnualSummaryRenderer,
     'Contributions': ContributionsRenderer,
     'MoneyMovement': MoneyMovementRenderer,
+    'CashFlow': CashFlowRenderer,
 }
