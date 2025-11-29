@@ -294,24 +294,40 @@ class TestDeferredCompWithdrawalYearsLoop:
         # First retirement year should have disbursement
         assert result.yearly_data[first_retirement].deferred_comp_disbursement > 0
     
-    def test_disbursements_are_equal(self, calculator):
-        """Test that each disbursement year has equal disbursements."""
+    def test_disbursements_follow_annuity_pattern(self, calculator):
+        """Test that disbursements are calculated as balance / remaining years."""
         spec = create_basic_spec()
         result = calculator.calculate(spec)
         
         disbursement_years = spec['deferredCompensationPlan']['disbursementYears']
         first_retirement = spec['lastWorkingYear'] + 1
         
+        # Each year's disbursement should be approximately balance / remaining years
+        # Due to growth, disbursements will increase over time
         disbursements = []
         for year in range(first_retirement, first_retirement + disbursement_years):
             if year <= spec['lastPlanningYear']:
                 disbursements.append(result.yearly_data[year].deferred_comp_disbursement)
         
-        # All disbursements should be equal
+        # Disbursements should generally increase due to growth
+        # (each year the remaining balance grows before the disbursement)
         if len(disbursements) > 1:
-            first_disbursement = disbursements[0]
-            for d in disbursements[1:]:
-                assert abs(d - first_disbursement) < 0.01
+            for i in range(1, len(disbursements)):
+                # Later disbursements should be >= earlier ones due to growth
+                assert disbursements[i] >= disbursements[i-1] * 0.99  # Allow small rounding
+    
+    def test_deferred_comp_balance_zero_after_disbursements(self, calculator):
+        """Test that deferred comp balance is zero after all disbursements."""
+        spec = create_basic_spec()
+        result = calculator.calculate(spec)
+        
+        disbursement_years = spec['deferredCompensationPlan']['disbursementYears']
+        first_retirement = spec['lastWorkingYear'] + 1
+        last_disbursement_year = first_retirement + disbursement_years - 1
+        
+        if last_disbursement_year <= spec['lastPlanningYear']:
+            # Balance should be zero after the last disbursement
+            assert result.yearly_data[last_disbursement_year].balance_deferred_comp == 0
     
     def test_no_fica_in_retirement(self, calculator):
         """Test that there are no FICA taxes in retirement years."""

@@ -265,9 +265,8 @@ class PlanCalculator:
             plan.total_taxes += yd.total_taxes
             plan.total_take_home += yd.take_home_pay
         
-        # Calculate yearly disbursement after working years (balance has final growth)
+        # Apply final growth to deferred comp before disbursement phase
         balance_deferred_comp = balance_deferred_comp * (1 + deferred_comp_growth)
-        yearly_disbursement = balance_deferred_comp / disbursement_years if disbursement_years > 0 else 0
         
         # ============================================================
         # LOOP 2: Deferred Compensation Withdrawal Years
@@ -285,6 +284,10 @@ class PlanCalculator:
             current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
             
             yd.local_tax = current_local_tax
+            
+            # Calculate disbursement as balance / remaining disbursement years
+            remaining_disbursement_years = disbursement_end - year + 1
+            yearly_disbursement = balance_deferred_comp / remaining_disbursement_years if remaining_disbursement_years > 0 else balance_deferred_comp
             yd.deferred_comp_disbursement = yearly_disbursement
             
             # Capital gains
