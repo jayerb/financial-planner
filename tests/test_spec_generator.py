@@ -338,3 +338,175 @@ def test_load_existing_spec_with_insurance():
         assert 'insurance' in loaded_spec
         assert loaded_spec['insurance']['fullInsurancePremiums'] == 35000.0
         assert loaded_spec['insurance']['medicalInflationRate'] == 0.05
+
+
+def test_save_spec_with_expenses():
+    """Test that save_spec correctly saves expense data."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        spec = {
+            'firstYear': 2025,
+            'lastWorkingYear': 2035,
+            'lastPlanningYear': 2065,
+            'income': {'baseSalary': 100000},
+            'expenses': {
+                'annualAmount': 80000.0,
+                'inflationRate': 0.03
+            }
+        }
+        
+        os.makedirs(os.path.join(tmpdir, 'input-parameters'))
+        
+        result_path = save_spec(spec, 'testprogram', tmpdir)
+        
+        with open(result_path, 'r') as f:
+            saved_spec = json.load(f)
+        
+        assert 'expenses' in saved_spec
+        assert saved_spec['expenses']['annualAmount'] == 80000.0
+        assert saved_spec['expenses']['inflationRate'] == 0.03
+
+
+def test_expenses_section_structure():
+    """Test that the expenses section has the expected structure."""
+    expenses = {
+        'annualAmount': 75000.0,
+        'inflationRate': 0.03
+    }
+    
+    # Verify all expected keys are present
+    expected_keys = [
+        'annualAmount',
+        'inflationRate'
+    ]
+    
+    for key in expected_keys:
+        assert key in expenses, f"Missing expected key: {key}"
+    
+    # Verify types
+    assert isinstance(expenses['annualAmount'], float)
+    assert isinstance(expenses['inflationRate'], float)
+    
+    # Verify inflation rate is a fraction (0-1), not a percentage
+    assert 0 <= expenses['inflationRate'] <= 1
+    
+    # Verify amount is positive
+    assert expenses['annualAmount'] >= 0
+
+
+def test_expenses_with_special_expenses():
+    """Test that expenses section can include special one-time expenses."""
+    expenses = {
+        'annualAmount': 60000.0,
+        'inflationRate': 0.03,
+        'specialExpenses': [
+            {'year': 2030, 'amount': 50000.0, 'description': 'College tuition'},
+            {'year': 2032, 'amount': 25000.0, 'description': 'Car purchase'},
+            {'year': 2035, 'amount': 100000.0}  # Description is optional
+        ]
+    }
+    
+    # Verify special expenses structure
+    assert 'specialExpenses' in expenses
+    assert len(expenses['specialExpenses']) == 3
+    
+    # Verify each special expense has required fields
+    for exp in expenses['specialExpenses']:
+        assert 'year' in exp
+        assert 'amount' in exp
+        assert isinstance(exp['year'], int)
+        assert isinstance(exp['amount'], float)
+        assert exp['amount'] > 0
+    
+    # Verify description is optional
+    assert 'description' in expenses['specialExpenses'][0]
+    assert 'description' in expenses['specialExpenses'][1]
+    assert 'description' not in expenses['specialExpenses'][2]
+
+
+def test_expenses_section_optional():
+    """Test that the expenses section is optional in the spec."""
+    spec_without_expenses = {
+        'firstYear': 2025,
+        'lastWorkingYear': 2035,
+        'lastPlanningYear': 2065,
+        'income': {'baseSalary': 100000}
+    }
+    
+    # Should not have expenses section
+    assert 'expenses' not in spec_without_expenses
+    
+    # Adding expenses section should work
+    spec_with_expenses = spec_without_expenses.copy()
+    spec_with_expenses['expenses'] = {
+        'annualAmount': 70000.0,
+        'inflationRate': 0.025
+    }
+    
+    assert 'expenses' in spec_with_expenses
+    assert spec_with_expenses['expenses']['annualAmount'] == 70000.0
+    assert spec_with_expenses['expenses']['inflationRate'] == 0.025
+
+
+def test_save_spec_with_special_expenses():
+    """Test that save_spec correctly saves special expense data."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        spec = {
+            'firstYear': 2025,
+            'lastWorkingYear': 2035,
+            'lastPlanningYear': 2065,
+            'income': {'baseSalary': 100000},
+            'expenses': {
+                'annualAmount': 80000.0,
+                'inflationRate': 0.03,
+                'specialExpenses': [
+                    {'year': 2028, 'amount': 40000.0, 'description': 'Home renovation'},
+                    {'year': 2033, 'amount': 75000.0, 'description': 'College year 1'}
+                ]
+            }
+        }
+        
+        os.makedirs(os.path.join(tmpdir, 'input-parameters'))
+        
+        result_path = save_spec(spec, 'testprogram', tmpdir)
+        
+        with open(result_path, 'r') as f:
+            saved_spec = json.load(f)
+        
+        assert 'expenses' in saved_spec
+        assert 'specialExpenses' in saved_spec['expenses']
+        assert len(saved_spec['expenses']['specialExpenses']) == 2
+        assert saved_spec['expenses']['specialExpenses'][0]['year'] == 2028
+        assert saved_spec['expenses']['specialExpenses'][0]['amount'] == 40000.0
+        assert saved_spec['expenses']['specialExpenses'][0]['description'] == 'Home renovation'
+
+
+def test_load_existing_spec_with_expenses():
+    """Test loading an existing spec.json file with expense data."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        spec = {
+            'firstYear': 2025,
+            'lastWorkingYear': 2035,
+            'lastPlanningYear': 2065,
+            'income': {'baseSalary': 150000},
+            'expenses': {
+                'annualAmount': 90000.0,
+                'inflationRate': 0.04,
+                'specialExpenses': [
+                    {'year': 2030, 'amount': 60000.0, 'description': 'Wedding'}
+                ]
+            }
+        }
+        
+        # Create the program directory and save the spec
+        os.makedirs(os.path.join(tmpdir, 'input-parameters'))
+        save_spec(spec, 'testprogram', tmpdir)
+        
+        # Load the spec
+        loaded_spec = load_existing_spec('testprogram', tmpdir)
+        
+        assert loaded_spec is not None
+        assert 'expenses' in loaded_spec
+        assert loaded_spec['expenses']['annualAmount'] == 90000.0
+        assert loaded_spec['expenses']['inflationRate'] == 0.04
+        assert len(loaded_spec['expenses']['specialExpenses']) == 1
+        assert loaded_spec['expenses']['specialExpenses'][0]['description'] == 'Wedding'

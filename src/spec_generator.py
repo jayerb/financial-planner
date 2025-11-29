@@ -569,6 +569,79 @@ def generate_spec(existing_spec: Optional[dict] = None) -> dict:
     if investments['taxableBalance'] > 0 or investments['taxDeferredBalance'] > 0 or investments['hsaBalance'] > 0:
         spec['investments'] = investments
 
+    # =========================================================================
+    # EXPENSES
+    # =========================================================================
+    print_section("Expenses")
+    
+    ex_expenses = ex.get('expenses', {})
+    has_existing_expenses = 'expenses' in ex
+    has_expenses = prompt_yes_no("Do you want to track annual expenses?", default=has_existing_expenses)
+    
+    if has_expenses:
+        expenses: dict[str, Any] = {}
+        
+        expenses['annualAmount'] = prompt_currency(
+            "Annual expense amount (as of plan start year)",
+            default=ex_expenses.get('annualAmount', 0.0)
+        )
+        
+        if expenses['annualAmount'] > 0:
+            expenses['inflationRate'] = prompt_percent(
+                "Expected annual expense inflation rate",
+                default=ex_expenses.get('inflationRate', 0.03)
+            )
+        
+        # Special case expenses
+        print()
+        ex_special_expenses = ex_expenses.get('specialExpenses', [])
+        has_existing_special = len(ex_special_expenses) > 0
+        if has_existing_special:
+            print(f"Existing special expenses: {len(ex_special_expenses)} item(s)")
+            for exp in ex_special_expenses:
+                print(f"  - Year {exp.get('year')}: ${exp.get('amount'):,.2f} - {exp.get('description', 'No description')}")
+            keep_existing = prompt_yes_no("Keep existing special expenses?", default=True)
+            if keep_existing:
+                special_expenses = [dict(e) for e in ex_special_expenses]  # Deep copy
+                add_more = prompt_yes_no("Add more special expenses?", default=False)
+            else:
+                special_expenses = []
+                add_more = prompt_yes_no("Do you have any special one-time expenses in future years?", default=False)
+        else:
+            special_expenses = []
+            add_more = prompt_yes_no("Do you have any special one-time expenses in future years?", default=False)
+        
+        if add_more:
+            print()
+            print("Enter special expenses (press Enter with no year to finish):")
+            print("Examples: college tuition, home renovation, car purchase, wedding, etc.")
+            while True:
+                year_str = input("  Year of expense (or Enter to finish): ").strip()
+                if year_str == "":
+                    break
+                try:
+                    year = int(year_str)
+                    if year < spec['firstYear'] or year > spec['lastPlanningYear']:
+                        print(f"    Year must be between {spec['firstYear']} and {spec['lastPlanningYear']}")
+                        continue
+                    amount = prompt_currency("    Expense amount", min_val=0.01)
+                    description = prompt_string("    Description (optional)", default="")
+                    expense_entry: dict[str, Any] = {
+                        "year": year,
+                        "amount": amount
+                    }
+                    if description:
+                        expense_entry["description"] = description
+                    special_expenses.append(expense_entry)
+                except ValueError:
+                    print("    Please enter a valid year")
+        
+        if special_expenses:
+            expenses['specialExpenses'] = special_expenses
+        
+        if expenses['annualAmount'] > 0 or special_expenses:
+            spec['expenses'] = expenses
+
     return spec
 
 
