@@ -106,7 +106,7 @@ The shell can query 50+ fields organized by category:
 | **Deductions** | `standard_deduction`, `itemized_deduction`, `max_401k`, `max_hsa` |
 | **Take Home** | `take_home_pay`, `adjusted_gross_income` |
 | **Contributions** | `employee_401k_contribution`, `employer_401k_match`, `hsa_contribution` |
-| **Balances** | `balance_401k`, `balance_deferred_comp`, `balance_hsa`, `balance_taxable`, `total_assets` |
+| **Balances** | `balance_ira`, `balance_deferred_comp`, `balance_hsa`, `balance_taxable`, `total_assets` |
 | **Expenses** | `annual_expenses`, `special_expenses`, `income_expense_difference` |
 
 Use the `fields` command in the shell to see the complete list.

@@ -338,7 +338,7 @@ Type 'exit' or 'quit' to exit.
                              "hsa_contribution", "deferred_comp_contribution", "taxable_contribution", "total_contributions"],
             "Expenses": ["annual_expenses", "special_expenses", "total_expenses", "income_expense_difference",
                         "ira_withdrawal", "taxable_account_adjustment"],
-            "Balances": ["balance_401k", "balance_deferred_comp", "balance_hsa", "balance_taxable", "total_assets"]
+            "Balances": ["balance_ira", "balance_deferred_comp", "balance_hsa", "balance_taxable", "total_assets"]
         }
         
         for category, fields in categories.items():

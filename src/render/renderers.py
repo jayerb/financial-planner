@@ -161,7 +161,7 @@ class BalancesRenderer(BaseRenderer):
         
         for year in sorted(data.yearly_data.keys()):
             yd = data.yearly_data[year]
-            print(f"  {year:<8} ${yd.total_401k_contribution:>14,.2f} ${yd.balance_401k:>16,.2f} ${yd.deferred_comp_contribution:>16,.2f} ${yd.balance_deferred_comp:>16,.2f} ${yd.hsa_contribution:>12,.2f} ${yd.balance_hsa:>14,.2f} ${yd.balance_taxable:>14,.2f}")
+            print(f"  {year:<8} ${yd.total_401k_contribution:>14,.2f} ${yd.balance_ira:>16,.2f} ${yd.deferred_comp_contribution:>16,.2f} ${yd.balance_deferred_comp:>16,.2f} ${yd.hsa_contribution:>12,.2f} ${yd.balance_hsa:>14,.2f} ${yd.balance_taxable:>14,.2f}")
         
         print()
         print("=" * 136)
@@ -296,7 +296,7 @@ class MoneyMovementRenderer(BaseRenderer):
             adj_str = f"+${yd.taxable_account_adjustment:>11,.0f}" if yd.taxable_account_adjustment >= 0 else f"-${abs(yd.taxable_account_adjustment):>11,.0f}"
             ira_str = f"${yd.ira_withdrawal:>12,.0f}" if yd.ira_withdrawal > 0 else f"{'':>14}"
             
-            print(f"  {year:<6} ${yd.take_home_pay:>12,.0f} ${yd.annual_expenses:>12,.0f} ${yd.special_expenses:>12,.0f} ${yd.total_expenses:>12,.0f} {ira_str:>14} {adj_str:>14} ${yd.balance_taxable:>14,.0f} ${yd.balance_401k:>14,.0f}")
+            print(f"  {year:<6} ${yd.take_home_pay:>12,.0f} ${yd.annual_expenses:>12,.0f} ${yd.special_expenses:>12,.0f} ${yd.total_expenses:>12,.0f} {ira_str:>14} {adj_str:>14} ${yd.balance_taxable:>14,.0f} ${yd.balance_ira:>14,.0f}")
             
             total_take_home += yd.take_home_pay
             total_annual_expenses += yd.annual_expenses
@@ -407,7 +407,7 @@ class CashFlowRenderer(BaseRenderer):
             taxable_str = f"${taxable_used:>12,.0f}" if taxable_used > 0 else f"{'':>14}"
             surplus_str = f"+${surplus:>11,.0f}" if surplus > 0 else f"{'':>14}"
             
-            print(f"  {year:<6} ${yd.total_expenses:>12,.0f} {'|':^3} {take_home_str:>14} {deferred_str:>14} {ira_str:>14} {taxable_str:>14} {'|':^3} {surplus_str:>14} {'|':^3} ${yd.balance_deferred_comp:>12,.0f} ${yd.balance_401k:>14,.0f} ${yd.balance_taxable:>12,.0f}")
+            print(f"  {year:<6} ${yd.total_expenses:>12,.0f} {'|':^3} {take_home_str:>14} {deferred_str:>14} {ira_str:>14} {taxable_str:>14} {'|':^3} {surplus_str:>14} {'|':^3} ${yd.balance_deferred_comp:>12,.0f} ${yd.balance_ira:>14,.0f} ${yd.balance_taxable:>12,.0f}")
             
             # Accumulate totals
             total_expenses += yd.total_expenses
@@ -426,7 +426,7 @@ class CashFlowRenderer(BaseRenderer):
         final_year = max(data.yearly_data.keys())
         final_yd = data.yearly_data[final_year]
         
-        print(f"  {'TOTAL':<6} ${total_expenses:>12,.0f} {'|':^3} ${total_take_home_used:>12,.0f} ${total_deferred_comp_used:>12,.0f} ${total_ira_used:>12,.0f} ${total_taxable_used:>12,.0f} {'|':^3} {surplus_total_str:>14} {'|':^3} ${final_yd.balance_deferred_comp:>12,.0f} ${final_yd.balance_401k:>14,.0f} ${final_yd.balance_taxable:>12,.0f}")
+        print(f"  {'TOTAL':<6} ${total_expenses:>12,.0f} {'|':^3} ${total_take_home_used:>12,.0f} ${total_deferred_comp_used:>12,.0f} ${total_ira_used:>12,.0f} ${total_taxable_used:>12,.0f} {'|':^3} {surplus_total_str:>14} {'|':^3} ${final_yd.balance_deferred_comp:>12,.0f} ${final_yd.balance_ira:>14,.0f} ${final_yd.balance_taxable:>12,.0f}")
         print()
         
         # Summary section
@@ -444,10 +444,10 @@ class CashFlowRenderer(BaseRenderer):
         # Final balances summary
         print(f"  {'Final Account Balances:':40}")
         print(f"    {'Deferred Compensation:':<36} ${final_yd.balance_deferred_comp:>14,.0f}")
-        print(f"    {'IRA/401k:':<36} ${final_yd.balance_401k:>14,.0f}")
+        print(f"    {'IRA/401k:':<36} ${final_yd.balance_ira:>14,.0f}")
         print(f"    {'Taxable Account:':<36} ${final_yd.balance_taxable:>14,.0f}")
         print(f"    {'-' * 52}")
-        total_final_balance = final_yd.balance_deferred_comp + final_yd.balance_401k + final_yd.balance_taxable
+        total_final_balance = final_yd.balance_deferred_comp + final_yd.balance_ira + final_yd.balance_taxable
         print(f"    {'Total Assets:':<36} ${total_final_balance:>14,.0f}")
         print()
         print("=" * 180)

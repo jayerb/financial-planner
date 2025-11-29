@@ -259,8 +259,8 @@ class TestWorkingYearsLoop:
         y3 = result.yearly_data[2028]
         
         # Balances should grow each year (contributions + appreciation)
-        assert y2.balance_401k > y1.balance_401k
-        assert y3.balance_401k > y2.balance_401k
+        assert y2.balance_ira > y1.balance_ira
+        assert y3.balance_ira > y2.balance_ira
         
         assert y2.balance_deferred_comp > y1.balance_deferred_comp
         assert y3.balance_deferred_comp > y2.balance_deferred_comp
@@ -444,7 +444,7 @@ class TestLifetimeTotals:
         
         last_year_data = result.yearly_data[spec['lastPlanningYear']]
         
-        assert result.final_401k_balance == last_year_data.balance_401k
+        assert result.final_401k_balance == last_year_data.balance_ira
         assert result.final_hsa_balance == last_year_data.balance_hsa
         assert result.final_deferred_comp_balance == last_year_data.balance_deferred_comp
         assert result.final_taxable_balance == last_year_data.balance_taxable

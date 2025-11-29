@@ -92,7 +92,7 @@ class YearlyData:
     taxable_account_adjustment: float = 0.0  # positive = add to taxable, negative = withdraw
     
     # Account balances (end of year)
-    balance_401k: float = 0.0
+    balance_ira: float = 0.0
     balance_deferred_comp: float = 0.0
     balance_hsa: float = 0.0
     balance_taxable: float = 0.0

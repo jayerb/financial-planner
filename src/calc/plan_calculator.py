@@ -250,11 +250,11 @@ class PlanCalculator:
             balance_hsa += yd.hsa_contribution
             balance_deferred_comp += yd.deferred_comp_contribution
             
-            yd.balance_401k = balance_401k
+            yd.balance_ira = balance_401k
             yd.balance_hsa = balance_hsa
             yd.balance_deferred_comp = balance_deferred_comp
             yd.balance_taxable = balance_taxable
-            yd.total_assets = yd.balance_401k + yd.balance_hsa + yd.balance_deferred_comp + yd.balance_taxable
+            yd.total_assets = yd.balance_ira + yd.balance_hsa + yd.balance_deferred_comp + yd.balance_taxable
             
             # Add to plan and update totals
             plan.yearly_data[year] = yd
@@ -334,11 +334,11 @@ class PlanCalculator:
             # Update deferred comp balance
             balance_deferred_comp -= yearly_disbursement
             
-            yd.balance_401k = balance_401k
+            yd.balance_ira = balance_401k
             yd.balance_hsa = balance_hsa
             yd.balance_deferred_comp = max(0, balance_deferred_comp)
             yd.balance_taxable = balance_taxable
-            yd.total_assets = yd.balance_401k + yd.balance_hsa + yd.balance_deferred_comp + yd.balance_taxable
+            yd.total_assets = yd.balance_ira + yd.balance_hsa + yd.balance_deferred_comp + yd.balance_taxable
             
             # Add to plan and update totals
             plan.yearly_data[year] = yd
@@ -429,11 +429,11 @@ class PlanCalculator:
             # Adjust taxable account balance
             balance_taxable += yd.taxable_account_adjustment
             
-            yd.balance_401k = balance_401k
+            yd.balance_ira = balance_401k
             yd.balance_hsa = balance_hsa
             yd.balance_deferred_comp = 0
             yd.balance_taxable = balance_taxable
-            yd.total_assets = yd.balance_401k + yd.balance_hsa + yd.balance_taxable
+            yd.total_assets = yd.balance_ira + yd.balance_hsa + yd.balance_taxable
             
             # Add to plan and update totals
             plan.yearly_data[year] = yd
@@ -446,7 +446,7 @@ class PlanCalculator:
         # Set final balances
         final_year_data = plan.yearly_data.get(last_planning_year)
         if final_year_data:
-            plan.final_401k_balance = final_year_data.balance_401k
+            plan.final_401k_balance = final_year_data.balance_ira
             plan.final_deferred_comp_balance = final_year_data.balance_deferred_comp
             plan.final_hsa_balance = final_year_data.balance_hsa
             plan.final_taxable_balance = final_year_data.balance_taxable

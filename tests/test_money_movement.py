@@ -408,7 +408,7 @@ class TestIRAWithdrawals:
             
             # Get the 401k balance before this year's withdrawal
             # The withdrawal should be limited by balance / remaining years
-            assert y.ira_withdrawal <= y.balance_401k + y.ira_withdrawal  # Balance before withdrawal
+            assert y.ira_withdrawal <= y.balance_ira + y.ira_withdrawal  # Balance before withdrawal
     
     def test_ira_balance_decreases_with_withdrawals(self, calculator):
         """Test that 401k balance decreases when IRA withdrawals are made."""
@@ -426,9 +426,9 @@ class TestIRAWithdrawals:
             
             if y1.ira_withdrawal > 0:
                 # Balance after appreciation but before next withdrawal should account for withdrawal
-                expected_growth = y1.balance_401k * 1.08  # 8% appreciation
+                expected_growth = y1.balance_ira * 1.08  # 8% appreciation
                 # y2 balance = y1 balance * appreciation - y2 withdrawal
-                assert y2.balance_401k < expected_growth
+                assert y2.balance_ira < expected_growth
     
     def test_taxable_adjustment_zero_when_ira_covers_shortfall(self, calculator):
         """Test that taxable adjustment is zero when IRA fully covers expense shortfall."""
