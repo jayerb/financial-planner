@@ -1125,3 +1125,86 @@ class TestHSAContributionsInRetirement:
             # But employee HSA should equal the full contribution
             assert yd.hsa_contribution == yd.employee_hsa
 
+
+class TestHSAWithdrawalDoubleAtMedicare:
+    """Tests for HSA withdrawal doubling at Medicare eligibility."""
+    
+    @pytest.fixture
+    def calculator(self):
+        """Create a PlanCalculator with mock dependencies."""
+        return PlanCalculator(
+            federal=create_mock_federal(),
+            state=create_mock_state(),
+            espp=create_mock_espp(),
+            social_security=create_mock_social_security(),
+            medicare=create_mock_medicare(),
+            rsu_calculator=create_mock_rsu_calculator()
+        )
+    
+    def test_hsa_withdrawal_doubles_at_medicare_eligibility(self, calculator):
+        """Test that HSA withdrawal doubles at Medicare eligibility year."""
+        spec = create_basic_spec()
+        spec['birthYear'] = 1970  # Medicare eligibility at 2035 (1970 + 65)
+        spec['lastWorkingYear'] = 2030
+        spec['lastPlanningYear'] = 2040
+        spec['investments'] = {
+            'hsaBalance': 500000.0,  # Large balance to avoid running out
+            'hsaAppreciationRate': 0.0,  # No appreciation for simpler test
+            'hsaAnnualWithdrawal': 10000.0,
+            'hsaWithdrawalInflationRate': 0.0  # No inflation for simpler test
+        }
+        
+        result = calculator.calculate(spec)
+        
+        # Year before Medicare (2034): withdrawal should be 10000
+        y2034 = result.yearly_data[2034]
+        assert y2034.hsa_withdrawal == 10000.0
+        
+        # Medicare eligibility year (2035): withdrawal should double to 20000
+        y2035 = result.yearly_data[2035]
+        assert y2035.hsa_withdrawal == 20000.0
+        
+        # Year after Medicare (2036): withdrawal should continue at doubled amount (20000)
+        y2036 = result.yearly_data[2036]
+        assert y2036.hsa_withdrawal == 20000.0
+    
+    def test_hsa_withdrawal_doubles_and_continues_to_inflate(self, calculator):
+        """Test that HSA withdrawal doubles at Medicare and continues to inflate after."""
+        spec = create_basic_spec()
+        spec['birthYear'] = 1970  # Medicare eligibility at 2035
+        spec['lastWorkingYear'] = 2030
+        spec['lastPlanningYear'] = 2037
+        spec['investments'] = {
+            'hsaBalance': 500000.0,  # Large balance
+            'hsaAppreciationRate': 0.0,
+            'hsaAnnualWithdrawal': 10000.0,
+            'hsaWithdrawalInflationRate': 0.05  # 5% inflation
+        }
+        
+        result = calculator.calculate(spec)
+        
+        # Inflation happens every year after first year (2026 is first year, so inflations start at 2027)
+        # Working years: 2027, 2028, 2029, 2030 = 4 inflations
+        # Retirement years before Medicare: 2031, 2032, 2033, 2034 = 4 more inflations
+        # Total before 2034's withdrawal: 8 inflations
+        
+        # Year before Medicare (2034): 8 inflations from 10000
+        y2034 = result.yearly_data[2034]
+        expected_2034 = 10000 * (1.05 ** 8)
+        assert abs(y2034.hsa_withdrawal - expected_2034) < 0.01
+        
+        # Medicare eligibility year (2035): 9 inflations then doubled
+        y2035 = result.yearly_data[2035]
+        expected_2035 = 10000 * (1.05 ** 9) * 2
+        assert abs(y2035.hsa_withdrawal - expected_2035) < 0.01
+        
+        # Year after Medicare (2036): continues to inflate from doubled amount (10 inflations total, doubled)
+        y2036 = result.yearly_data[2036]
+        expected_2036 = 10000 * (1.05 ** 9) * 2 * 1.05
+        assert abs(y2036.hsa_withdrawal - expected_2036) < 0.01
+        
+        # 2037: continues to inflate (11 inflations total from base, doubled at 2035)
+        y2037 = result.yearly_data[2037]
+        expected_2037 = 10000 * (1.05 ** 9) * 2 * (1.05 ** 2)
+        assert abs(y2037.hsa_withdrawal - expected_2037) < 0.01
+

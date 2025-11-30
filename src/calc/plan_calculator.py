@@ -342,6 +342,9 @@ class PlanCalculator:
             current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
             current_insurance_premium = current_insurance_premium * (1 + premium_inflation)
             current_hsa_withdrawal = current_hsa_withdrawal * (1 + hsa_withdrawal_inflation)
+            # Double HSA withdrawal at Medicare eligibility (medical expenses typically increase)
+            if year == medicare_eligibility_year:
+                current_hsa_withdrawal = current_hsa_withdrawal * 2
             current_max_hsa = current_max_hsa * (1 + inflation_rate)  # Inflate HSA limit
             
             yd.local_tax = current_local_tax
@@ -452,6 +455,9 @@ class PlanCalculator:
             current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
             current_insurance_premium = current_insurance_premium * (1 + premium_inflation)
             current_hsa_withdrawal = current_hsa_withdrawal * (1 + hsa_withdrawal_inflation)
+            # Double HSA withdrawal at Medicare eligibility (medical expenses typically increase)
+            if year == medicare_eligibility_year:
+                current_hsa_withdrawal = current_hsa_withdrawal * 2
             current_max_hsa = current_max_hsa * (1 + inflation_rate)  # Inflate HSA limit
             
             yd.local_tax = current_local_tax
