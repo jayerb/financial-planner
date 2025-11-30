@@ -1,0 +1,18 @@
+{
+    "birthYear": 1995,
+    "firstYear": 2025,
+    "lastWorkingYear": 2035,
+    "lastPlanningYear": 2065,
+    "federalBracketInflation": 0.03,
+    "income": {
+        "baseSalary": 100000.0,
+        "bonusFraction": 0.1,
+        "annualBaseIncreaseFraction": 0.03,
+        "otherIncome": 0.0,
+        "shortTermCapitalGains": 0.0,
+        "longTermCapitalGains": 0.0
+    },
+    "deductions": {
+        "medicalDentalVision": 10000.0
+    }
+}
