@@ -44,6 +44,7 @@ from tax.MedicareDetails import MedicareDetails
 from calc.rsu_calculator import RSUCalculator
 from calc.plan_calculator import PlanCalculator
 from model.PlanData import PlanData, YearlyData
+from model.field_metadata import FIELD_METADATA, get_short_name, get_description
 from spec_generator import run_generator
 from render.renderers import RENDERER_REGISTRY, TaxDetailsRenderer
 
@@ -154,6 +155,21 @@ Type 'exit' or 'quit' to exit.
         self.program_name = program_name
         self.available_fields = get_yearly_fields()
         self._update_intro()
+        # Configure readline for better tab completion
+        try:
+            readline.set_completer_delims(' \t\n')
+        except Exception:
+            pass  # readline might not be fully available on all platforms
+    
+    def _get_available_programs(self) -> list:
+        """Get list of available program names from input-parameters directory."""
+        input_params_dir = os.path.join(os.path.dirname(__file__), '../input-parameters')
+        programs = []
+        if os.path.exists(input_params_dir):
+            for item in sorted(os.listdir(input_params_dir)):
+                if os.path.isdir(os.path.join(input_params_dir, item)):
+                    programs.append(item)
+        return programs
     
     def _update_intro(self):
         """Update the intro message based on current state."""
@@ -277,8 +293,8 @@ Type 'exit' or 'quit' to exit.
         if first_year < self.plan_data.first_year or last_year > self.plan_data.last_planning_year:
             print(f"Warning: Requested range extends beyond plan data ({self.plan_data.first_year}-{self.plan_data.last_planning_year})")
         
-        # Build header
-        header = ["Year"] + field_names
+        # Build header using short names from field metadata
+        header = ["Year"] + [get_short_name(f) for f in field_names]
         
         # Calculate column widths
         col_widths = [max(len(str(header[i])), 6) for i in range(len(header))]
@@ -344,9 +360,33 @@ Type 'exit' or 'quit' to exit.
         print()
     
     def do_fields(self, arg: str):
-        """List all available fields that can be queried."""
+        """List all available fields that can be queried.
+        
+        Usage: fields [field_name]
+        
+        If a field name is provided, shows detailed info for that field.
+        Otherwise, shows all fields grouped by category.
+        """
+        # If a specific field is requested, show detailed info
+        if arg.strip():
+            field_name = arg.strip()
+            if field_name not in self.available_fields:
+                print(f"Error: Unknown field '{field_name}'")
+                print("Use 'fields' without arguments to see all available fields.")
+                return
+            
+            info = FIELD_METADATA.get(field_name)
+            print(f"\n{field_name}:")
+            if info:
+                print(f"  Short name: {info.short_name}")
+                print(f"  Description: {info.description}")
+            else:
+                print("  No metadata available")
+            print()
+            return
+        
         print("\nAvailable fields in YearlyData:")
-        print("=" * 40)
+        print("=" * 70)
         
         # Group fields by category
         categories = {
@@ -377,7 +417,14 @@ Type 'exit' or 'quit' to exit.
             print(f"\n{category}:")
             for field in fields:
                 if field in self.available_fields:
-                    print(f"  - {field}")
+                    short_name = get_short_name(field)
+                    description = get_description(field)
+                    print(f"  {field:<32} [{short_name:<12}] {description}")
+        print()
+    
+    def complete_fields(self, text, line, begidx, endidx):
+        """Tab completion for the fields command."""
+        return [f for f in self.available_fields if f.startswith(text)]
         print()
     
     def do_years(self, arg: str):
@@ -638,6 +685,16 @@ Available Commands:
         """Tab completion for the get command."""
         # Get the part after 'get '
         return [f for f in self.available_fields if f.startswith(text)]
+    
+    def complete_load(self, text, line, begidx, endidx):
+        """Tab completion for the load command."""
+        programs = self._get_available_programs()
+        return [p for p in programs if p.startswith(text)]
+    
+    def complete_help(self, text, line, begidx, endidx):
+        """Tab completion for the help command."""
+        commands = ['get', 'fields', 'years', 'summary', 'render', 'generate', 'load', 'exit', 'quit']
+        return [c for c in commands if c.startswith(text)]
 
 
 def main():

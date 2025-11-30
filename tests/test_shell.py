@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from shell import FinancialPlanShell, get_yearly_fields, load_plan
 from render.renderers import RENDERER_REGISTRY
+from model.field_metadata import FIELD_METADATA, get_short_name, get_description
 
 
 class TestFieldsCommand:
@@ -110,6 +111,80 @@ class TestGetYearlyFields:
         
         for expected in expected_fields:
             assert expected in fields, f"Expected field '{expected}' not in YearlyData"
+
+
+class TestFieldMetadata:
+    """Test field metadata dictionary and helper functions."""
+    
+    def test_all_yearly_fields_have_metadata(self):
+        """Test that all YearlyData fields have metadata defined."""
+        fields = get_yearly_fields()
+        missing = [f for f in fields if f not in FIELD_METADATA]
+        assert not missing, f"Fields missing metadata: {missing}"
+    
+    def test_short_names_are_unique(self):
+        """Test that all short names are unique."""
+        short_names = [info.short_name for info in FIELD_METADATA.values()]
+        duplicates = [name for name in short_names if short_names.count(name) > 1]
+        assert not duplicates, f"Duplicate short names: {set(duplicates)}"
+    
+    def test_get_short_name_returns_correct_value(self):
+        """Test get_short_name returns the correct short name."""
+        assert get_short_name('gross_income') == 'Gross Inc'
+        assert get_short_name('take_home_pay') == 'Take Home'
+        assert get_short_name('balance_ira') == 'IRA Bal'
+    
+    def test_get_short_name_returns_field_name_for_unknown(self):
+        """Test get_short_name returns field name when not found."""
+        assert get_short_name('unknown_field') == 'unknown_field'
+    
+    def test_get_description_returns_correct_value(self):
+        """Test get_description returns the correct description."""
+        assert 'taxable income' in get_description('gross_income').lower()
+        assert 'after' in get_description('take_home_pay').lower()
+    
+    def test_get_description_returns_empty_for_unknown(self):
+        """Test get_description returns empty string when not found."""
+        assert get_description('unknown_field') == ''
+    
+    def test_fields_command_shows_short_names_and_descriptions(self):
+        """Test that fields command displays short names and descriptions."""
+        shell = FinancialPlanShell()
+        
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            shell.do_fields('')
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        
+        # Check that short names and descriptions appear
+        assert 'Gross Inc' in result
+        assert 'Take Home' in result
+        assert 'taxable income' in result.lower() or 'gross income' in result.lower()
+    
+    def test_fields_command_with_specific_field(self):
+        """Test that fields command shows detailed info for a specific field."""
+        shell = FinancialPlanShell()
+        
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            shell.do_fields('gross_income')
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        
+        assert 'gross_income' in result
+        assert 'Gross Inc' in result
+        assert 'Description' in result
 
 
 class TestRenderCommand:
@@ -260,3 +335,82 @@ class TestRenderCommand:
         
         assert 'TaxDetails' in completions
         assert 'Balances' not in completions
+
+
+class TestTabCompletion:
+    """Test tab completion for all commands."""
+    
+    @pytest.fixture
+    def shell(self):
+        """Create a shell without a loaded plan."""
+        return FinancialPlanShell()
+    
+    def test_complete_get_returns_fields(self, shell):
+        """Test that get command completion returns field names."""
+        completions = shell.complete_get('', 'get ', 4, 4)
+        
+        assert 'gross_income' in completions
+        assert 'take_home_pay' in completions
+        assert 'federal_tax' in completions
+    
+    def test_complete_get_filters_by_prefix(self, shell):
+        """Test that get completion filters by prefix."""
+        completions = shell.complete_get('gross', 'get gross', 4, 9)
+        
+        assert 'gross_income' in completions
+        assert 'take_home_pay' not in completions
+    
+    def test_complete_fields_returns_field_names(self, shell):
+        """Test that fields command completion returns field names."""
+        completions = shell.complete_fields('', 'fields ', 7, 7)
+        
+        assert 'gross_income' in completions
+        assert 'balance_ira' in completions
+    
+    def test_complete_fields_filters_by_prefix(self, shell):
+        """Test that fields completion filters by prefix."""
+        completions = shell.complete_fields('balance', 'fields balance', 7, 14)
+        
+        assert 'balance_ira' in completions
+        assert 'balance_hsa' in completions
+        assert 'gross_income' not in completions
+    
+    def test_complete_load_returns_programs(self, shell):
+        """Test that load command completion returns available programs."""
+        completions = shell.complete_load('', 'load ', 5, 5)
+        
+        # Should include at least quickexample
+        assert 'quickexample' in completions
+    
+    def test_complete_load_filters_by_prefix(self, shell):
+        """Test that load completion filters by prefix."""
+        completions = shell.complete_load('quick', 'load quick', 5, 10)
+        
+        assert 'quickexample' in completions
+        # Other programs starting with different letters shouldn't be included
+        assert 'myprogram' not in completions
+    
+    def test_complete_help_returns_commands(self, shell):
+        """Test that help command completion returns available commands."""
+        completions = shell.complete_help('', 'help ', 5, 5)
+        
+        assert 'get' in completions
+        assert 'fields' in completions
+        assert 'render' in completions
+        assert 'load' in completions
+        assert 'summary' in completions
+    
+    def test_complete_help_filters_by_prefix(self, shell):
+        """Test that help completion filters by prefix."""
+        completions = shell.complete_help('ge', 'help ge', 5, 7)
+        
+        assert 'get' in completions
+        assert 'generate' in completions
+        assert 'fields' not in completions
+    
+    def test_get_available_programs(self, shell):
+        """Test the helper method to get available programs."""
+        programs = shell._get_available_programs()
+        
+        assert isinstance(programs, list)
+        assert 'quickexample' in programs
