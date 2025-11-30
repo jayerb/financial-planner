@@ -988,6 +988,7 @@ class TestHSAWithdrawals:
             'hsaWithdrawalInflationRate': 0.03
         }
         
+        
         result = calculator.calculate(spec)
         
         # Check working years
@@ -1004,3 +1005,123 @@ class TestHSAWithdrawals:
         for year in [2028, 2029, 2030]:
             yd = result.yearly_data[year]
             assert yd.hsa_withdrawal > 0
+
+
+class TestHSAContributionsInRetirement:
+    """Tests for HSA contribution functionality during early retirement (before Medicare)."""
+    
+    @pytest.fixture
+    def calculator(self):
+        """Create a PlanCalculator with mock dependencies."""
+        return PlanCalculator(
+            federal=create_mock_federal(),
+            state=create_mock_state(),
+            espp=create_mock_espp(),
+            social_security=create_mock_social_security(),
+            medicare=create_mock_medicare(),
+            rsu_calculator=create_mock_rsu_calculator()
+        )
+    
+    def test_hsa_contributions_continue_before_medicare(self, calculator):
+        """Test that HSA contributions continue in retirement before Medicare eligibility."""
+        spec = create_basic_spec()
+        spec['birthYear'] = 1970  # Medicare eligibility at 2035 (1970 + 65)
+        spec['lastWorkingYear'] = 2030
+        spec['lastPlanningYear'] = 2040
+        spec['investments'] = {
+            'hsaBalance': 50000.0,
+            'hsaAppreciationRate': 0.07,
+            'hsaEmployerContribution': 1500.0
+        }
+        
+        result = calculator.calculate(spec)
+        
+        # Retirement years before Medicare (2031-2034) should have HSA contributions
+        for year in [2031, 2032, 2033, 2034]:
+            yd = result.yearly_data[year]
+            assert yd.is_working_year == False
+            assert yd.hsa_contribution > 0, f"Year {year} should have HSA contribution"
+            assert yd.employee_hsa > 0, f"Year {year} should have employee HSA"
+    
+    def test_hsa_contributions_stop_at_medicare(self, calculator):
+        """Test that HSA contributions stop at Medicare eligibility (age 65)."""
+        spec = create_basic_spec()
+        spec['birthYear'] = 1970  # Medicare eligibility at 2035 (1970 + 65)
+        spec['lastWorkingYear'] = 2030
+        spec['lastPlanningYear'] = 2040
+        spec['investments'] = {
+            'hsaBalance': 50000.0,
+            'hsaAppreciationRate': 0.07,
+            'hsaEmployerContribution': 1500.0
+        }
+        
+        result = calculator.calculate(spec)
+        
+        # Medicare eligibility year and after should have no HSA contributions
+        for year in [2035, 2036, 2037, 2038, 2039, 2040]:
+            yd = result.yearly_data[year]
+            assert yd.hsa_contribution == 0, f"Year {year} should not have HSA contribution (Medicare eligible)"
+    
+    def test_hsa_contribution_deducted_from_cash_flow(self, calculator):
+        """Test that HSA contribution is deducted from taxable account adjustment."""
+        spec = create_basic_spec()
+        spec['birthYear'] = 1970  # Medicare eligibility at 2035
+        spec['lastWorkingYear'] = 2030
+        spec['lastPlanningYear'] = 2036
+        spec['investments'] = {
+            'hsaBalance': 50000.0,
+            'hsaAppreciationRate': 0.07,
+            'hsaEmployerContribution': 1500.0
+        }
+        
+        result = calculator.calculate(spec)
+        
+        # In retirement before Medicare, taxable adjustment should account for HSA contribution
+        y = result.yearly_data[2031]
+        expected_adjustment = y.income_expense_difference - y.hsa_contribution
+        assert abs(y.taxable_account_adjustment - expected_adjustment) < 0.01
+    
+    def test_hsa_contribution_increases_hsa_balance(self, calculator):
+        """Test that HSA contributions increase the HSA balance in retirement."""
+        spec = create_basic_spec()
+        spec['birthYear'] = 1970  # Medicare eligibility at 2035
+        spec['lastWorkingYear'] = 2030
+        spec['lastPlanningYear'] = 2036
+        spec['investments'] = {
+            'hsaBalance': 50000.0,
+            'hsaAppreciationRate': 0.0,  # No appreciation for simpler test
+            'hsaEmployerContribution': 1500.0,
+            'hsaAnnualWithdrawal': 0  # No withdrawals for simpler test
+        }
+        
+        result = calculator.calculate(spec)
+        
+        # HSA balance should increase by contribution amount (minus any withdrawals)
+        y2030 = result.yearly_data[2030]  # Last working year
+        y2031 = result.yearly_data[2031]  # First retirement year
+        
+        # Balance should increase due to contribution
+        expected_balance = y2030.balance_hsa + y2031.hsa_contribution
+        assert abs(y2031.balance_hsa - expected_balance) < 0.01
+    
+    def test_no_employer_hsa_in_retirement(self, calculator):
+        """Test that there is no employer HSA contribution in retirement."""
+        spec = create_basic_spec()
+        spec['birthYear'] = 1970
+        spec['lastWorkingYear'] = 2030
+        spec['lastPlanningYear'] = 2035
+        spec['investments'] = {
+            'hsaBalance': 50000.0,
+            'hsaAppreciationRate': 0.07,
+            'hsaEmployerContribution': 1500.0
+        }
+        
+        result = calculator.calculate(spec)
+        
+        # Retirement years should have no employer HSA contribution
+        for year in [2031, 2032, 2033, 2034]:
+            yd = result.yearly_data[year]
+            assert yd.employer_hsa == 0, f"Year {year} should have no employer HSA"
+            # But employee HSA should equal the full contribution
+            assert yd.hsa_contribution == yd.employee_hsa
+

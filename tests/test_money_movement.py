@@ -304,7 +304,8 @@ class TestRetirementMoneyMovement:
         # Income-expense difference should be calculated
         expected_diff = y.take_home_pay - y.total_expenses
         assert y.income_expense_difference == expected_diff
-        assert y.taxable_account_adjustment == expected_diff
+        # Taxable account adjustment also deducts HSA contribution (before Medicare eligibility)
+        assert y.taxable_account_adjustment == expected_diff - y.hsa_contribution
 
 
 class TestNoExpensesSpec:

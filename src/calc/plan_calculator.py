@@ -83,6 +83,10 @@ class PlanCalculator:
         initial_hsa_withdrawal = investments_spec.get('hsaAnnualWithdrawal', 0)
         hsa_withdrawal_inflation = investments_spec.get('hsaWithdrawalInflationRate', 0.04)
         
+        # Birth year for Medicare eligibility calculation (age 65)
+        birth_year = spec.get('birthYear', first_year - 55)  # Default assumes age 55 at first year
+        medicare_eligibility_year = birth_year + 65
+        
         # Deferred comp parameters
         deferred_comp_growth = deferred_comp_spec.get('annualGrowthFraction', 0.05)
         disbursement_years = deferred_comp_spec.get('disbursementYears', 10)
@@ -124,6 +128,7 @@ class PlanCalculator:
         current_annual_expenses = initial_annual_expenses
         current_insurance_premium = initial_insurance_premium
         current_hsa_withdrawal = initial_hsa_withdrawal
+        current_max_hsa = 0  # Will be set from last working year for retirement contributions
         
         # Track balances
         balance_taxable = initial_taxable
@@ -295,6 +300,9 @@ class PlanCalculator:
             plan.total_state_tax += yd.state_tax
             plan.total_taxes += yd.total_taxes
             plan.total_take_home += yd.take_home_pay
+            
+            # Track max_hsa for retirement contributions (use last working year's value)
+            current_max_hsa = yd.max_hsa
         
         # Apply final growth to deferred comp before disbursement phase
         # Track this appreciation for the first retirement year
@@ -334,9 +342,16 @@ class PlanCalculator:
             current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
             current_insurance_premium = current_insurance_premium * (1 + premium_inflation)
             current_hsa_withdrawal = current_hsa_withdrawal * (1 + hsa_withdrawal_inflation)
+            current_max_hsa = current_max_hsa * (1 + inflation_rate)  # Inflate HSA limit
             
             yd.local_tax = current_local_tax
             yd.medical_premium = current_insurance_premium  # Track premium for reference
+            
+            # HSA contributions allowed until Medicare eligibility (age 65)
+            if year < medicare_eligibility_year:
+                yd.max_hsa = current_max_hsa
+                yd.employee_hsa = current_max_hsa  # Full contribution in retirement (no employer)
+                yd.hsa_contribution = yd.employee_hsa
             
             # Calculate disbursement as balance / remaining disbursement years
             remaining_disbursement_years = disbursement_end - year + 1
@@ -383,13 +398,17 @@ class PlanCalculator:
             yd.medical_premium_expense = current_insurance_premium  # Must pay own premium in retirement
             yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.medical_premium_expense
             yd.income_expense_difference = yd.take_home_pay - yd.total_expenses
-            yd.taxable_account_adjustment = yd.income_expense_difference
+            # HSA contribution comes from cash flow (reduces taxable account)
+            yd.taxable_account_adjustment = yd.income_expense_difference - yd.hsa_contribution
             
             # Adjust taxable account balance based on income vs expenses
             balance_taxable += yd.taxable_account_adjustment
             
             # Update deferred comp balance
             balance_deferred_comp -= yearly_disbursement
+            
+            # HSA contribution (before Medicare eligibility)
+            balance_hsa += yd.hsa_contribution
             
             # HSA withdrawal (tax-free for qualified medical expenses)
             yd.hsa_withdrawal = min(current_hsa_withdrawal, balance_hsa)  # Can't withdraw more than balance
@@ -433,9 +452,16 @@ class PlanCalculator:
             current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
             current_insurance_premium = current_insurance_premium * (1 + premium_inflation)
             current_hsa_withdrawal = current_hsa_withdrawal * (1 + hsa_withdrawal_inflation)
+            current_max_hsa = current_max_hsa * (1 + inflation_rate)  # Inflate HSA limit
             
             yd.local_tax = current_local_tax
             yd.medical_premium = current_insurance_premium  # Track premium for reference
+            
+            # HSA contributions allowed until Medicare eligibility (age 65)
+            if year < medicare_eligibility_year:
+                yd.max_hsa = current_max_hsa
+                yd.employee_hsa = current_max_hsa  # Full contribution in retirement (no employer)
+                yd.hsa_contribution = yd.employee_hsa
             
             # Realized capital gains only (no disbursement)
             yd.short_term_capital_gains = balance_taxable * short_term_cg_percent
@@ -478,8 +504,9 @@ class PlanCalculator:
             yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.medical_premium_expense
             yd.income_expense_difference = yd.take_home_pay - yd.total_expenses
             
-            # Calculate expense shortfall (amount needed beyond take-home pay)
-            expense_shortfall = max(0, yd.total_expenses - yd.take_home_pay)
+            # Calculate expense shortfall (includes HSA contribution as a cash outflow)
+            total_cash_needs = yd.total_expenses + yd.hsa_contribution
+            expense_shortfall = max(0, total_cash_needs - yd.take_home_pay)
             
             # Calculate IRA annuity: balance divided by remaining years in plan
             remaining_years = last_planning_year - year + 1
@@ -497,11 +524,14 @@ class PlanCalculator:
                 # Still need money after IRA withdrawal - take from taxable
                 yd.taxable_account_adjustment = -expense_shortfall
             else:
-                # Excess income (take_home + ira_withdrawal - expenses) goes to taxable
-                yd.taxable_account_adjustment = yd.take_home_pay + yd.ira_withdrawal - yd.total_expenses
+                # Excess income (take_home + ira_withdrawal - expenses - hsa_contribution) goes to taxable
+                yd.taxable_account_adjustment = yd.take_home_pay + yd.ira_withdrawal - yd.total_expenses - yd.hsa_contribution
             
             # Adjust taxable account balance
             balance_taxable += yd.taxable_account_adjustment
+            
+            # HSA contribution (before Medicare eligibility)
+            balance_hsa += yd.hsa_contribution
             
             # HSA withdrawal (tax-free for qualified medical expenses)
             yd.hsa_withdrawal = min(current_hsa_withdrawal, balance_hsa)  # Can't withdraw more than balance
