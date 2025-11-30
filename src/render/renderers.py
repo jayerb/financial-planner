@@ -717,8 +717,12 @@ class CashFlowRenderer(BaseRenderer):
             ira_str = f"${ira_used:>10,.0f}" if ira_used > 0 else f"{'':>12}"
             taxable_str = f"${taxable_used:>10,.0f}" if taxable_used > 0 else f"{'':>12}"
             surplus_str = f"+${surplus:>9,.0f}" if surplus > 0 else f"{'':>12}"
+            # Balance columns - format as exactly 12-char strings ($ at position 1 to align with leftmost dash)
+            def_bal_str = f"${yd.balance_deferred_comp:>11,.0f}"
+            ira_bal_str = f"${yd.balance_ira:>11,.0f}"
+            tax_bal_str = f"${yd.balance_taxable:>11,.0f}"
             
-            print(f"  {year:<6} ${yd.total_expenses:>10,.0f} {'|':^3} {take_home_str:>12} {cap_gains_str:>12} {deferred_str:>12} {ira_str:>12} {taxable_str:>12} {'|':^3} {surplus_str:>12} {'|':^3} ${yd.balance_deferred_comp:>10,.0f} ${yd.balance_ira:>10,.0f} ${yd.balance_taxable:>10,.0f}")
+            print(f"  {year:<6} ${yd.total_expenses:>10,.0f} {'|':^3} {take_home_str:>12} {cap_gains_str:>12} {deferred_str:>12} {ira_str:>12} {taxable_str:>12} {'|':^3} {surplus_str:>12} {'|':^3} {def_bal_str} {ira_bal_str} {tax_bal_str}")
             
             # Accumulate totals
             total_expenses += yd.total_expenses
@@ -739,7 +743,12 @@ class CashFlowRenderer(BaseRenderer):
         final_year = min(end, max(data.yearly_data.keys()))
         final_yd = data.yearly_data[final_year]
         
-        print(f"  {'TOTAL':<6} ${total_expenses:>10,.0f} {'|':^3} ${total_take_home_used:>10,.0f} {cap_gains_total_str:>12} ${total_deferred_comp_used:>10,.0f} ${total_ira_used:>10,.0f} ${total_taxable_used:>10,.0f} {'|':^3} {surplus_total_str:>12} {'|':^3} ${final_yd.balance_deferred_comp:>10,.0f} ${final_yd.balance_ira:>10,.0f} ${final_yd.balance_taxable:>10,.0f}")
+        # Balance columns - format as exactly 12-char strings ($ at position 1 to align with leftmost dash)
+        def_bal_total_str = f"${final_yd.balance_deferred_comp:>11,.0f}"
+        ira_bal_total_str = f"${final_yd.balance_ira:>11,.0f}"
+        tax_bal_total_str = f"${final_yd.balance_taxable:>11,.0f}"
+        
+        print(f"  {'TOTAL':<6} ${total_expenses:>10,.0f} {'|':^3} ${total_take_home_used:>10,.0f} {cap_gains_total_str:>12} ${total_deferred_comp_used:>10,.0f} ${total_ira_used:>10,.0f} ${total_taxable_used:>10,.0f} {'|':^3} {surplus_total_str:>12} {'|':^3} {def_bal_total_str} {ira_bal_total_str} {tax_bal_total_str}")
         print()
         
         # Summary section
