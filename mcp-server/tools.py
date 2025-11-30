@@ -126,8 +126,8 @@ class FinancialPlannerTools:
                 "bonus_fraction": income.get('bonusFraction', 0),
                 "espp_discount": self.spec.get('esppDiscount', 0),
                 "other_income": income.get('otherIncome', 0),
-                "short_term_capital_gains": income.get('shortTermCapitalGains', 0),
-                "long_term_capital_gains": income.get('longTermCapitalGains', 0)
+                "realized_short_term_capital_gains_percent": income.get('realizedShortTermCapitalGainsPercent', 0),
+                "realized_long_term_capital_gains_percent": income.get('realizedLongTermCapitalGainsPercent', 0)
             },
             "deferred_compensation": {
                 "base_deferral_fraction": income.get('baseDeferralFraction', 0),
@@ -238,8 +238,8 @@ class FinancialPlannerTools:
             }
         
         breakdown["investment_income"] = {
-            "short_term_capital_gains": round(yd.short_term_capital_gains, 2),
-            "long_term_capital_gains": round(yd.long_term_capital_gains, 2)
+            "realized_short_term_capital_gains": round(yd.short_term_capital_gains, 2),
+            "realized_long_term_capital_gains": round(yd.long_term_capital_gains, 2)
         }
         
         breakdown["deferred_comp_disbursement"] = round(yd.deferred_comp_disbursement, 2)

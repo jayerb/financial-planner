@@ -630,8 +630,8 @@ def test_capital_gains_percent_based_on_taxable_balance():
     ltcg_percent = 0.02  # 2%
     
     spec = create_spec(base_salary=base_salary)
-    spec['income']['shortTermCapitalGainsPercent'] = stcg_percent
-    spec['income']['longTermCapitalGainsPercent'] = ltcg_percent
+    spec['income']['realizedShortTermCapitalGainsPercent'] = stcg_percent
+    spec['income']['realizedLongTermCapitalGainsPercent'] = ltcg_percent
     spec['investments'] = {'taxableBalance': taxable_balance}
     
     # Set taxable balances for the calculator
@@ -676,7 +676,7 @@ def test_capital_gains_percent_grows_with_balance():
     ltcg_percent = 0.02  # 2%
     
     spec = create_spec(base_salary=base_salary)
-    spec['income']['longTermCapitalGainsPercent'] = ltcg_percent
+    spec['income']['realizedLongTermCapitalGainsPercent'] = ltcg_percent
     spec['investments'] = {
         'taxableBalance': initial_balance,
         'taxableAppreciationRate': appreciation_rate

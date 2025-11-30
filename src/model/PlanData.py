@@ -25,10 +25,10 @@ class YearlyData:
     other_income: float = 0.0
     espp_income: float = 0.0
     rsu_vested_value: float = 0.0
-    short_term_capital_gains: float = 0.0
-    long_term_capital_gains: float = 0.0
+    short_term_capital_gains: float = 0.0  # Realized short-term capital gains (taxed as ordinary income)
+    long_term_capital_gains: float = 0.0   # Realized long-term capital gains (taxed at preferential rates)
     deferred_comp_disbursement: float = 0.0
-    gross_income: float = 0.0
+    gross_income: float = 0.0  # Total taxable income including realized capital gains
     earned_income_for_fica: float = 0.0
     
     # Deductions

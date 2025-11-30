@@ -84,13 +84,13 @@ class TakeHomeCalculator:
         investments = spec.get('investments', {})
         taxable_balance = self._taxable_balances.get(tax_year, investments.get('taxableBalance', 0))
         
-        if 'shortTermCapitalGainsPercent' in income_details:
-            short_term_capital_gains = taxable_balance * income_details.get('shortTermCapitalGainsPercent', 0)
+        if 'realizedShortTermCapitalGainsPercent' in income_details:
+            short_term_capital_gains = taxable_balance * income_details.get('realizedShortTermCapitalGainsPercent', 0)
         else:
             short_term_capital_gains = income_details.get('shortTermCapitalGains', 0)
         
-        if 'longTermCapitalGainsPercent' in income_details:
-            long_term_capital_gains = taxable_balance * income_details.get('longTermCapitalGainsPercent', 0)
+        if 'realizedLongTermCapitalGainsPercent' in income_details:
+            long_term_capital_gains = taxable_balance * income_details.get('realizedLongTermCapitalGainsPercent', 0)
         else:
             long_term_capital_gains = income_details.get('longTermCapitalGains', 0)
         

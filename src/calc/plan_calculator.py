@@ -67,8 +67,8 @@ class PlanCalculator:
         other_income = income_spec.get('otherIncome', 0)
         base_deferral_fraction = income_spec.get('baseDeferralFraction', 0)
         bonus_deferral_fraction = income_spec.get('bonusDeferralFraction', 0)
-        short_term_cg_percent = income_spec.get('shortTermCapitalGainsPercent', 0)
-        long_term_cg_percent = income_spec.get('longTermCapitalGainsPercent', 0)
+        short_term_cg_percent = income_spec.get('realizedShortTermCapitalGainsPercent', 0)
+        long_term_cg_percent = income_spec.get('realizedLongTermCapitalGainsPercent', 0)
         
         # Investment parameters
         initial_taxable = investments_spec.get('taxableBalance', 0)
@@ -175,22 +175,25 @@ class PlanCalculator:
             # RSU income
             yd.rsu_vested_value = self.rsu_calculator.vested_value.get(year, 0)
             
-            # Capital gains
+            # Realized capital gains (withdrawn from taxable account)
             yd.short_term_capital_gains = balance_taxable * short_term_cg_percent
             yd.long_term_capital_gains = balance_taxable * long_term_cg_percent
             
             # HSA contributions
             yd.employer_hsa = current_employer_hsa
             
-            # Gross income
+            # Gross income (includes all realized capital gains)
             yd.gross_income = (yd.base_salary + yd.bonus + yd.other_income + 
-                              yd.short_term_capital_gains + yd.espp_income + 
-                              yd.rsu_vested_value)
+                              yd.short_term_capital_gains + yd.long_term_capital_gains +
+                              yd.espp_income + yd.rsu_vested_value)
             
-            yd.earned_income_for_fica = yd.gross_income
+            # Earned income for FICA excludes capital gains
+            yd.earned_income_for_fica = (yd.base_salary + yd.bonus + yd.other_income + 
+                                         yd.espp_income + yd.rsu_vested_value)
             
             # State tax (for SALT itemized deduction)
-            state_taxable = yd.gross_income - yd.total_deferral + yd.long_term_capital_gains
+            # gross_income already includes LTCG now
+            state_taxable = yd.gross_income - yd.total_deferral
             preliminary_state_tax = self.state.taxBurden(state_taxable, yd.medical_dental_vision, 
                                                           year=year, employer_hsa_contribution=yd.employer_hsa)
             
@@ -319,12 +322,12 @@ class PlanCalculator:
             yearly_disbursement = balance_deferred_comp / remaining_disbursement_years if remaining_disbursement_years > 0 else balance_deferred_comp
             yd.deferred_comp_disbursement = yearly_disbursement
             
-            # Capital gains
+            # Realized capital gains (withdrawn from taxable account)
             yd.short_term_capital_gains = balance_taxable * short_term_cg_percent
             yd.long_term_capital_gains = balance_taxable * long_term_cg_percent
             
-            # Gross income from disbursement and capital gains
-            yd.gross_income = yd.deferred_comp_disbursement + yd.short_term_capital_gains
+            # Gross income from disbursement and realized capital gains
+            yd.gross_income = yd.deferred_comp_disbursement + yd.short_term_capital_gains + yd.long_term_capital_gains
             
             # Federal deductions (only standard deduction in retirement)
             deductions = self.federal.totalDeductions(year, 0, 0, yd.local_tax)
@@ -405,12 +408,12 @@ class PlanCalculator:
             
             yd.local_tax = current_local_tax
             
-            # Capital gains only (no disbursement)
+            # Realized capital gains only (no disbursement)
             yd.short_term_capital_gains = balance_taxable * short_term_cg_percent
             yd.long_term_capital_gains = balance_taxable * long_term_cg_percent
             
-            # Gross income from capital gains only
-            yd.gross_income = yd.short_term_capital_gains
+            # Gross income from realized capital gains only
+            yd.gross_income = yd.short_term_capital_gains + yd.long_term_capital_gains
             
             # Federal deductions (standard deduction only)
             deductions = self.federal.totalDeductions(year, 0, 0, yd.local_tax)
@@ -428,8 +431,8 @@ class PlanCalculator:
                 yd.adjusted_gross_income, yd.long_term_capital_gains, year)
             yd.federal_tax = yd.ordinary_income_tax + yd.long_term_capital_gains_tax
             
-            # State taxes
-            state_taxable = yd.gross_income + yd.long_term_capital_gains
+            # State taxes (gross_income already includes LTCG)
+            state_taxable = yd.gross_income
             yd.state_income_tax = self.state.taxBurden(state_taxable, 0, year=year, employer_hsa_contribution=0)
             yd.state_short_term_capital_gains_tax = self.state.shortTermCapitalGainsTax(yd.short_term_capital_gains)
             yd.state_tax = yd.state_income_tax + yd.state_short_term_capital_gains_tax

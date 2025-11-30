@@ -86,8 +86,8 @@ def create_basic_spec():
             'otherIncome': 0,
             'baseDeferralFraction': 0.10,
             'bonusDeferralFraction': 0.50,
-            'shortTermCapitalGainsPercent': 0.01,
-            'longTermCapitalGainsPercent': 0.02,
+            'realizedShortTermCapitalGainsPercent': 0.01,
+            'realizedLongTermCapitalGainsPercent': 0.02,
             'annualBaseIncreaseFraction': 0.03
         },
         'investments': {
@@ -659,8 +659,8 @@ class TestCapitalGains:
         
         first_year = result.yearly_data[2026]
         taxable_balance = spec['investments']['taxableBalance']
-        stcg_percent = spec['income']['shortTermCapitalGainsPercent']
-        ltcg_percent = spec['income']['longTermCapitalGainsPercent']
+        stcg_percent = spec['income']['realizedShortTermCapitalGainsPercent']
+        ltcg_percent = spec['income']['realizedLongTermCapitalGainsPercent']
         
         expected_stcg = taxable_balance * stcg_percent
         expected_ltcg = taxable_balance * ltcg_percent

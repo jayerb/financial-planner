@@ -84,8 +84,8 @@ def create_spec_with_expenses():
             'otherIncome': 0,
             'baseDeferralFraction': 0.10,
             'bonusDeferralFraction': 0.50,
-            'shortTermCapitalGainsPercent': 0.01,
-            'longTermCapitalGainsPercent': 0.02,
+            'realizedShortTermCapitalGainsPercent': 0.01,
+            'realizedLongTermCapitalGainsPercent': 0.02,
             'annualBaseIncreaseFraction': 0.03
         },
         'investments': {
