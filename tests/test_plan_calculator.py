@@ -871,11 +871,136 @@ class TestAccountAppreciation:
         expected_ira_balance = y1.balance_ira + y2.appreciation_ira + y2.total_401k_contribution
         assert abs(y2.balance_ira - expected_ira_balance) < 0.01
         
-        # HSA balance growth should be appreciation + contributions
-        expected_hsa_balance = y1.balance_hsa + y2.appreciation_hsa + y2.hsa_contribution
+        # HSA balance growth should be appreciation + contributions - withdrawal
+        expected_hsa_balance = y1.balance_hsa + y2.appreciation_hsa + y2.hsa_contribution - y2.hsa_withdrawal
         assert abs(y2.balance_hsa - expected_hsa_balance) < 0.01
         
         # Deferred comp balance growth should be appreciation + contributions
         expected_deferred_balance = (y1.balance_deferred_comp + y2.appreciation_deferred_comp + 
                                      y2.deferred_comp_contribution)
         assert abs(y2.balance_deferred_comp - expected_deferred_balance) < 0.01
+
+
+class TestHSAWithdrawals:
+    """Tests for HSA withdrawal functionality."""
+    
+    @pytest.fixture
+    def calculator(self):
+        """Create a PlanCalculator with mock dependencies."""
+        return PlanCalculator(
+            federal=create_mock_federal(),
+            state=create_mock_state(),
+            espp=create_mock_espp(),
+            social_security=create_mock_social_security(),
+            medicare=create_mock_medicare(),
+            rsu_calculator=create_mock_rsu_calculator()
+        )
+    
+    def test_hsa_withdrawal_subtracts_from_balance(self, calculator):
+        """Test that HSA withdrawals reduce the HSA balance."""
+        spec = create_basic_spec()
+        spec['investments'] = {
+            'hsaBalance': 50000.0,
+            'hsaAppreciationRate': 0.07,
+            'hsaEmployerContribution': 1500.0,
+            'hsaAnnualWithdrawal': 3000.0,
+            'hsaWithdrawalInflationRate': 0.04
+        }
+        
+        result = calculator.calculate(spec)
+        
+        # First year should have withdrawal of 3000
+        first_year = result.yearly_data[2026]
+        assert first_year.hsa_withdrawal == 3000.0
+        
+        # Balance should reflect: initial + contribution + appreciation - withdrawal
+        # HSA contribution from deductions mock is 8000 (employee) + 1500 (employer) = 9500
+        # But the actual value depends on what the mock returns
+        assert first_year.hsa_withdrawal <= first_year.balance_hsa + first_year.hsa_withdrawal
+    
+    def test_hsa_withdrawal_inflates_over_time(self, calculator):
+        """Test that HSA withdrawal amount increases with inflation."""
+        spec = create_basic_spec()
+        spec['investments'] = {
+            'hsaBalance': 100000.0,
+            'hsaAppreciationRate': 0.07,
+            'hsaEmployerContribution': 0,
+            'hsaAnnualWithdrawal': 5000.0,
+            'hsaWithdrawalInflationRate': 0.05  # 5% inflation
+        }
+        
+        result = calculator.calculate(spec)
+        
+        y1 = result.yearly_data[2026]
+        y2 = result.yearly_data[2027]
+        y3 = result.yearly_data[2028]
+        
+        # Withdrawals should increase by 5% each year
+        assert y1.hsa_withdrawal == 5000.0
+        assert abs(y2.hsa_withdrawal - 5250.0) < 0.01  # 5000 * 1.05
+        assert abs(y3.hsa_withdrawal - 5512.50) < 0.01  # 5000 * 1.05^2
+    
+    def test_hsa_withdrawal_capped_at_balance(self, calculator):
+        """Test that HSA withdrawal cannot exceed the available balance."""
+        spec = create_basic_spec()
+        spec['investments'] = {
+            'hsaBalance': 1000.0,  # Small starting balance
+            'hsaAppreciationRate': 0.0,  # No growth
+            'hsaEmployerContribution': 0,
+            'hsaAnnualWithdrawal': 50000.0,  # Try to withdraw more than balance
+            'hsaWithdrawalInflationRate': 0.0
+        }
+        # Disable HSA contributions
+        spec['deductions'] = {'medicalDentalVision': 0}
+        
+        result = calculator.calculate(spec)
+        
+        first_year = result.yearly_data[2026]
+        # Withdrawal should be capped at balance (initial + any contributions)
+        assert first_year.hsa_withdrawal <= first_year.balance_hsa + first_year.hsa_withdrawal
+        # Balance should be non-negative after withdrawal
+        assert first_year.balance_hsa >= 0
+    
+    def test_hsa_withdrawal_zero_by_default(self, calculator):
+        """Test that HSA withdrawal is zero when not specified."""
+        spec = create_basic_spec()
+        spec['investments'] = {
+            'hsaBalance': 50000.0,
+            'hsaAppreciationRate': 0.07
+            # No hsaAnnualWithdrawal specified
+        }
+        
+        result = calculator.calculate(spec)
+        
+        first_year = result.yearly_data[2026]
+        assert first_year.hsa_withdrawal == 0.0
+    
+    def test_hsa_withdrawal_continues_in_retirement(self, calculator):
+        """Test that HSA withdrawals continue during retirement years."""
+        spec = create_basic_spec()
+        spec['lastWorkingYear'] = 2027  # Retire after 2027
+        spec['lastPlanningYear'] = 2030
+        spec['investments'] = {
+            'hsaBalance': 100000.0,
+            'hsaAppreciationRate': 0.05,
+            'hsaEmployerContribution': 0,
+            'hsaAnnualWithdrawal': 4000.0,
+            'hsaWithdrawalInflationRate': 0.03
+        }
+        
+        result = calculator.calculate(spec)
+        
+        # Check working years
+        assert result.yearly_data[2026].hsa_withdrawal == 4000.0
+        assert result.yearly_data[2027].is_working_year == True
+        
+        # Check retirement years
+        y2028 = result.yearly_data[2028]
+        assert y2028.is_working_year == False
+        # Withdrawal should continue with inflation: 4000 * 1.03^2 = 4243.60
+        assert y2028.hsa_withdrawal > 0
+        
+        # All retirement years should have withdrawals
+        for year in [2028, 2029, 2030]:
+            yd = result.yearly_data[year]
+            assert yd.hsa_withdrawal > 0

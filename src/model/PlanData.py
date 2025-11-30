@@ -90,6 +90,7 @@ class YearlyData:
     medical_premium_expense: float = 0.0  # Medical premium as expense (only in retirement, not covered by employer)
     total_expenses: float = 0.0
     income_expense_difference: float = 0.0  # take_home - total_expenses
+    hsa_withdrawal: float = 0.0  # Tax-free HSA withdrawal for qualified medical expenses
     ira_withdrawal: float = 0.0  # Amount withdrawn from 401k/IRA to cover expenses
     taxable_account_adjustment: float = 0.0  # positive = add to taxable, negative = withdraw
     

@@ -80,6 +80,8 @@ class PlanCalculator:
         employer_401k_match_percent = investments_spec.get('employer401kMatchPercent', 0)
         employer_401k_match_max_salary_percent = investments_spec.get('employer401kMatchMaxSalaryPercent', 0)
         initial_employer_hsa = investments_spec.get('hsaEmployerContribution', 0)
+        initial_hsa_withdrawal = investments_spec.get('hsaAnnualWithdrawal', 0)
+        hsa_withdrawal_inflation = investments_spec.get('hsaWithdrawalInflationRate', 0.04)
         
         # Deferred comp parameters
         deferred_comp_growth = deferred_comp_spec.get('annualGrowthFraction', 0.05)
@@ -121,6 +123,7 @@ class PlanCalculator:
         current_local_tax = initial_local_tax
         current_annual_expenses = initial_annual_expenses
         current_insurance_premium = initial_insurance_premium
+        current_hsa_withdrawal = initial_hsa_withdrawal
         
         # Track balances
         balance_taxable = initial_taxable
@@ -146,6 +149,7 @@ class PlanCalculator:
                 current_local_tax = current_local_tax * (1 + local_tax_inflation)
                 current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
                 current_insurance_premium = current_insurance_premium * (1 + premium_inflation)
+                current_hsa_withdrawal = current_hsa_withdrawal * (1 + hsa_withdrawal_inflation)
                 
                 # Calculate appreciation amounts before applying growth
                 yd.appreciation_taxable = balance_taxable * taxable_appreciation
@@ -273,6 +277,10 @@ class PlanCalculator:
             balance_hsa += yd.hsa_contribution
             balance_deferred_comp += yd.deferred_comp_contribution
             
+            # HSA withdrawal (tax-free for qualified medical expenses)
+            yd.hsa_withdrawal = min(current_hsa_withdrawal, balance_hsa)  # Can't withdraw more than balance
+            balance_hsa -= yd.hsa_withdrawal
+            
             yd.balance_ira = balance_401k
             yd.balance_hsa = balance_hsa
             yd.balance_deferred_comp = balance_deferred_comp
@@ -325,6 +333,7 @@ class PlanCalculator:
             current_local_tax = current_local_tax * (1 + local_tax_inflation)
             current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
             current_insurance_premium = current_insurance_premium * (1 + premium_inflation)
+            current_hsa_withdrawal = current_hsa_withdrawal * (1 + hsa_withdrawal_inflation)
             
             yd.local_tax = current_local_tax
             yd.medical_premium = current_insurance_premium  # Track premium for reference
@@ -382,6 +391,10 @@ class PlanCalculator:
             # Update deferred comp balance
             balance_deferred_comp -= yearly_disbursement
             
+            # HSA withdrawal (tax-free for qualified medical expenses)
+            yd.hsa_withdrawal = min(current_hsa_withdrawal, balance_hsa)  # Can't withdraw more than balance
+            balance_hsa -= yd.hsa_withdrawal
+            
             yd.balance_ira = balance_401k
             yd.balance_hsa = balance_hsa
             yd.balance_deferred_comp = max(0, balance_deferred_comp)
@@ -419,6 +432,7 @@ class PlanCalculator:
             current_local_tax = current_local_tax * (1 + local_tax_inflation)
             current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
             current_insurance_premium = current_insurance_premium * (1 + premium_inflation)
+            current_hsa_withdrawal = current_hsa_withdrawal * (1 + hsa_withdrawal_inflation)
             
             yd.local_tax = current_local_tax
             yd.medical_premium = current_insurance_premium  # Track premium for reference
@@ -488,6 +502,10 @@ class PlanCalculator:
             
             # Adjust taxable account balance
             balance_taxable += yd.taxable_account_adjustment
+            
+            # HSA withdrawal (tax-free for qualified medical expenses)
+            yd.hsa_withdrawal = min(current_hsa_withdrawal, balance_hsa)  # Can't withdraw more than balance
+            balance_hsa -= yd.hsa_withdrawal
             
             yd.balance_ira = balance_401k
             yd.balance_hsa = balance_hsa

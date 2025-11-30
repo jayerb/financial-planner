@@ -573,6 +573,22 @@ def generate_spec(existing_spec: Optional[dict] = None) -> dict:
         default=ex_investments.get('hsaEmployerContribution', 0.0)
     )
     
+    # HSA withdrawals
+    print()
+    print("--- HSA Withdrawals ---")
+    print("Note: HSA withdrawals for qualified medical expenses are tax-free.")
+    print("These withdrawals reduce your HSA balance but don't add to taxable income.")
+    investments['hsaAnnualWithdrawal'] = prompt_currency(
+        "Annual HSA withdrawal for medical expenses (as of plan start year)",
+        default=ex_investments.get('hsaAnnualWithdrawal', 0.0)
+    )
+    
+    if investments['hsaAnnualWithdrawal'] > 0:
+        investments['hsaWithdrawalInflationRate'] = prompt_percent(
+            "Expected annual HSA withdrawal inflation rate",
+            default=ex_investments.get('hsaWithdrawalInflationRate', 0.04)
+        )
+    
     # Only add investments section if any accounts have balances
     if investments['taxableBalance'] > 0 or investments['taxDeferredBalance'] > 0 or investments['hsaBalance'] > 0:
         spec['investments'] = investments

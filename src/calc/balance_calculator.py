@@ -66,6 +66,8 @@ class BalanceCalculator:
         investments = spec.get('investments', {})
         hsa_growth_rate = investments.get('hsaAppreciationRate', 0.05)
         base_employer_hsa = investments.get('hsaEmployerContribution', 0.0)
+        initial_hsa_withdrawal = investments.get('hsaAnnualWithdrawal', 0.0)
+        hsa_withdrawal_inflation = investments.get('hsaWithdrawalInflationRate', 0.04)
         
         # Initialize balances
         deferred_balance = spec.get('initialDeferredBalance', 0)
@@ -73,6 +75,7 @@ class BalanceCalculator:
         balance_hsa = investments.get('hsaBalance', 0)
         
         yearly_balances: List[YearlyBalance] = []
+        current_hsa_withdrawal = initial_hsa_withdrawal
         
         for year in range(first_year, last_planning_year + 1):
             # Get contributions for working years
@@ -102,6 +105,13 @@ class BalanceCalculator:
             balance_401k = balance_401k * (1 + retirement_401k_growth_rate) + contrib_401k
             deferred_balance = deferred_balance * (1 + deferred_growth_rate) + deferred_contrib
             balance_hsa = balance_hsa * (1 + hsa_growth_rate) + contrib_hsa
+            
+            # Apply HSA withdrawal (tax-free for qualified medical expenses)
+            hsa_withdrawal = min(current_hsa_withdrawal, balance_hsa)  # Can't withdraw more than balance
+            balance_hsa -= hsa_withdrawal
+            
+            # Apply inflation to HSA withdrawal for next year
+            current_hsa_withdrawal = current_hsa_withdrawal * (1 + hsa_withdrawal_inflation)
             
             yearly_balances.append(YearlyBalance(
                 year=year,

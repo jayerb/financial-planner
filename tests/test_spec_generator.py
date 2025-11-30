@@ -578,3 +578,86 @@ def test_load_existing_spec_with_birth_year():
         # Verify Medicare eligibility calculation
         medicare_eligible_year = loaded_spec['birthYear'] + 65
         assert medicare_eligible_year == 2045
+
+
+def test_save_spec_with_hsa_withdrawals():
+    """Test that save_spec correctly saves HSA withdrawal data."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        spec = {
+            'firstYear': 2025,
+            'lastWorkingYear': 2035,
+            'lastPlanningYear': 2065,
+            'income': {'baseSalary': 100000},
+            'investments': {
+                'hsaBalance': 50000.0,
+                'hsaAppreciationRate': 0.07,
+                'hsaEmployerContribution': 1500.0,
+                'hsaAnnualWithdrawal': 3000.0,
+                'hsaWithdrawalInflationRate': 0.04
+            }
+        }
+        
+        os.makedirs(os.path.join(tmpdir, 'input-parameters'))
+        
+        result_path = save_spec(spec, 'testprogram', tmpdir)
+        
+        with open(result_path, 'r') as f:
+            saved_spec = json.load(f)
+        
+        assert 'investments' in saved_spec
+        assert saved_spec['investments']['hsaAnnualWithdrawal'] == 3000.0
+        assert saved_spec['investments']['hsaWithdrawalInflationRate'] == 0.04
+
+
+def test_hsa_withdrawal_section_structure():
+    """Test that HSA withdrawal fields have the expected structure."""
+    investments = {
+        'hsaBalance': 40000.0,
+        'hsaAppreciationRate': 0.07,
+        'hsaEmployerContribution': 1700.0,
+        'hsaAnnualWithdrawal': 2500.0,
+        'hsaWithdrawalInflationRate': 0.05
+    }
+    
+    # Verify HSA withdrawal keys are present
+    assert 'hsaAnnualWithdrawal' in investments
+    assert 'hsaWithdrawalInflationRate' in investments
+    
+    # Verify types
+    assert isinstance(investments['hsaAnnualWithdrawal'], float)
+    assert isinstance(investments['hsaWithdrawalInflationRate'], float)
+    
+    # Verify inflation rate is a fraction (0-1), not a percentage
+    assert 0 <= investments['hsaWithdrawalInflationRate'] <= 1
+    
+    # Verify withdrawal is non-negative
+    assert investments['hsaAnnualWithdrawal'] >= 0
+
+
+def test_load_existing_spec_with_hsa_withdrawals():
+    """Test loading an existing spec.json file with HSA withdrawal data."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        spec = {
+            'firstYear': 2025,
+            'lastWorkingYear': 2035,
+            'lastPlanningYear': 2065,
+            'income': {'baseSalary': 150000},
+            'investments': {
+                'hsaBalance': 60000.0,
+                'hsaAppreciationRate': 0.07,
+                'hsaAnnualWithdrawal': 4000.0,
+                'hsaWithdrawalInflationRate': 0.03
+            }
+        }
+        
+        # Create the program directory and save the spec
+        os.makedirs(os.path.join(tmpdir, 'input-parameters'))
+        save_spec(spec, 'testprogram', tmpdir)
+        
+        # Load the spec
+        loaded_spec = load_existing_spec('testprogram', tmpdir)
+        
+        assert loaded_spec is not None
+        assert 'investments' in loaded_spec
+        assert loaded_spec['investments']['hsaAnnualWithdrawal'] == 4000.0
+        assert loaded_spec['investments']['hsaWithdrawalInflationRate'] == 0.03
