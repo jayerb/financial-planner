@@ -759,25 +759,59 @@ Type 'exit' or 'quit' to exit.
         if not title:
             title = name
         
-        # Get fields
+        # Get fields with tab completion support
         print("\nEnter field names one per line (empty line to finish):")
-        print("Tip: Use 'fields' command to see available field names.")
+        print("Tip: Use TAB to search/complete field names.")
         print()
         
         fields = []
-        while True:
-            field = input("  Field: ").strip()
-            if not field:
-                break
+        
+        # Set up custom completer for field names
+        def field_completer(text, state):
+            """Completer function for field names."""
+            text_lower = text.lower()
+            if not text:
+                matches = self.available_fields[:]
+            else:
+                # Case-insensitive substring match
+                matches = [f for f in self.available_fields if text_lower in f.lower()]
             
-            if field not in self.available_fields:
-                print(f"    Warning: '{field}' is not a recognized field name.")
-                add_anyway = input("    Add anyway? [y/N]: ").strip().lower()
-                if add_anyway not in ('y', 'yes'):
-                    continue
+            try:
+                return matches[state]
+            except IndexError:
+                return None
+        
+        # Save original completer and delims
+        old_completer = readline.get_completer()
+        old_delims = readline.get_completer_delims()
+        
+        try:
+            # Set custom completer for field input
+            readline.set_completer(field_completer)
+            readline.set_completer_delims(' \t\n')
             
-            fields.append(field)
-            print(f"    Added: {field}")
+            while True:
+                try:
+                    field = input("  Field: ").strip()
+                except EOFError:
+                    print()
+                    break
+                    
+                if not field:
+                    break
+                
+                if field not in self.available_fields:
+                    print(f"    Warning: '{field}' is not a recognized field name.")
+                    add_anyway = input("    Add anyway? [y/N]: ").strip().lower()
+                    if add_anyway not in ('y', 'yes'):
+                        continue
+                
+                fields.append(field)
+                print(f"    Added: {field}")
+        finally:
+            # Restore original completer
+            readline.set_completer(old_completer)
+            readline.set_completer_delims(old_delims)
         
         if not fields:
             print("\nError: At least one field is required.")
