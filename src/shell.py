@@ -33,6 +33,19 @@ import cmd
 import readline
 from dataclasses import fields as dataclass_fields
 
+# Configure readline for tab completion
+# This must be done before the cmd.Cmd class is used
+try:
+    # For Unix/Linux/macOS - use libedit or GNU readline
+    if 'libedit' in readline.__doc__:
+        # macOS uses libedit which has different syntax
+        readline.parse_and_bind("bind ^I rl_complete")
+    else:
+        # GNU readline (Linux)
+        readline.parse_and_bind("tab: complete")
+except (AttributeError, TypeError):
+    pass  # readline might not be fully available
+
 # Add src directory to path for imports
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -155,11 +168,19 @@ Type 'exit' or 'quit' to exit.
         self.program_name = program_name
         self.available_fields = get_yearly_fields()
         self._update_intro()
-        # Configure readline for better tab completion
+    
+    def preloop(self):
+        """Set up readline before entering the command loop."""
         try:
-            readline.set_completer_delims(' \t\n')
-        except Exception:
-            pass  # readline might not be fully available on all platforms
+            # Set completer delimiters - space and comma separate arguments
+            readline.set_completer_delims(' \t\n,')
+            # Ensure tab completion is bound
+            if 'libedit' in (readline.__doc__ or ''):
+                readline.parse_and_bind("bind ^I rl_complete")
+            else:
+                readline.parse_and_bind("tab: complete")
+        except (AttributeError, TypeError):
+            pass  # readline might not be fully available
     
     def _get_available_programs(self) -> list:
         """Get list of available program names from input-parameters directory."""
@@ -423,8 +444,14 @@ Type 'exit' or 'quit' to exit.
         print()
     
     def complete_fields(self, text, line, begidx, endidx):
-        """Tab completion for the fields command."""
-        return [f for f in self.available_fields if f.startswith(text)]
+        """Tab completion for the fields command.
+        
+        Matches field names containing the text anywhere (case-insensitive substring match).
+        """
+        if not text:
+            return self.available_fields
+        text_lower = text.lower()
+        return [f for f in self.available_fields if text_lower in f.lower()]
         print()
     
     def do_years(self, arg: str):
@@ -507,15 +534,23 @@ Type 'exit' or 'quit' to exit.
         
         mode = parts[0]
         
-        if mode not in RENDERER_REGISTRY:
+        # Case-insensitive lookup for render mode
+        mode_lower = mode.lower()
+        matched_mode = None
+        for registry_mode in RENDERER_REGISTRY.keys():
+            if registry_mode.lower() == mode_lower:
+                matched_mode = registry_mode
+                break
+        
+        if matched_mode is None:
             print(f"Error: Unknown render mode '{mode}'")
             print(f"Available modes: {', '.join(RENDERER_REGISTRY.keys())}")
             return
         
-        renderer_class = RENDERER_REGISTRY[mode]
+        renderer_class = RENDERER_REGISTRY[matched_mode]
         
         # TaxDetails requires a year argument
-        if mode == 'TaxDetails':
+        if matched_mode == 'TaxDetails':
             if len(parts) < 2:
                 print("Error: TaxDetails requires a year argument.")
                 print(f"Usage: render TaxDetails <year>")
@@ -539,11 +574,17 @@ Type 'exit' or 'quit' to exit.
         print(output)
     
     def complete_render(self, text, line, begidx, endidx):
-        """Tab completion for the render command."""
+        """Tab completion for the render command.
+        
+        Matches render mode names containing the text anywhere (case-insensitive substring match).
+        """
         parts = line.split()
         if len(parts) <= 2:
-            # Complete render mode names
-            return [mode for mode in RENDERER_REGISTRY.keys() if mode.startswith(text)]
+            # Complete render mode names - case-insensitive substring match
+            if not text:
+                return list(RENDERER_REGISTRY.keys())
+            text_lower = text.lower()
+            return [mode for mode in RENDERER_REGISTRY.keys() if text_lower in mode.lower()]
         return []
     
     def do_generate(self, arg: str):
@@ -675,16 +716,27 @@ Available Commands:
         print("Type 'help' for available commands.")
     
     def completedefault(self, text, line, begidx, endidx):
-        """Provide tab completion for field names."""
+        """Provide tab completion for field names.
+        
+        Matches field names containing the text anywhere (case-insensitive substring match).
+        """
         if line.startswith('get '):
-            # Complete field names
-            return [f for f in self.available_fields if f.startswith(text)]
+            # Complete field names - case-insensitive substring match
+            if not text:
+                return self.available_fields
+            text_lower = text.lower()
+            return [f for f in self.available_fields if text_lower in f.lower()]
         return []
     
     def complete_get(self, text, line, begidx, endidx):
-        """Tab completion for the get command."""
-        # Get the part after 'get '
-        return [f for f in self.available_fields if f.startswith(text)]
+        """Tab completion for the get command.
+        
+        Matches field names containing the text anywhere (case-insensitive substring match).
+        """
+        if not text:
+            return self.available_fields
+        text_lower = text.lower()
+        return [f for f in self.available_fields if text_lower in f.lower()]
     
     def complete_load(self, text, line, begidx, endidx):
         """Tab completion for the load command."""

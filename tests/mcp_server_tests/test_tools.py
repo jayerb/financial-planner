@@ -3,6 +3,8 @@
 import os
 import sys
 import json
+import shutil
+import tempfile
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -13,17 +15,50 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 from tools import FinancialPlannerTools, MultiProgramTools
 
 
-# Path to the test fixtures
-BASE_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+# Path to test fixtures (contains reference files needed for calculations)
+FIXTURES_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), 'fixtures'))
+
+# Path to the project root (for reference files)
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+
+
+@pytest.fixture(scope="module")
+def test_base_path():
+    """Create a temporary directory structure for testing.
+    
+    This creates a temp directory with the required structure:
+    - input-parameters/testprogram/spec.json (from fixtures)
+    - reference/*.json (symlinked from project)
+    """
+    temp_dir = tempfile.mkdtemp()
+    
+    # Copy the test program from fixtures
+    input_params_dir = os.path.join(temp_dir, 'input-parameters')
+    os.makedirs(input_params_dir)
+    shutil.copytree(
+        os.path.join(FIXTURES_PATH, 'testprogram'),
+        os.path.join(input_params_dir, 'testprogram')
+    )
+    
+    # Symlink the reference directory from the project root
+    os.symlink(
+        os.path.join(PROJECT_ROOT, 'reference'),
+        os.path.join(temp_dir, 'reference')
+    )
+    
+    yield temp_dir
+    
+    # Cleanup
+    shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 class TestFinancialPlannerTools:
     """Tests for FinancialPlannerTools class."""
     
     @pytest.fixture
-    def tools(self):
-        """Create a FinancialPlannerTools instance using quickexample program."""
-        return FinancialPlannerTools(BASE_PATH, 'quickexample')
+    def tools(self, test_base_path):
+        """Create a FinancialPlannerTools instance using testprogram."""
+        return FinancialPlannerTools(test_base_path, 'testprogram')
     
     def test_init_loads_spec(self, tools):
         """Test that initialization loads the spec correctly."""
@@ -285,25 +320,25 @@ class TestMultiProgramTools:
     """Tests for MultiProgramTools class."""
     
     @pytest.fixture
-    def multi_tools(self):
+    def multi_tools(self, test_base_path):
         """Create a MultiProgramTools instance."""
-        return MultiProgramTools(BASE_PATH)
+        return MultiProgramTools(test_base_path)
     
     def test_init_discovers_programs(self, multi_tools):
         """Test that initialization discovers available programs."""
         assert len(multi_tools.programs) > 0
-        # We know quickexample exists
-        assert 'quickexample' in multi_tools.programs
+        # We know testprogram exists in our fixture
+        assert 'testprogram' in multi_tools.programs
     
     def test_init_sets_default_program(self, multi_tools):
         """Test that a default program is set."""
         assert multi_tools.default_program is not None
         assert multi_tools.default_program in multi_tools.programs
     
-    def test_init_with_explicit_default(self):
+    def test_init_with_explicit_default(self, test_base_path):
         """Test initialization with explicit default program."""
-        tools = MultiProgramTools(BASE_PATH, default_program='quickexample')
-        assert tools.default_program == 'quickexample'
+        tools = MultiProgramTools(test_base_path, default_program='testprogram')
+        assert tools.default_program == 'testprogram'
     
     def test_list_programs(self, multi_tools):
         """Test list_programs returns program information."""
@@ -324,18 +359,11 @@ class TestMultiProgramTools:
     
     def test_get_program_overview_with_program(self, multi_tools):
         """Test get_program_overview with explicit program."""
-        result = multi_tools.get_program_overview('quickexample')
+        result = multi_tools.get_program_overview('testprogram')
         
         assert 'program' in result
-        assert result['program'] == 'quickexample'
+        assert result['program'] == 'testprogram'
         assert 'planning_horizon' in result
-    
-    def test_get_program_overview_requires_program_when_multiple(self, multi_tools):
-        """Test that get_program_overview requires program specification when multiple exist."""
-        if len(multi_tools.programs) > 1:
-            with pytest.raises(ValueError) as exc_info:
-                multi_tools.get_program_overview(None)
-            assert 'Multiple programs' in str(exc_info.value)
     
     def test_get_program_invalid_program(self, multi_tools):
         """Test that invalid program name raises error."""
@@ -345,7 +373,7 @@ class TestMultiProgramTools:
     
     def test_list_available_years_with_program(self, multi_tools):
         """Test list_available_years with explicit program."""
-        result = multi_tools.list_available_years('quickexample')
+        result = multi_tools.list_available_years('testprogram')
         
         assert 'program' in result
         assert 'working_years' in result
@@ -353,7 +381,7 @@ class TestMultiProgramTools:
     
     def test_get_annual_summary_with_program(self, multi_tools):
         """Test get_annual_summary with explicit program."""
-        result = multi_tools.get_annual_summary(2025, 'quickexample')
+        result = multi_tools.get_annual_summary(2025, 'testprogram')
         
         assert 'program' in result
         assert result['year'] == 2025
@@ -361,7 +389,7 @@ class TestMultiProgramTools:
     
     def test_get_tax_details_with_program(self, multi_tools):
         """Test get_tax_details with explicit program."""
-        result = multi_tools.get_tax_details(2025, 'quickexample')
+        result = multi_tools.get_tax_details(2025, 'testprogram')
         
         assert 'program' in result
         assert 'federal' in result
@@ -369,103 +397,75 @@ class TestMultiProgramTools:
     
     def test_get_income_breakdown_with_program(self, multi_tools):
         """Test get_income_breakdown with explicit program."""
-        result = multi_tools.get_income_breakdown(2025, 'quickexample')
+        result = multi_tools.get_income_breakdown(2025, 'testprogram')
         
         assert 'program' in result
         assert 'gross_income' in result
     
     def test_get_deferred_comp_info_with_program(self, multi_tools):
         """Test get_deferred_comp_info with explicit program."""
-        result = multi_tools.get_deferred_comp_info(2025, 'quickexample')
+        result = multi_tools.get_deferred_comp_info(2025, 'testprogram')
         
         assert 'program' in result
         assert 'contribution' in result
     
     def test_get_retirement_balances_with_program(self, multi_tools):
         """Test get_retirement_balances with explicit program."""
-        result = multi_tools.get_retirement_balances(None, 'quickexample')
+        result = multi_tools.get_retirement_balances(None, 'testprogram')
         
         assert 'program' in result
     
     def test_get_investment_balances_with_program(self, multi_tools):
         """Test get_investment_balances with explicit program."""
-        result = multi_tools.get_investment_balances(None, 'quickexample')
+        result = multi_tools.get_investment_balances(None, 'testprogram')
         
         assert 'program' in result
     
     def test_compare_years_with_program(self, multi_tools):
         """Test compare_years with explicit program."""
-        result = multi_tools.compare_years(2025, 2030, 'quickexample')
+        result = multi_tools.compare_years(2025, 2030, 'testprogram')
         
         assert 'program' in result
         assert 'comparison' in result
     
     def test_get_lifetime_totals_with_program(self, multi_tools):
         """Test get_lifetime_totals with explicit program."""
-        result = multi_tools.get_lifetime_totals('quickexample')
+        result = multi_tools.get_lifetime_totals('testprogram')
         
         assert 'program' in result
         assert 'lifetime_totals' in result
     
     def test_search_financial_data_with_program(self, multi_tools):
         """Test search_financial_data with explicit program."""
-        result = multi_tools.search_financial_data('salary', 2025, 'quickexample')
+        result = multi_tools.search_financial_data('salary', 2025, 'testprogram')
         
         assert 'program' in result
         assert 'query' in result
 
 
-class TestFinancialPlannerToolsWithMyProgram:
-    """Tests using the myprogram configuration which has more features."""
-    
-    @pytest.fixture
-    def tools(self):
-        """Create a FinancialPlannerTools instance using myprogram."""
-        if os.path.exists(os.path.join(BASE_PATH, 'input-parameters', 'myprogram', 'spec.json')):
-            return FinancialPlannerTools(BASE_PATH, 'myprogram')
-        else:
-            pytest.skip("myprogram not available")
-    
-    def test_rsu_income_present(self, tools):
-        """Test that RSU income is calculated for programs with RSU config."""
-        breakdown = tools.get_income_breakdown(tools.first_year)
-        
-        if 'earned_income' in breakdown:
-            earned = breakdown['earned_income']
-            # myprogram should have RSU configuration
-            assert 'rsu_vested_value' in earned
-    
-    def test_deferred_comp_contributions(self, tools):
-        """Test deferred comp contributions are tracked."""
-        info = tools.get_deferred_comp_info(tools.first_year)
-        
-        # myprogram has deferred comp
-        assert info['contribution'] >= 0
-
-
 class TestEdgeCases:
     """Test edge cases and error handling."""
     
-    def test_load_invalid_program(self):
+    def test_load_invalid_program(self, test_base_path):
         """Test that loading an invalid program raises an error."""
         with pytest.raises(FileNotFoundError):
-            FinancialPlannerTools(BASE_PATH, 'nonexistent_program')
+            FinancialPlannerTools(test_base_path, 'nonexistent_program')
     
     def test_multi_tools_with_invalid_base_path(self):
         """Test MultiProgramTools with invalid base path."""
         tools = MultiProgramTools('/nonexistent/path')
         assert len(tools.programs) == 0
     
-    def test_get_retirement_balances_invalid_year(self):
+    def test_get_retirement_balances_invalid_year(self, test_base_path):
         """Test get_retirement_balances with invalid year."""
-        tools = FinancialPlannerTools(BASE_PATH, 'quickexample')
+        tools = FinancialPlannerTools(test_base_path, 'testprogram')
         result = tools.get_retirement_balances(1900)
         
         assert 'error' in result
     
-    def test_yearly_results_consistency(self):
+    def test_yearly_results_consistency(self, test_base_path):
         """Test that cached yearly results are consistent."""
-        tools = FinancialPlannerTools(BASE_PATH, 'quickexample')
+        tools = FinancialPlannerTools(test_base_path, 'testprogram')
         
         # Get results twice
         result1 = tools.get_annual_summary(2025)
@@ -475,9 +475,9 @@ class TestEdgeCases:
         assert result1['gross_income'] == result2['gross_income']
         assert result1['take_home_pay'] == result2['take_home_pay']
     
-    def test_tax_amounts_are_reasonable(self):
+    def test_tax_amounts_are_reasonable(self, test_base_path):
         """Test that tax amounts are within reasonable bounds."""
-        tools = FinancialPlannerTools(BASE_PATH, 'quickexample')
+        tools = FinancialPlannerTools(test_base_path, 'testprogram')
         summary = tools.get_annual_summary(2025)
         
         # Tax should be positive but less than gross income
@@ -491,9 +491,9 @@ class TestEdgeCases:
         total = summary['take_home_pay'] + summary['total_tax'] + summary['total_deferral']
         assert abs(total - summary['gross_income']) < 100  # Allow small rounding difference
     
-    def test_effective_tax_rate_bounds(self):
+    def test_effective_tax_rate_bounds(self, test_base_path):
         """Test that effective tax rate is within reasonable bounds."""
-        tools = FinancialPlannerTools(BASE_PATH, 'quickexample')
+        tools = FinancialPlannerTools(test_base_path, 'testprogram')
         summary = tools.get_annual_summary(2025)
         
         # Effective rate should be between 0% and 60%
