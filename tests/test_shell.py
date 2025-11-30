@@ -414,3 +414,100 @@ class TestTabCompletion:
         
         assert isinstance(programs, list)
         assert 'quickexample' in programs
+
+
+class TestCaseInsensitiveTabCompletion:
+    """Test case-insensitive substring matching for tab completion."""
+    
+    @pytest.fixture
+    def shell(self):
+        """Create a shell without a loaded plan."""
+        return FinancialPlanShell()
+    
+    def test_complete_get_case_insensitive_lowercase(self, shell):
+        """Test that get completion is case-insensitive with lowercase input."""
+        completions = shell.complete_get('tax', 'get tax', 4, 7)
+        
+        # Should match fields containing 'tax' anywhere
+        assert 'federal_tax' in completions
+        assert 'state_tax' in completions
+        assert 'total_taxes' in completions
+        assert 'medicare_tax' in completions
+    
+    def test_complete_get_case_insensitive_uppercase(self, shell):
+        """Test that get completion is case-insensitive with uppercase input."""
+        completions = shell.complete_get('TAX', 'get TAX', 4, 7)
+        
+        # Should match fields containing 'tax' anywhere (case-insensitive)
+        assert 'federal_tax' in completions
+        assert 'state_tax' in completions
+        assert 'total_taxes' in completions
+    
+    def test_complete_get_case_insensitive_mixed_case(self, shell):
+        """Test that get completion is case-insensitive with mixed case input."""
+        completions = shell.complete_get('TaX', 'get TaX', 4, 7)
+        
+        # Should match fields containing 'tax' anywhere (case-insensitive)
+        assert 'federal_tax' in completions
+        assert 'state_tax' in completions
+    
+    def test_complete_get_substring_match(self, shell):
+        """Test that get completion matches substrings, not just prefixes."""
+        completions = shell.complete_get('income', 'get income', 4, 10)
+        
+        # Should match fields containing 'income' anywhere
+        assert 'gross_income' in completions
+        assert 'adjusted_gross_income' in completions
+        assert 'other_income' in completions
+        # Should not include fields without 'income'
+        assert 'federal_tax' not in completions
+    
+    def test_complete_fields_case_insensitive(self, shell):
+        """Test that fields completion is case-insensitive."""
+        completions = shell.complete_fields('BALANCE', 'fields BALANCE', 7, 14)
+        
+        # Should match fields containing 'balance' (case-insensitive)
+        assert 'balance_ira' in completions
+        assert 'balance_hsa' in completions
+        assert 'balance_taxable' in completions
+        assert 'balance_deferred_comp' in completions
+    
+    def test_complete_fields_substring_match(self, shell):
+        """Test that fields completion matches substrings."""
+        completions = shell.complete_fields('ira', 'fields ira', 7, 10)
+        
+        # Should match fields containing 'ira' anywhere
+        assert 'balance_ira' in completions
+        assert 'appreciation_ira' in completions
+        assert 'ira_withdrawal' in completions
+    
+    def test_completedefault_case_insensitive(self, shell):
+        """Test that default completion is case-insensitive for get command."""
+        completions = shell.completedefault('SALARY', 'get SALARY', 4, 10)
+        
+        # Should match fields containing 'salary' (case-insensitive)
+        assert 'base_salary' in completions
+    
+    def test_completedefault_substring_match(self, shell):
+        """Test that default completion matches substrings for get command."""
+        completions = shell.completedefault('contribution', 'get contribution', 4, 16)
+        
+        # Should match fields containing 'contribution' anywhere
+        assert 'employee_401k_contribution' in completions
+        assert 'total_401k_contribution' in completions
+        assert 'hsa_contribution' in completions
+        assert 'deferred_comp_contribution' in completions
+        assert 'taxable_contribution' in completions
+        assert 'total_contributions' in completions
+    
+    def test_complete_get_empty_returns_all_fields(self, shell):
+        """Test that empty text returns all fields."""
+        completions = shell.complete_get('', 'get ', 4, 4)
+        
+        assert len(completions) == len(shell.available_fields)
+    
+    def test_complete_fields_empty_returns_all_fields(self, shell):
+        """Test that empty text returns all fields for fields command."""
+        completions = shell.complete_fields('', 'fields ', 7, 7)
+        
+        assert len(completions) == len(shell.available_fields)

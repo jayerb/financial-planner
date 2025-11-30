@@ -446,11 +446,12 @@ Type 'exit' or 'quit' to exit.
     def complete_fields(self, text, line, begidx, endidx):
         """Tab completion for the fields command.
         
-        Matches field names containing the text anywhere (substring match).
+        Matches field names containing the text anywhere (case-insensitive substring match).
         """
         if not text:
             return self.available_fields
-        return [f for f in self.available_fields if text in f]
+        text_lower = text.lower()
+        return [f for f in self.available_fields if text_lower in f.lower()]
         print()
     
     def do_years(self, arg: str):
@@ -703,23 +704,25 @@ Available Commands:
     def completedefault(self, text, line, begidx, endidx):
         """Provide tab completion for field names.
         
-        Matches field names containing the text anywhere (substring match).
+        Matches field names containing the text anywhere (case-insensitive substring match).
         """
         if line.startswith('get '):
-            # Complete field names - substring match
+            # Complete field names - case-insensitive substring match
             if not text:
                 return self.available_fields
-            return [f for f in self.available_fields if text in f]
+            text_lower = text.lower()
+            return [f for f in self.available_fields if text_lower in f.lower()]
         return []
     
     def complete_get(self, text, line, begidx, endidx):
         """Tab completion for the get command.
         
-        Matches field names containing the text anywhere (substring match).
+        Matches field names containing the text anywhere (case-insensitive substring match).
         """
         if not text:
             return self.available_fields
-        return [f for f in self.available_fields if text in f]
+        text_lower = text.lower()
+        return [f for f in self.available_fields if text_lower in f.lower()]
     
     def complete_load(self, text, line, begidx, endidx):
         """Tab completion for the load command."""
