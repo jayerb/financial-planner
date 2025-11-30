@@ -45,6 +45,7 @@ from calc.rsu_calculator import RSUCalculator
 from calc.plan_calculator import PlanCalculator
 from model.PlanData import PlanData, YearlyData
 from spec_generator import run_generator
+from render.renderers import RENDERER_REGISTRY, TaxDetailsRenderer
 
 
 def load_plan(program_name: str) -> PlanData:
@@ -421,6 +422,83 @@ Type 'exit' or 'quit' to exit.
         print(f"  Total Assets:        {format_value(self.plan_data.total_retirement_assets)}")
         print()
     
+    def do_render(self, arg: str):
+        """Render financial data using different output formats.
+        
+        Usage: render [mode] [year]
+        
+        If no mode is specified, shows available render modes.
+        
+        Available modes:
+            TaxDetails     - Detailed tax breakdown (requires year)
+            Balances       - Account balances over time
+            AnnualSummary  - Year-by-year summary
+            Contributions  - Retirement contributions breakdown
+            MoneyMovement  - Cash flow and account movements
+            CashFlow       - Income, expenses, and net cash flow
+        
+        Examples:
+            render                    - List available modes
+            render Balances           - Show account balances
+            render TaxDetails 2026    - Show tax details for 2026
+        """
+        if not self._require_plan():
+            return
+        
+        parts = arg.strip().split()
+        
+        if not parts:
+            # List available render modes
+            print("\nAvailable render modes:")
+            print("=" * 40)
+            for mode in RENDERER_REGISTRY.keys():
+                print(f"  - {mode}")
+            print("\nUsage: render <mode> [year]")
+            print("Note: TaxDetails requires a year argument.")
+            print()
+            return
+        
+        mode = parts[0]
+        
+        if mode not in RENDERER_REGISTRY:
+            print(f"Error: Unknown render mode '{mode}'")
+            print(f"Available modes: {', '.join(RENDERER_REGISTRY.keys())}")
+            return
+        
+        renderer_class = RENDERER_REGISTRY[mode]
+        
+        # TaxDetails requires a year argument
+        if mode == 'TaxDetails':
+            if len(parts) < 2:
+                print("Error: TaxDetails requires a year argument.")
+                print(f"Usage: render TaxDetails <year>")
+                print(f"Example: render TaxDetails {self.plan_data.first_year}")
+                return
+            try:
+                tax_year = int(parts[1])
+                if tax_year < self.plan_data.first_year or tax_year > self.plan_data.last_planning_year:
+                    print(f"Error: Year must be between {self.plan_data.first_year} and {self.plan_data.last_planning_year}")
+                    return
+                renderer = TaxDetailsRenderer(tax_year)
+            except ValueError:
+                print(f"Error: Invalid year '{parts[1]}'")
+                return
+        else:
+            renderer = renderer_class()
+        
+        # Render the output
+        print()
+        output = renderer.render(self.plan_data)
+        print(output)
+    
+    def complete_render(self, text, line, begidx, endidx):
+        """Tab completion for the render command."""
+        parts = line.split()
+        if len(parts) <= 2:
+            # Complete render mode names
+            return [mode for mode in RENDERER_REGISTRY.keys() if mode.startswith(text)]
+        return []
+    
     def do_generate(self, arg: str):
         """Launch the interactive wizard to create or update a financial plan.
         
@@ -501,6 +579,17 @@ Available Commands:
 
   summary
       Show lifetime summary totals.
+
+  render [mode] [year]
+      Render financial data using different output formats.
+      Modes: TaxDetails, Balances, AnnualSummary, Contributions,
+             MoneyMovement, CashFlow
+      Note: TaxDetails requires a year argument.
+      
+      Examples:
+        render                    - List available modes
+        render Balances           - Show account balances
+        render TaxDetails 2026    - Show tax details for 2026
 
   generate
       Launch the interactive wizard to create or update a financial plan.
