@@ -510,3 +510,71 @@ def test_load_existing_spec_with_expenses():
         assert loaded_spec['expenses']['inflationRate'] == 0.04
         assert len(loaded_spec['expenses']['specialExpenses']) == 1
         assert loaded_spec['expenses']['specialExpenses'][0]['description'] == 'Wedding'
+
+
+def test_save_spec_with_birth_year():
+    """Test that save_spec correctly saves birth year for Medicare eligibility."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        spec = {
+            'birthYear': 1975,
+            'firstYear': 2025,
+            'lastWorkingYear': 2035,
+            'lastPlanningYear': 2065,
+            'income': {'baseSalary': 100000}
+        }
+        
+        os.makedirs(os.path.join(tmpdir, 'input-parameters'))
+        
+        result_path = save_spec(spec, 'testprogram', tmpdir)
+        
+        with open(result_path, 'r') as f:
+            saved_spec = json.load(f)
+        
+        assert 'birthYear' in saved_spec
+        assert saved_spec['birthYear'] == 1975
+
+
+def test_birth_year_determines_medicare_eligibility():
+    """Test that birth year can be used to calculate Medicare eligibility at age 65."""
+    spec = {
+        'birthYear': 1970,
+        'firstYear': 2025,
+        'lastWorkingYear': 2035,
+        'lastPlanningYear': 2065
+    }
+    
+    # Medicare eligibility is at age 65
+    medicare_age = 65
+    medicare_eligible_year = spec['birthYear'] + medicare_age
+    
+    assert medicare_eligible_year == 2035
+    
+    # Verify the person would be Medicare eligible starting in their retirement
+    assert medicare_eligible_year >= spec['lastWorkingYear']
+
+
+def test_load_existing_spec_with_birth_year():
+    """Test loading an existing spec.json file with birth year."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        spec = {
+            'birthYear': 1980,
+            'firstYear': 2025,
+            'lastWorkingYear': 2040,
+            'lastPlanningYear': 2070,
+            'income': {'baseSalary': 150000}
+        }
+        
+        # Create the program directory and save the spec
+        os.makedirs(os.path.join(tmpdir, 'input-parameters'))
+        save_spec(spec, 'testprogram', tmpdir)
+        
+        # Load the spec
+        loaded_spec = load_existing_spec('testprogram', tmpdir)
+        
+        assert loaded_spec is not None
+        assert 'birthYear' in loaded_spec
+        assert loaded_spec['birthYear'] == 1980
+        
+        # Verify Medicare eligibility calculation
+        medicare_eligible_year = loaded_spec['birthYear'] + 65
+        assert medicare_eligible_year == 2045

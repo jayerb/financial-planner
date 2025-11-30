@@ -86,6 +86,8 @@ class YearlyData:
     # Expenses and money movement
     annual_expenses: float = 0.0
     special_expenses: float = 0.0
+    medical_premium: float = 0.0  # Medical/insurance premium for the year (tracked for all years)
+    medical_premium_expense: float = 0.0  # Medical premium as expense (only in retirement, not covered by employer)
     total_expenses: float = 0.0
     income_expense_difference: float = 0.0  # take_home - total_expenses
     ira_withdrawal: float = 0.0  # Amount withdrawn from 401k/IRA to cover expenses

@@ -176,6 +176,13 @@ def generate_spec(existing_spec: Optional[dict] = None) -> dict:
     # =========================================================================
     print_section("Planning Horizon")
     
+    spec['birthYear'] = prompt_int(
+        "Your birth year (for Medicare eligibility at age 65)",
+        default=ex.get('birthYear', current_year - 50),
+        min_val=1900,
+        max_val=current_year
+    )
+    
     spec['firstYear'] = prompt_int(
         "First year of your plan",
         default=ex.get('firstYear', current_year),

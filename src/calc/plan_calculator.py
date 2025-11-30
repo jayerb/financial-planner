@@ -93,6 +93,11 @@ class PlanCalculator:
         initial_local_tax = local_tax_spec.get('realEstate', 0)
         local_tax_inflation = local_tax_spec.get('inflationRate', 0.03)
         
+        # Insurance parameters
+        insurance_spec = spec.get('insurance', {})
+        initial_insurance_premium = insurance_spec.get('fullInsurancePremiums', 0)
+        premium_inflation = insurance_spec.get('premiumInflationRate', 0.04)
+        
         # Expense parameters
         expenses_spec = spec.get('expenses', {})
         initial_annual_expenses = expenses_spec.get('annualAmount', 0)
@@ -115,6 +120,7 @@ class PlanCalculator:
         current_employer_hsa = initial_employer_hsa
         current_local_tax = initial_local_tax
         current_annual_expenses = initial_annual_expenses
+        current_insurance_premium = initial_insurance_premium
         
         # Track balances
         balance_taxable = initial_taxable
@@ -139,6 +145,7 @@ class PlanCalculator:
                 current_employer_hsa = current_employer_hsa * (1 + inflation_rate)
                 current_local_tax = current_local_tax * (1 + local_tax_inflation)
                 current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
+                current_insurance_premium = current_insurance_premium * (1 + premium_inflation)
                 
                 # Calculate appreciation amounts before applying growth
                 yd.appreciation_taxable = balance_taxable * taxable_appreciation
@@ -160,6 +167,7 @@ class PlanCalculator:
             yd.other_income = other_income
             yd.medical_dental_vision = current_medical
             yd.local_tax = current_local_tax
+            yd.medical_premium = current_insurance_premium  # Track premium (employer covers during working years)
             
             # Deferrals
             yd.base_deferral = current_salary * base_deferral_fraction
@@ -239,7 +247,9 @@ class PlanCalculator:
             # Expenses and money movement
             yd.annual_expenses = current_annual_expenses
             yd.special_expenses = special_expenses.get(year, 0)
-            yd.total_expenses = yd.annual_expenses + yd.special_expenses
+            yd.medical_premium = current_insurance_premium  # Track premium (employer covers during working years)
+            yd.medical_premium_expense = 0  # Employer covers premium during working years
+            yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.medical_premium_expense
             yd.income_expense_difference = yd.take_home_pay - yd.total_expenses
             yd.taxable_account_adjustment = yd.income_expense_difference
             
@@ -314,8 +324,10 @@ class PlanCalculator:
             
             current_local_tax = current_local_tax * (1 + local_tax_inflation)
             current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
+            current_insurance_premium = current_insurance_premium * (1 + premium_inflation)
             
             yd.local_tax = current_local_tax
+            yd.medical_premium = current_insurance_premium  # Track premium for reference
             
             # Calculate disbursement as balance / remaining disbursement years
             remaining_disbursement_years = disbursement_end - year + 1
@@ -359,7 +371,8 @@ class PlanCalculator:
             # Expenses and money movement
             yd.annual_expenses = current_annual_expenses
             yd.special_expenses = special_expenses.get(year, 0)
-            yd.total_expenses = yd.annual_expenses + yd.special_expenses
+            yd.medical_premium_expense = current_insurance_premium  # Must pay own premium in retirement
+            yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.medical_premium_expense
             yd.income_expense_difference = yd.take_home_pay - yd.total_expenses
             yd.taxable_account_adjustment = yd.income_expense_difference
             
@@ -405,8 +418,10 @@ class PlanCalculator:
             
             current_local_tax = current_local_tax * (1 + local_tax_inflation)
             current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
+            current_insurance_premium = current_insurance_premium * (1 + premium_inflation)
             
             yd.local_tax = current_local_tax
+            yd.medical_premium = current_insurance_premium  # Track premium for reference
             
             # Realized capital gains only (no disbursement)
             yd.short_term_capital_gains = balance_taxable * short_term_cg_percent
@@ -445,7 +460,8 @@ class PlanCalculator:
             # Expenses and money movement
             yd.annual_expenses = current_annual_expenses
             yd.special_expenses = special_expenses.get(year, 0)
-            yd.total_expenses = yd.annual_expenses + yd.special_expenses
+            yd.medical_premium_expense = current_insurance_premium  # Must pay own premium in retirement
+            yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.medical_premium_expense
             yd.income_expense_difference = yd.take_home_pay - yd.total_expenses
             
             # Calculate expense shortfall (amount needed beyond take-home pay)
