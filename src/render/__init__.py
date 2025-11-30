@@ -8,7 +8,13 @@ from render.renderers import (
     ContributionsRenderer,
     MoneyMovementRenderer,
     CashFlowRenderer,
+    CustomRenderer,
+    create_custom_renderer,
+    load_custom_renderers,
+    create_custom_renderer_from_config,
+    get_custom_renderer_factory,
     RENDERER_REGISTRY,
+    CUSTOM_CONFIG_PATH,
 )
 
 __all__ = [
@@ -19,5 +25,11 @@ __all__ = [
     'ContributionsRenderer',
     'MoneyMovementRenderer',
     'CashFlowRenderer',
+    'CustomRenderer',
+    'create_custom_renderer',
+    'load_custom_renderers',
+    'create_custom_renderer_from_config',
+    'get_custom_renderer_factory',
     'RENDERER_REGISTRY',
+    'CUSTOM_CONFIG_PATH',
 ]

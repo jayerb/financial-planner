@@ -5,10 +5,17 @@ for different types of financial planning outputs. Each renderer takes
 the unified PlanData structure and extracts the fields it needs.
 """
 
+import json
+import os
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Dict, List
 
 from model.PlanData import PlanData, YearlyData
+from model.field_metadata import get_short_name, get_field_info
+
+
+# Path to custom renderer configuration file
+CUSTOM_CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config', 'custom.json')
 
 
 class BaseRenderer(ABC):
@@ -577,6 +584,209 @@ class CashFlowRenderer(BaseRenderer):
         print()
 
 
+class CustomRenderer(BaseRenderer):
+    """A generalized renderer that displays a table of specified fields.
+    
+    This renderer can be dynamically configured with a title and list of fields
+    to display, making it easy to create custom views of the financial data.
+    """
+    
+    def __init__(self, title: str, fields: List[str], start_year: int = None, end_year: int = None, show_totals: bool = True):
+        """Initialize with a title and list of fields to display.
+        
+        Args:
+            title: The title to display at the top of the table
+            fields: List of field names from YearlyData to display as columns
+            start_year: First year to display (defaults to plan's first year)
+            end_year: Last year to display (defaults to plan's last planning year)
+            show_totals: Whether to show a totals row at the bottom (default True)
+        """
+        self.title = title
+        self.fields = fields
+        self.start_year = start_year
+        self.end_year = end_year
+        self.show_totals = show_totals
+    
+    def _get_column_width(self, field: str) -> int:
+        """Get the display width for a column based on the field type."""
+        # Use short name length or minimum of 12 for numeric fields
+        short_name = get_short_name(field)
+        return max(len(short_name) + 2, 12)
+    
+    def _format_value(self, value: Any, field: str, width: int) -> str:
+        """Format a value for display based on its type."""
+        if value is None:
+            return f"{'N/A':>{width}}"
+        elif isinstance(value, bool):
+            return f"{'Yes' if value else 'No':>{width}}"
+        elif isinstance(value, float):
+            # Check if it's a rate/percentage field
+            if 'rate' in field.lower() or 'bracket' in field.lower() or 'fraction' in field.lower():
+                return f"{value:>{width-1}.1%}"
+            else:
+                return f"${value:>{width-2},.0f}"
+        elif isinstance(value, int):
+            if field == 'year':
+                return f"{value:<{width}}"
+            return f"{value:>{width},}"
+        else:
+            return f"{str(value):>{width}}"
+    
+    def render(self, data: PlanData) -> None:
+        """Render a table with the specified fields.
+        
+        Args:
+            data: PlanData containing all yearly calculations
+        """
+        # Calculate column widths
+        col_widths = {}
+        for field in self.fields:
+            col_widths[field] = self._get_column_width(field)
+        
+        # Calculate total table width
+        year_width = 6
+        total_width = year_width + 2 + sum(col_widths.values()) + len(self.fields) * 2
+        total_width = max(total_width, len(self.title) + 10)
+        
+        # Print header
+        print()
+        print("=" * total_width)
+        print(f"{self.title.upper():^{total_width}}")
+        print("=" * total_width)
+        print()
+        
+        # Print column headers
+        header = f"  {'Year':<{year_width}}"
+        for field in self.fields:
+            short_name = get_short_name(field)
+            header += f" {short_name:>{col_widths[field]}}"
+        print(header)
+        
+        # Print separator line
+        sep = f"  {'-' * year_width}"
+        for field in self.fields:
+            sep += f" {'-' * col_widths[field]}"
+        print(sep)
+        
+        # Determine year range
+        start = self.start_year if self.start_year is not None else data.first_year
+        end = self.end_year if self.end_year is not None else data.last_planning_year
+        
+        # Track totals for numeric fields
+        totals = {field: 0.0 for field in self.fields}
+        row_count = 0
+        
+        # Print data rows
+        for year in sorted(data.yearly_data.keys()):
+            if year < start or year > end:
+                continue
+            
+            yd = data.yearly_data[year]
+            row = f"  {year:<{year_width}}"
+            
+            for field in self.fields:
+                value = getattr(yd, field, None)
+                width = col_widths[field]
+                row += f" {self._format_value(value, field, width)}"
+                
+                # Accumulate totals for numeric non-rate fields
+                if isinstance(value, (int, float)) and not isinstance(value, bool):
+                    if 'rate' not in field.lower() and 'bracket' not in field.lower() and 'fraction' not in field.lower() and field != 'year':
+                        totals[field] += value
+            
+            print(row)
+            row_count += 1
+        
+        # Print totals row if enabled
+        if self.show_totals and row_count > 0:
+            print(sep)
+            total_row = f"  {'TOTAL':<{year_width}}"
+            for field in self.fields:
+                width = col_widths[field]
+                value = totals[field]
+                
+                # Skip totals for rate/bracket fields, year, and boolean fields
+                if 'rate' in field.lower() or 'bracket' in field.lower() or 'fraction' in field.lower() or field == 'year' or field == 'is_working_year':
+                    total_row += f" {'':>{width}}"
+                else:
+                    total_row += f" ${value:>{width-2},.0f}"
+            
+            print(total_row)
+        
+        print()
+        print("=" * total_width)
+        print()
+
+
+def create_custom_renderer(title: str, fields: List[str], start_year: int = None, end_year: int = None, show_totals: bool = True) -> CustomRenderer:
+    """Factory function to create a CustomRenderer.
+    
+    Args:
+        title: The title to display at the top of the table
+        fields: List of field names from YearlyData to display as columns
+        start_year: First year to display (defaults to plan's first year)
+        end_year: Last year to display (defaults to plan's last planning year)
+        show_totals: Whether to show a totals row at the bottom (default True)
+        
+    Returns:
+        A configured CustomRenderer instance
+    """
+    return CustomRenderer(title, fields, start_year, end_year, show_totals)
+
+
+def load_custom_renderers() -> Dict[str, dict]:
+    """Load custom renderer configurations from the config file.
+    
+    Returns:
+        Dictionary mapping renderer names to their configurations
+    """
+    if not os.path.exists(CUSTOM_CONFIG_PATH):
+        return {}
+    
+    try:
+        with open(CUSTOM_CONFIG_PATH, 'r') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError) as e:
+        print(f"Warning: Could not load custom renderers from {CUSTOM_CONFIG_PATH}: {e}")
+        return {}
+
+
+def create_custom_renderer_from_config(name: str, config: dict, start_year: int = None, end_year: int = None) -> CustomRenderer:
+    """Create a CustomRenderer from a configuration dictionary.
+    
+    Args:
+        name: The name of the renderer (used as fallback title)
+        config: Configuration dict with 'title', 'fields', and optionally 'show_totals'
+        start_year: First year to display (defaults to plan's first year)
+        end_year: Last year to display (defaults to plan's last planning year)
+        
+    Returns:
+        A configured CustomRenderer instance
+    """
+    title = config.get('title', name)
+    fields = config.get('fields', [])
+    show_totals = config.get('show_totals', True)
+    
+    return CustomRenderer(title, fields, start_year, end_year, show_totals)
+
+
+def get_custom_renderer_factory(name: str, config: dict):
+    """Create a factory function for a custom renderer configuration.
+    
+    This is used to create callable factories that can be stored in RENDERER_REGISTRY.
+    
+    Args:
+        name: The name of the renderer
+        config: Configuration dict with 'title', 'fields', and optionally 'show_totals'
+        
+    Returns:
+        A factory function that creates CustomRenderer instances with optional year range
+    """
+    def factory(start_year: int = None, end_year: int = None) -> CustomRenderer:
+        return create_custom_renderer_from_config(name, config, start_year, end_year)
+    return factory
+
+
 # Registry mapping mode names to renderer classes
 RENDERER_REGISTRY = {
     'TaxDetails': TaxDetailsRenderer,
@@ -586,3 +796,8 @@ RENDERER_REGISTRY = {
     'MoneyMovement': MoneyMovementRenderer,
     'CashFlow': CashFlowRenderer,
 }
+
+# Load custom renderers from config file and add to registry
+_custom_configs = load_custom_renderers()
+for _name, _config in _custom_configs.items():
+    RENDERER_REGISTRY[_name] = get_custom_renderer_factory(_name, _config)

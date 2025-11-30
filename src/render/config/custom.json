@@ -1,0 +1,16 @@
+{
+    "Expenses": {
+        "title": "Expenses Breakdown",
+        "fields": [
+            "annual_expenses",
+            "special_expenses",
+            "medical_premium",
+            "medical_premium_expense",
+            "total_expenses",
+            "hsa_withdrawal",
+            "ira_withdrawal",
+            "taxable_account_adjustment"
+        ],
+        "show_totals": true
+    }
+}
