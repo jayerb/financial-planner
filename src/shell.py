@@ -534,15 +534,23 @@ Type 'exit' or 'quit' to exit.
         
         mode = parts[0]
         
-        if mode not in RENDERER_REGISTRY:
+        # Case-insensitive lookup for render mode
+        mode_lower = mode.lower()
+        matched_mode = None
+        for registry_mode in RENDERER_REGISTRY.keys():
+            if registry_mode.lower() == mode_lower:
+                matched_mode = registry_mode
+                break
+        
+        if matched_mode is None:
             print(f"Error: Unknown render mode '{mode}'")
             print(f"Available modes: {', '.join(RENDERER_REGISTRY.keys())}")
             return
         
-        renderer_class = RENDERER_REGISTRY[mode]
+        renderer_class = RENDERER_REGISTRY[matched_mode]
         
         # TaxDetails requires a year argument
-        if mode == 'TaxDetails':
+        if matched_mode == 'TaxDetails':
             if len(parts) < 2:
                 print("Error: TaxDetails requires a year argument.")
                 print(f"Usage: render TaxDetails <year>")
@@ -566,11 +574,17 @@ Type 'exit' or 'quit' to exit.
         print(output)
     
     def complete_render(self, text, line, begidx, endidx):
-        """Tab completion for the render command."""
+        """Tab completion for the render command.
+        
+        Matches render mode names containing the text anywhere (case-insensitive substring match).
+        """
         parts = line.split()
         if len(parts) <= 2:
-            # Complete render mode names
-            return [mode for mode in RENDERER_REGISTRY.keys() if mode.startswith(text)]
+            # Complete render mode names - case-insensitive substring match
+            if not text:
+                return list(RENDERER_REGISTRY.keys())
+            text_lower = text.lower()
+            return [mode for mode in RENDERER_REGISTRY.keys() if text_lower in mode.lower()]
         return []
     
     def do_generate(self, arg: str):

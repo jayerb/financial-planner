@@ -511,3 +511,115 @@ class TestCaseInsensitiveTabCompletion:
         completions = shell.complete_fields('', 'fields ', 7, 7)
         
         assert len(completions) == len(shell.available_fields)
+
+
+class TestCaseInsensitiveRendererSearch:
+    """Test case-insensitive matching for render command and tab completion."""
+    
+    @pytest.fixture
+    def shell_with_plan(self):
+        """Create a shell with a loaded plan."""
+        plan_data = load_plan('quickexample')
+        return FinancialPlanShell(plan_data, 'quickexample')
+    
+    def test_render_mode_case_insensitive_lowercase(self, shell_with_plan):
+        """Test that render mode lookup is case-insensitive with lowercase input."""
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            shell_with_plan.do_render('balances')
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        # Should successfully render, not show error
+        assert "Unknown render mode" not in result
+        assert str(shell_with_plan.plan_data.first_year) in result
+    
+    def test_render_mode_case_insensitive_uppercase(self, shell_with_plan):
+        """Test that render mode lookup is case-insensitive with uppercase input."""
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            shell_with_plan.do_render('BALANCES')
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        # Should successfully render, not show error
+        assert "Unknown render mode" not in result
+        assert str(shell_with_plan.plan_data.first_year) in result
+    
+    def test_render_mode_case_insensitive_mixed_case(self, shell_with_plan):
+        """Test that render mode lookup is case-insensitive with mixed case input."""
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            shell_with_plan.do_render('BaLaNcEs')
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        # Should successfully render, not show error
+        assert "Unknown render mode" not in result
+        assert str(shell_with_plan.plan_data.first_year) in result
+    
+    def test_render_taxdetails_case_insensitive(self, shell_with_plan):
+        """Test that TaxDetails mode is case-insensitive."""
+        first_year = shell_with_plan.plan_data.first_year
+        
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            shell_with_plan.do_render(f'taxdetails {first_year}')
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        # Should successfully render, not show error
+        assert "Unknown render mode" not in result
+        assert str(first_year) in result
+    
+    def test_complete_render_case_insensitive_lowercase(self, shell_with_plan):
+        """Test that render tab completion is case-insensitive with lowercase input."""
+        completions = shell_with_plan.complete_render('tax', 'render tax', 7, 10)
+        
+        # Should match TaxDetails (case-insensitive)
+        assert 'TaxDetails' in completions
+    
+    def test_complete_render_case_insensitive_uppercase(self, shell_with_plan):
+        """Test that render tab completion is case-insensitive with uppercase input."""
+        completions = shell_with_plan.complete_render('TAX', 'render TAX', 7, 10)
+        
+        # Should match TaxDetails (case-insensitive)
+        assert 'TaxDetails' in completions
+    
+    def test_complete_render_substring_match(self, shell_with_plan):
+        """Test that render tab completion matches substrings."""
+        completions = shell_with_plan.complete_render('flow', 'render flow', 7, 11)
+        
+        # Should match CashFlow (substring match)
+        assert 'CashFlow' in completions
+        # Should not match modes without 'flow'
+        assert 'Balances' not in completions
+    
+    def test_complete_render_substring_case_insensitive(self, shell_with_plan):
+        """Test that render tab completion does case-insensitive substring match."""
+        completions = shell_with_plan.complete_render('SUMMARY', 'render SUMMARY', 7, 14)
+        
+        # Should match AnnualSummary (case-insensitive substring)
+        assert 'AnnualSummary' in completions
+    
+    def test_complete_render_empty_returns_all_modes(self, shell_with_plan):
+        """Test that empty text returns all render modes."""
+        completions = shell_with_plan.complete_render('', 'render ', 7, 7)
+        
+        assert len(completions) == len(RENDERER_REGISTRY)
