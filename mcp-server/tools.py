@@ -17,11 +17,9 @@ from tax.StateDetails import StateDetails
 from tax.ESPPDetails import ESPPDetails
 from tax.SocialSecurityDetails import SocialSecurityDetails
 from tax.MedicareDetails import MedicareDetails
-from calc.take_home import TakeHomeCalculator
 from calc.rsu_calculator import RSUCalculator
-from calc.balance_calculator import BalanceCalculator
-from calc.deferred_comp_calculator import DeferredCompCalculator
-from calc.investment_calculator import InvestmentCalculator
+from calc.plan_calculator import PlanCalculator
+from model.PlanData import PlanData, YearlyData
 
 
 class FinancialPlannerTools:
@@ -38,7 +36,7 @@ class FinancialPlannerTools:
         self.program_name = program_name
         self.spec = self._load_spec()
         self._init_calculators()
-        self._cache_results()
+        self._calculate_plan()
     
     def _load_spec(self) -> dict:
         """Load the program specification."""
@@ -98,105 +96,15 @@ class FinancialPlannerTools:
             expected_share_price_growth_fraction=rsu_config.get('expectedSharePriceGrowthFraction', 0)
         )
         
-        # Take home calculator
-        self.calculator = TakeHomeCalculator(
-            self.fed, self.state, self.espp, 
+        # Plan calculator (replaces TakeHomeCalculator, BalanceCalculator, DeferredCompCalculator, InvestmentCalculator)
+        self.plan_calculator = PlanCalculator(
+            self.fed, self.state, self.espp,
             self.social_security, self.medicare, self.rsu_calculator
         )
-        
-        # Calculate yearly deferrals and contributions for working years
-        yearly_deferrals = {}
-        yearly_contributions = {}
-        
-        # Get employer match settings
-        investments = self.spec.get('investments', {})
-        match_percent = investments.get('employer401kMatchPercent', 0)
-        max_salary_percent = investments.get('employer401kMatchMaxSalaryPercent', 0)
-        
-        for year in range(first_year, last_working_year + 1):
-            results = self.calculator.calculate(self.spec, year)
-            yearly_deferrals[year] = results.get('total_deferral', 0)
-            
-            # Get 401k and HSA contributions from deductions
-            # Note: HSA contribution uses employeeHSA (not maxHSA) since employer contribution is not employee's
-            deductions = results.get('deductions', {})
-            
-            # Calculate employer 401k match
-            # Match is based on salary AFTER deferred compensation contributions
-            employer_match = 0
-            if match_percent > 0 and max_salary_percent > 0:
-                # Get base salary and apply any deferrals
-                income_details = self.spec.get('income', {})
-                base_salary = income_details.get('baseSalary', 0)
-                base_deferral_fraction = income_details.get('baseDeferralFraction', 0)
-                
-                # Salary eligible for match is base salary minus deferred amount
-                salary_after_deferral = base_salary * (1 - base_deferral_fraction)
-                
-                # Maximum eligible amount for match
-                max_match_eligible = salary_after_deferral * max_salary_percent
-                
-                # Employer matches up to match_percent of the eligible amount
-                # (assuming employee contributes at least that much to 401k)
-                employee_401k_contrib = deductions.get('max401k', 0)
-                eligible_for_match = min(employee_401k_contrib, max_match_eligible)
-                employer_match = eligible_for_match * match_percent
-            
-            yearly_contributions[year] = {
-                'tax_deferred': deductions.get('max401k', 0),
-                'employer_match': employer_match,
-                'hsa': deductions.get('employeeHSA', deductions.get('maxHSA', 0))
-            }
-        
-        # Deferred comp calculator
-        self.deferred_comp = DeferredCompCalculator(self.spec, yearly_deferrals)
-        self.calculator.set_deferred_comp_calculator(self.deferred_comp)
-        
-        # Calculate taxable balances for capital gains calculation
-        # This needs to be done before investment calculator so we can use percentages
-        taxable_balances = self._calculate_taxable_balances()
-        self.calculator.set_taxable_balances(taxable_balances)
-        
-        # Balance calculator
-        self.balance_calculator = BalanceCalculator(self.calculator, self.fed)
-        
-        # Investment calculator with yearly contributions
-        self.investment_calculator = InvestmentCalculator(
-            self.spec, first_year, final_year,
-            last_working_year=last_working_year,
-            yearly_contributions=yearly_contributions
-        )
     
-    def _calculate_taxable_balances(self) -> Dict[int, float]:
-        """Calculate taxable account balances for each year.
-        
-        Used to compute capital gains as a percentage of the balance.
-        
-        Returns:
-            Dictionary mapping year to taxable balance
-        """
-        investments = self.spec.get('investments', {})
-        initial_balance = investments.get('taxableBalance', 0.0)
-        appreciation_rate = investments.get('taxableAppreciationRate', 0.07)
-        
-        balances = {}
-        balance = initial_balance
-        
-        for year in range(self.first_year, self.last_planning_year + 1):
-            balances[year] = balance
-            # Apply appreciation for next year
-            balance = balance * (1 + appreciation_rate)
-        
-        return balances
-    
-    def _cache_results(self):
-        """Pre-calculate and cache results for all years."""
-        self.yearly_results: Dict[int, dict] = {}
-        for year in range(self.first_year, self.last_planning_year + 1):
-            self.yearly_results[year] = self.calculator.calculate(self.spec, year)
-        
-        # Calculate balance results
-        self.balance_result = self.balance_calculator.calculate(self.spec)
+    def _calculate_plan(self):
+        """Calculate the complete financial plan using PlanCalculator."""
+        self.plan_data: PlanData = self.plan_calculator.calculate(self.spec)
     
     def get_program_overview(self) -> dict:
         """Get an overview of the financial plan."""
@@ -207,11 +115,11 @@ class FinancialPlannerTools:
         return {
             "program_name": self.program_name,
             "planning_horizon": {
-                "first_year": self.first_year,
-                "last_working_year": self.last_working_year,
-                "last_planning_year": self.last_planning_year,
-                "working_years": self.last_working_year - self.first_year + 1,
-                "retirement_years": self.last_planning_year - self.last_working_year
+                "first_year": self.plan_data.first_year,
+                "last_working_year": self.plan_data.last_working_year,
+                "last_planning_year": self.plan_data.last_planning_year,
+                "working_years": self.plan_data.last_working_year - self.plan_data.first_year + 1,
+                "retirement_years": self.plan_data.last_planning_year - self.plan_data.last_working_year
             },
             "income_sources": {
                 "base_salary": income.get('baseSalary', 0),
@@ -237,176 +145,155 @@ class FinancialPlannerTools:
     
     def list_available_years(self) -> dict:
         """List all years in the plan."""
-        working_years = list(range(self.first_year, self.last_working_year + 1))
-        retirement_years = list(range(self.last_working_year + 1, self.last_planning_year + 1))
+        working_years = list(range(self.plan_data.first_year, self.plan_data.last_working_year + 1))
+        retirement_years = list(range(self.plan_data.last_working_year + 1, self.plan_data.last_planning_year + 1))
         
-        # Identify disbursement years
+        # Identify disbursement years (years with deferred comp disbursements)
         disbursement_years = []
-        for year in retirement_years:
-            if self.deferred_comp.get_disbursement(year) > 0:
+        for year, yd in self.plan_data.yearly_data.items():
+            if yd.deferred_comp_disbursement > 0:
                 disbursement_years.append(year)
         
         return {
             "working_years": working_years,
             "retirement_years": retirement_years,
-            "disbursement_years": disbursement_years,
+            "disbursement_years": sorted(disbursement_years),
             "total_years": len(working_years) + len(retirement_years)
         }
     
     def get_annual_summary(self, year: int) -> dict:
         """Get income and tax summary for a specific year."""
-        if year not in self.yearly_results:
-            return {"error": f"Year {year} is not in the planning horizon ({self.first_year}-{self.last_planning_year})"}
-        
-        results = self.yearly_results[year]
-        
-        federal_tax = results['federal_tax']
-        fica = results['total_social_security'] + results['medicare_charge'] + results['medicare_surcharge']
-        state_tax = results.get('state_tax', 0)
-        total_tax = federal_tax + fica + state_tax
-        gross_income = results['gross_income']
+        yd = self.plan_data.get_year(year)
+        if yd is None:
+            return {"error": f"Year {year} is not in the planning horizon ({self.plan_data.first_year}-{self.plan_data.last_planning_year})"}
         
         return {
             "year": year,
-            "is_working_year": year <= self.last_working_year,
-            "gross_income": round(gross_income, 2),
-            "federal_tax": round(federal_tax, 2),
-            "fica_tax": round(fica, 2),
-            "state_tax": round(state_tax, 2),
-            "total_tax": round(total_tax, 2),
-            "effective_tax_rate": round(total_tax / gross_income * 100, 1) if gross_income > 0 else 0,
-            "take_home_pay": round(results['take_home_pay'], 2),
-            "total_deferral": round(results.get('total_deferral', 0), 2)
+            "is_working_year": yd.is_working_year,
+            "gross_income": round(yd.gross_income, 2),
+            "federal_tax": round(yd.federal_tax, 2),
+            "fica_tax": round(yd.total_fica, 2),
+            "state_tax": round(yd.state_tax, 2),
+            "total_tax": round(yd.total_taxes, 2),
+            "effective_tax_rate": round(yd.effective_tax_rate * 100, 1),
+            "take_home_pay": round(yd.take_home_pay, 2),
+            "total_deferral": round(yd.total_deferral, 2)
         }
     
     def get_tax_details(self, year: int) -> dict:
         """Get detailed tax breakdown for a specific year."""
-        if year not in self.yearly_results:
+        yd = self.plan_data.get_year(year)
+        if yd is None:
             return {"error": f"Year {year} is not in the planning horizon"}
-        
-        results = self.yearly_results[year]
         
         return {
             "year": year,
             "federal": {
-                "ordinary_income_tax": round(results['ordinary_income_tax'], 2),
-                "long_term_capital_gains_tax": round(results['long_term_capital_gains_tax'], 2),
-                "total_federal_tax": round(results['federal_tax'], 2),
-                "marginal_bracket": f"{results['marginal_bracket']:.1%}"
+                "ordinary_income_tax": round(yd.ordinary_income_tax, 2),
+                "long_term_capital_gains_tax": round(yd.long_term_capital_gains_tax, 2),
+                "total_federal_tax": round(yd.federal_tax, 2),
+                "marginal_bracket": f"{yd.marginal_bracket:.1%}"
             },
             "fica": {
-                "social_security": round(results['total_social_security'], 2),
-                "medicare": round(results['medicare_charge'], 2),
-                "medicare_surcharge": round(results['medicare_surcharge'], 2),
-                "total_fica": round(
-                    results['total_social_security'] + 
-                    results['medicare_charge'] + 
-                    results['medicare_surcharge'], 2
-                )
+                "social_security": round(yd.social_security_tax, 2),
+                "medicare": round(yd.medicare_tax, 2),
+                "medicare_surcharge": round(yd.medicare_surcharge, 2),
+                "total_fica": round(yd.total_fica, 2)
             },
             "state": {
-                "income_tax": round(results.get('state_income_tax', 0), 2),
-                "short_term_capital_gains_tax": round(results.get('state_short_term_capital_gains_tax', 0), 2),
-                "total_state_tax": round(results.get('state_tax', 0), 2)
+                "income_tax": round(yd.state_income_tax, 2),
+                "short_term_capital_gains_tax": round(yd.state_short_term_capital_gains_tax, 2),
+                "total_state_tax": round(yd.state_tax, 2)
             },
             "deductions": {
-                "standard_deduction": round(results['deductions']['standardDeduction'], 2),
-                "max_401k": round(results['deductions']['max401k'], 2),
-                "max_hsa": round(results['deductions']['maxHSA'], 2),
-                "employee_hsa": round(results['deductions'].get('employeeHSA', results['deductions']['maxHSA']), 2),
-                "medical_dental_vision": round(results['deductions'].get('medicalDentalVision', 0), 2),
-                "total_deductions": round(results['total_deductions'], 2)
+                "standard_deduction": round(yd.standard_deduction, 2),
+                "max_401k": round(yd.max_401k, 2),
+                "max_hsa": round(yd.max_hsa, 2),
+                "employee_hsa": round(yd.employee_hsa, 2),
+                "medical_dental_vision": round(yd.medical_dental_vision, 2),
+                "total_deductions": round(yd.total_deductions, 2)
             },
-            "adjusted_gross_income": round(results['adjusted_gross_income'], 2)
+            "adjusted_gross_income": round(yd.adjusted_gross_income, 2)
         }
     
     def get_income_breakdown(self, year: int) -> dict:
         """Get detailed income breakdown for a specific year."""
-        if year not in self.yearly_results:
+        yd = self.plan_data.get_year(year)
+        if yd is None:
             return {"error": f"Year {year} is not in the planning horizon"}
-        
-        results = self.yearly_results[year]
-        is_working = year <= self.last_working_year
-        
-        income = self.spec.get('income', {})
         
         breakdown = {
             "year": year,
-            "is_working_year": is_working,
-            "gross_income": round(results['gross_income'], 2)
+            "is_working_year": yd.is_working_year,
+            "gross_income": round(yd.gross_income, 2)
         }
         
-        if is_working:
-            base_salary = income.get('baseSalary', 0)
-            bonus_fraction = income.get('bonusFraction', 0)
+        if yd.is_working_year:
             breakdown["earned_income"] = {
-                "base_salary": round(base_salary, 2),
-                "bonus": round(base_salary * bonus_fraction, 2),
-                "other_income": round(income.get('otherIncome', 0), 2),
-                "rsu_vested_value": round(results.get('rsu_vested_value', 0), 2),
-                "espp_income": round(results.get('espp_income', 0), 2)
+                "base_salary": round(yd.base_salary, 2),
+                "bonus": round(yd.bonus, 2),
+                "other_income": round(yd.other_income, 2),
+                "rsu_vested_value": round(yd.rsu_vested_value, 2),
+                "espp_income": round(yd.espp_income, 2)
             }
         
         breakdown["investment_income"] = {
-            "short_term_capital_gains": round(results.get('short_term_capital_gains', 0), 2),
-            "long_term_capital_gains": round(results.get('long_term_capital_gains', 0), 2)
+            "short_term_capital_gains": round(yd.short_term_capital_gains, 2),
+            "long_term_capital_gains": round(yd.long_term_capital_gains, 2)
         }
         
-        breakdown["deferred_comp_disbursement"] = round(
-            results.get('deferred_comp_disbursement', 0), 2
-        )
+        breakdown["deferred_comp_disbursement"] = round(yd.deferred_comp_disbursement, 2)
         
         return breakdown
     
     def get_deferred_comp_info(self, year: int) -> dict:
         """Get deferred compensation information for a specific year."""
-        if year < self.first_year or year > self.last_planning_year:
+        yd = self.plan_data.get_year(year)
+        if yd is None:
             return {"error": f"Year {year} is not in the planning horizon"}
-        
-        results = self.yearly_results.get(year, {})
         
         return {
             "year": year,
-            "is_working_year": year <= self.last_working_year,
-            "contribution": round(results.get('total_deferral', 0), 2) if year <= self.last_working_year else 0,
-            "base_deferral": round(results.get('base_deferral', 0), 2) if year <= self.last_working_year else 0,
-            "bonus_deferral": round(results.get('bonus_deferral', 0), 2) if year <= self.last_working_year else 0,
-            "disbursement": round(self.deferred_comp.get_disbursement(year), 2),
-            "end_of_year_balance": round(self.deferred_comp.get_balance(year), 2)
+            "is_working_year": yd.is_working_year,
+            "contribution": round(yd.deferred_comp_contribution, 2),
+            "base_deferral": round(yd.base_deferral, 2),
+            "bonus_deferral": round(yd.bonus_deferral, 2),
+            "disbursement": round(yd.deferred_comp_disbursement, 2),
+            "end_of_year_balance": round(yd.balance_deferred_comp, 2)
         }
     
     def get_retirement_balances(self, year: Optional[int] = None) -> dict:
         """Get 401(k) and deferred comp balances."""
         if year is not None:
-            # Find the specific year in balance results
-            for yb in self.balance_result.yearly_balances:
-                if yb.year == year:
-                    return {
-                        "year": year,
-                        "balances": {
-                            "401k_contribution": round(yb.contrib_401k, 2),
-                            "401k_balance": round(yb.balance_401k, 2),
-                            "deferred_contribution": round(yb.deferred_contrib, 2),
-                            "deferred_balance": round(yb.deferred_balance, 2),
-                            "total_retirement_assets": round(yb.balance_401k + yb.deferred_balance, 2)
-                        }
-                    }
-            return {"error": f"Year {year} not found in balance data"}
+            yd = self.plan_data.get_year(year)
+            if yd is None:
+                return {"error": f"Year {year} not found in balance data"}
+            
+            return {
+                "year": year,
+                "balances": {
+                    "401k_contribution": round(yd.total_401k_contribution, 2),
+                    "401k_balance": round(yd.balance_ira, 2),
+                    "deferred_contribution": round(yd.deferred_comp_contribution, 2),
+                    "deferred_balance": round(yd.balance_deferred_comp, 2),
+                    "total_retirement_assets": round(yd.balance_ira + yd.balance_deferred_comp, 2)
+                }
+            }
         
         # Return summary
         return {
             "final_balances": {
-                "401k_balance": round(self.balance_result.final_401k_balance, 2),
-                "deferred_balance": round(self.balance_result.final_deferred_balance, 2),
-                "total_retirement_assets": round(self.balance_result.total_retirement_assets, 2)
+                "401k_balance": round(self.plan_data.final_401k_balance, 2),
+                "deferred_balance": round(self.plan_data.final_deferred_comp_balance, 2),
+                "total_retirement_assets": round(self.plan_data.total_retirement_assets, 2)
             },
             "yearly_balances": [
                 {
-                    "year": yb.year,
-                    "401k_balance": round(yb.balance_401k, 2),
-                    "deferred_balance": round(yb.deferred_balance, 2)
+                    "year": yd.year,
+                    "401k_balance": round(yd.balance_ira, 2),
+                    "deferred_balance": round(yd.balance_deferred_comp, 2)
                 }
-                for yb in self.balance_result.yearly_balances
+                for yd in sorted(self.plan_data.yearly_data.values(), key=lambda x: x.year)
             ]
         }
     
@@ -422,21 +309,18 @@ class FinancialPlannerTools:
             }
         
         if year is not None:
-            if year < self.first_year or year > self.last_planning_year:
-                return {"error": f"Year {year} is not in the planning horizon ({self.first_year}-{self.last_planning_year})"}
-            
-            balances = self.investment_calculator.get_balances(year)
-            if balances is None:
-                return {"error": f"No balance data for year {year}"}
+            yd = self.plan_data.get_year(year)
+            if yd is None:
+                return {"error": f"Year {year} is not in the planning horizon ({self.plan_data.first_year}-{self.plan_data.last_planning_year})"}
             
             result = {
                 "year": year,
-                "is_working_year": year <= self.last_working_year,
+                "is_working_year": yd.is_working_year,
                 "balances": {
-                    "taxable_account": round(balances['taxable'], 2),
-                    "tax_deferred_account": round(balances['tax_deferred'], 2),
-                    "hsa_account": round(balances['hsa'], 2),
-                    "total_investments": round(balances['total'], 2)
+                    "taxable_account": round(yd.balance_taxable, 2),
+                    "tax_deferred_account": round(yd.balance_ira, 2),
+                    "hsa_account": round(yd.balance_hsa, 2),
+                    "total_investments": round(yd.total_assets, 2)
                 },
                 "appreciation_rates": {
                     "taxable": investments.get('taxableAppreciationRate', 0),
@@ -445,20 +329,20 @@ class FinancialPlannerTools:
                 }
             }
             
-            # Include contributions if available
-            if 'contributions' in balances:
+            # Include contributions if working year
+            if yd.is_working_year:
                 result["contributions"] = {
-                    "401k_contribution": round(balances['contributions'].get('tax_deferred', 0), 2),
-                    "employer_match": round(balances['contributions'].get('employer_match', 0), 2),
-                    "hsa_contribution": round(balances['contributions'].get('hsa', 0), 2)
+                    "401k_contribution": round(yd.employee_401k_contribution, 2),
+                    "employer_match": round(yd.employer_401k_match, 2),
+                    "hsa_contribution": round(yd.hsa_contribution, 2)
                 }
             
             return result
         
         # Return all years summary
-        all_balances = self.investment_calculator.get_all_balances()
-        retirement_balances = self.investment_calculator.get_balance_at_retirement(self.last_working_year)
-        final_balances = self.investment_calculator.get_final_balances()
+        first_yd = self.plan_data.get_year(self.plan_data.first_year)
+        last_working_yd = self.plan_data.get_year(self.plan_data.last_working_year)
+        final_yd = self.plan_data.get_year(self.plan_data.last_planning_year)
         
         return {
             "initial_balances": {
@@ -472,34 +356,33 @@ class FinancialPlannerTools:
                 "hsa": investments.get('hsaAppreciationRate', 0)
             },
             "at_retirement": {
-                "year": self.last_working_year,
-                "taxable": round(retirement_balances['taxable'], 2),
-                "tax_deferred": round(retirement_balances['tax_deferred'], 2),
-                "hsa": round(retirement_balances['hsa'], 2),
-                "total": round(retirement_balances['total'], 2)
+                "year": self.plan_data.last_working_year,
+                "taxable": round(last_working_yd.balance_taxable if last_working_yd else 0, 2),
+                "tax_deferred": round(last_working_yd.balance_ira if last_working_yd else 0, 2),
+                "hsa": round(last_working_yd.balance_hsa if last_working_yd else 0, 2),
+                "total": round(last_working_yd.total_assets if last_working_yd else 0, 2)
             },
             "final_balances": {
-                "year": self.last_planning_year,
-                "taxable": round(final_balances['taxable'], 2),
-                "tax_deferred": round(final_balances['tax_deferred'], 2),
-                "hsa": round(final_balances['hsa'], 2),
-                "total": round(final_balances['total'], 2)
+                "year": self.plan_data.last_planning_year,
+                "taxable": round(final_yd.balance_taxable if final_yd else 0, 2),
+                "tax_deferred": round(final_yd.balance_ira if final_yd else 0, 2),
+                "hsa": round(final_yd.balance_hsa if final_yd else 0, 2),
+                "total": round(final_yd.total_assets if final_yd else 0, 2)
             },
             "yearly_totals": [
-                {"year": year, "total": round(bal['total'], 2)}
-                for year, bal in sorted(all_balances.items())
+                {"year": yd.year, "total": round(yd.total_assets, 2)}
+                for yd in sorted(self.plan_data.yearly_data.values(), key=lambda x: x.year)
             ]
         }
 
     def compare_years(self, year1: int, year2: int) -> dict:
         """Compare financial metrics between two years."""
-        if year1 not in self.yearly_results:
+        yd1 = self.plan_data.get_year(year1)
+        if yd1 is None:
             return {"error": f"Year {year1} is not in the planning horizon"}
-        if year2 not in self.yearly_results:
+        yd2 = self.plan_data.get_year(year2)
+        if yd2 is None:
             return {"error": f"Year {year2} is not in the planning horizon"}
-        
-        r1 = self.yearly_results[year1]
-        r2 = self.yearly_results[year2]
         
         def compare_metric(v1: float, v2: float) -> dict:
             diff = v2 - v1
@@ -513,42 +396,36 @@ class FinancialPlannerTools:
         
         return {
             "comparison": f"{year1} vs {year2}",
-            "gross_income": compare_metric(r1['gross_income'], r2['gross_income']),
-            "federal_tax": compare_metric(r1['federal_tax'], r2['federal_tax']),
-            "total_tax": compare_metric(
-                r1['federal_tax'] + r1['total_social_security'] + r1['medicare_charge'] + r1['medicare_surcharge'] + r1.get('state_tax', 0),
-                r2['federal_tax'] + r2['total_social_security'] + r2['medicare_charge'] + r2['medicare_surcharge'] + r2.get('state_tax', 0)
-            ),
-            "take_home_pay": compare_metric(r1['take_home_pay'], r2['take_home_pay'])
+            "gross_income": compare_metric(yd1.gross_income, yd2.gross_income),
+            "federal_tax": compare_metric(yd1.federal_tax, yd2.federal_tax),
+            "total_tax": compare_metric(yd1.total_taxes, yd2.total_taxes),
+            "take_home_pay": compare_metric(yd1.take_home_pay, yd2.take_home_pay)
         }
     
     def get_lifetime_totals(self) -> dict:
         """Get lifetime totals across the planning horizon."""
         totals = {
-            "gross_income": 0,
-            "federal_tax": 0,
-            "fica": 0,
-            "state_tax": 0,
-            "total_tax": 0,
-            "take_home_pay": 0,
-            "total_deferred": 0
+            "gross_income": 0.0,
+            "federal_tax": 0.0,
+            "fica": 0.0,
+            "state_tax": 0.0,
+            "total_tax": 0.0,
+            "take_home_pay": 0.0,
+            "total_deferred": 0.0
         }
         
         working_totals = dict(totals)
         retirement_totals = dict(totals)
         
-        for year, results in self.yearly_results.items():
-            fica = results['total_social_security'] + results['medicare_charge'] + results['medicare_surcharge']
-            total_tax = results['federal_tax'] + fica + results.get('state_tax', 0)
-            
-            target = working_totals if year <= self.last_working_year else retirement_totals
-            target["gross_income"] += results['gross_income']
-            target["federal_tax"] += results['federal_tax']
-            target["fica"] += fica
-            target["state_tax"] += results.get('state_tax', 0)
-            target["total_tax"] += total_tax
-            target["take_home_pay"] += results['take_home_pay']
-            target["total_deferred"] += results.get('total_deferral', 0)
+        for year, yd in self.plan_data.yearly_data.items():
+            target = working_totals if yd.is_working_year else retirement_totals
+            target["gross_income"] += yd.gross_income
+            target["federal_tax"] += yd.federal_tax
+            target["fica"] += yd.total_fica
+            target["state_tax"] += yd.state_tax
+            target["total_tax"] += yd.total_taxes
+            target["take_home_pay"] += yd.take_home_pay
+            target["total_deferred"] += yd.total_deferral
         
         # Combine totals
         for key in totals:
@@ -570,7 +447,7 @@ class FinancialPlannerTools:
         """Search for specific financial metrics based on a query."""
         query_lower = query.lower()
         
-        # Map common terms to result keys
+        # Map common terms to YearlyData field names
         term_mapping = {
             "espp": ["espp_income"],
             "rsu": ["rsu_vested_value"],
@@ -579,9 +456,9 @@ class FinancialPlannerTools:
             "bonus": ["bonus"],
             "federal": ["federal_tax", "ordinary_income_tax"],
             "state": ["state_tax", "state_income_tax"],
-            "fica": ["total_social_security", "medicare_charge", "medicare_surcharge"],
-            "social security": ["total_social_security"],
-            "medicare": ["medicare_charge", "medicare_surcharge"],
+            "fica": ["social_security_tax", "medicare_tax", "medicare_surcharge", "total_fica"],
+            "social security": ["social_security_tax"],
+            "medicare": ["medicare_tax", "medicare_surcharge"],
             "take home": ["take_home_pay"],
             "gross": ["gross_income"],
             "deferred": ["total_deferral", "deferred_comp_disbursement"],
@@ -591,8 +468,11 @@ class FinancialPlannerTools:
             "marginal": ["marginal_bracket"],
             "effective": ["effective_tax_rate"],
             "deduction": ["total_deductions", "standard_deduction"],
-            "401k": ["max401k"],
-            "hsa": ["maxHSA"]
+            "401k": ["max_401k", "employee_401k_contribution", "employer_401k_match", "balance_ira"],
+            "hsa": ["max_hsa", "employee_hsa", "hsa_contribution", "balance_hsa"],
+            "balance": ["balance_ira", "balance_deferred_comp", "balance_hsa", "balance_taxable", "total_assets"],
+            "expense": ["annual_expenses", "special_expenses", "total_expenses"],
+            "contribution": ["employee_401k_contribution", "employer_401k_match", "hsa_contribution", "deferred_comp_contribution"]
         }
         
         # Find matching terms
@@ -604,43 +484,40 @@ class FinancialPlannerTools:
         if not matched_keys:
             return {
                 "query": query,
-                "message": "No matching financial metrics found. Try terms like: ESPP, RSU, salary, federal tax, state tax, FICA, take home, gross income, deferred, capital gains, etc."
+                "message": "No matching financial metrics found. Try terms like: ESPP, RSU, salary, federal tax, state tax, FICA, take home, gross income, deferred, capital gains, 401k, HSA, balance, expense, contribution, etc."
             }
         
         # Get results
         if year is not None:
-            if year not in self.yearly_results:
+            yd = self.plan_data.get_year(year)
+            if yd is None:
                 return {"error": f"Year {year} is not in the planning horizon"}
-            
-            results = self.yearly_results[year]
-            income = self.spec.get('income', {})
             
             found_data = {"year": year, "query": query, "results": {}}
             
             for key in matched_keys:
-                if key in results:
-                    found_data["results"][key] = round(results[key], 2)
-                elif key == "base_salary" and year <= self.last_working_year:
-                    found_data["results"][key] = round(income.get('baseSalary', 0), 2)
-                elif key == "bonus" and year <= self.last_working_year:
-                    base = income.get('baseSalary', 0)
-                    frac = income.get('bonusFraction', 0)
-                    found_data["results"][key] = round(base * frac, 2)
-                elif key in results.get('deductions', {}):
-                    found_data["results"][key] = round(results['deductions'][key], 2)
+                if hasattr(yd, key):
+                    value = getattr(yd, key)
+                    if isinstance(value, float):
+                        found_data["results"][key] = round(value, 2)
+                    else:
+                        found_data["results"][key] = value
             
             return found_data
         else:
             # Return data for all years
             all_years_data = {"query": query, "years": {}}
             
-            for yr, results in self.yearly_results.items():
-                income = self.spec.get('income', {})
+            for yr, yd in sorted(self.plan_data.yearly_data.items()):
                 year_data = {}
                 
                 for key in matched_keys:
-                    if key in results:
-                        year_data[key] = round(results[key], 2)
+                    if hasattr(yd, key):
+                        value = getattr(yd, key)
+                        if isinstance(value, float):
+                            year_data[key] = round(value, 2)
+                        else:
+                            year_data[key] = value
                 
                 if year_data:
                     all_years_data["years"][yr] = year_data

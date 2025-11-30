@@ -45,16 +45,15 @@ class TestFinancialPlannerTools:
         assert tools.social_security is not None
         assert tools.medicare is not None
         assert tools.rsu_calculator is not None
-        assert tools.calculator is not None
-        assert tools.deferred_comp is not None
-        assert tools.balance_calculator is not None
-        assert tools.investment_calculator is not None
+        assert tools.plan_calculator is not None
+        assert tools.plan_data is not None
     
     def test_init_caches_results(self, tools):
         """Test that results are cached for all years."""
-        assert tools.yearly_results is not None
+        assert tools.plan_data is not None
+        assert tools.plan_data.yearly_data is not None
         expected_years = tools.last_planning_year - tools.first_year + 1
-        assert len(tools.yearly_results) == expected_years
+        assert len(tools.plan_data.yearly_data) == expected_years
     
     def test_get_program_overview(self, tools):
         """Test get_program_overview returns expected structure."""
