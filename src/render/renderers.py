@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
 from model.PlanData import PlanData, YearlyData
-from model.field_metadata import get_short_name, get_field_info
+from model.field_metadata import get_short_name, get_field_info, wrap_header
 
 
 # Path to built-in custom renderer configuration file (in source)
@@ -602,6 +602,9 @@ class CustomRenderer(BaseRenderer):
     to display, making it easy to create custom views of the financial data.
     """
     
+    # Maximum width for a column header before wrapping
+    MAX_HEADER_WIDTH = 14
+    
     def __init__(self, title: str, fields: List[str], start_year: int = None, end_year: int = None, show_totals: bool = True):
         """Initialize with a title and list of fields to display.
         
@@ -619,10 +622,31 @@ class CustomRenderer(BaseRenderer):
         self.show_totals = show_totals
     
     def _get_column_width(self, field: str) -> int:
-        """Get the display width for a column based on the field type."""
-        # Use short name length or minimum of 12 for numeric fields
+        """Get the display width for a column based on the field type.
+        
+        For long field names, uses the max header width for wrapping.
+        """
         short_name = get_short_name(field)
+        if len(short_name) > self.MAX_HEADER_WIDTH:
+            # For long names, get the max line width after wrapping
+            wrapped = wrap_header(short_name, self.MAX_HEADER_WIDTH)
+            return max(max(len(line) for line in wrapped), 12)
         return max(len(short_name) + 2, 12)
+    
+    def _get_header_lines(self) -> list[list[str]]:
+        """Get wrapped header lines for all columns.
+        
+        Returns:
+            List of lists, where each inner list contains the wrapped lines
+            for one column header.
+        """
+        headers = []
+        for field in self.fields:
+            short_name = get_short_name(field)
+            width = self._get_column_width(field)
+            wrapped = wrap_header(short_name, width)
+            headers.append(wrapped)
+        return headers
     
     def _format_value(self, value: Any, field: str, width: int) -> str:
         """Format a value for display based on its type."""
@@ -666,12 +690,29 @@ class CustomRenderer(BaseRenderer):
         print("=" * total_width)
         print()
         
-        # Print column headers
-        header = f"  {'Year':<{year_width}}"
-        for field in self.fields:
-            short_name = get_short_name(field)
-            header += f" {short_name:>{col_widths[field]}}"
-        print(header)
+        # Print column headers (may span multiple lines)
+        wrapped_headers = self._get_header_lines()
+        max_header_lines = max(len(h) for h in wrapped_headers) if wrapped_headers else 1
+        
+        # Pad all headers to have the same number of lines
+        for i, header_lines in enumerate(wrapped_headers):
+            while len(header_lines) < max_header_lines:
+                header_lines.insert(0, "")  # Pad at the top
+        
+        # Print each header line
+        for line_idx in range(max_header_lines):
+            if line_idx == max_header_lines - 1:
+                # Last line includes "Year" label
+                header_line = f"  {'Year':<{year_width}}"
+            else:
+                # Non-last lines have empty space for Year column
+                header_line = f"  {'':<{year_width}}"
+            
+            for i, field in enumerate(self.fields):
+                width = col_widths[field]
+                text = wrapped_headers[i][line_idx]
+                header_line += f" {text:>{width}}"
+            print(header_line)
         
         # Print separator line
         sep = f"  {'-' * year_width}"

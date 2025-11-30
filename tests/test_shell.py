@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from shell import FinancialPlanShell, get_yearly_fields, load_plan
 from render.renderers import RENDERER_REGISTRY
-from model.field_metadata import FIELD_METADATA, get_short_name, get_description
+from model.field_metadata import FIELD_METADATA, get_short_name, get_description, wrap_header
 
 
 # Path to test fixtures
@@ -230,9 +230,9 @@ class TestFieldMetadata:
     
     def test_get_short_name_returns_correct_value(self):
         """Test get_short_name returns the correct short name."""
-        assert get_short_name('gross_income') == 'Gross Inc'
+        assert get_short_name('gross_income') == 'Gross Income'
         assert get_short_name('take_home_pay') == 'Take Home'
-        assert get_short_name('balance_ira') == 'IRA Bal'
+        assert get_short_name('balance_ira') == 'IRA Balance'
     
     def test_get_short_name_returns_field_name_for_unknown(self):
         """Test get_short_name returns field name when not found."""
@@ -247,6 +247,35 @@ class TestFieldMetadata:
         """Test get_description returns empty string when not found."""
         assert get_description('unknown_field') == ''
     
+    def test_wrap_header_short_text(self):
+        """Test wrap_header returns single line for short text."""
+        result = wrap_header("Short", 14)
+        assert result == ["Short"]
+    
+    def test_wrap_header_exact_width(self):
+        """Test wrap_header returns single line when text exactly fits."""
+        result = wrap_header("Exactly 14 ch", 14)
+        assert result == ["Exactly 14 ch"]
+    
+    def test_wrap_header_wraps_long_text(self):
+        """Test wrap_header wraps long text across multiple lines."""
+        result = wrap_header("Short-Term Capital Gains", 14)
+        assert len(result) >= 2
+        assert all(len(line) <= 14 for line in result)
+    
+    def test_wrap_header_preserves_words(self):
+        """Test wrap_header doesn't break words."""
+        result = wrap_header("Federal Tax", 8)
+        # Should wrap to ["Federal", "Tax"] not break "Federal"
+        assert result == ["Federal", "Tax"]
+    
+    def test_wrap_header_multiple_words(self):
+        """Test wrap_header handles multiple words."""
+        result = wrap_header("Long-Term CG Tax", 12)
+        # Words should be kept together as much as possible
+        for line in result:
+            assert len(line) <= 12
+
     def test_fields_command_shows_short_names_and_descriptions(self):
         """Test that fields command displays short names and descriptions."""
         shell = FinancialPlanShell()

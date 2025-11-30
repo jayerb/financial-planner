@@ -212,6 +212,86 @@ class TestCustomRendererClass:
         # Should have a TOTAL row
         assert 'TOTAL' in result
 
+    def test_custom_renderer_multiline_headers(self, mock_plan_data):
+        """Test that long field names are wrapped across multiple header lines."""
+        from render.renderers import CustomRenderer
+        
+        # Add fields with long names to the mock data
+        for year, yd in mock_plan_data.yearly_data.items():
+            yd.short_term_capital_gains = 1000.0
+            yd.long_term_capital_gains = 2000.0
+        
+        renderer = CustomRenderer(
+            title='Capital Gains Test',
+            fields=['short_term_capital_gains', 'long_term_capital_gains'],
+            start_year=2025,
+            end_year=2026,
+            show_totals=True
+        )
+        
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            renderer.render(mock_plan_data)
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        
+        # The header should be split across multiple lines
+        # "Short-Term Capital Gains" should be wrapped
+        lines = result.split('\n')
+        
+        # Find header lines (before the dashes separator)
+        header_lines = []
+        for line in lines:
+            if '------' in line:
+                break
+            if line.strip():
+                header_lines.append(line)
+        
+        # There should be multiple header lines (title + multi-line column headers)
+        # At minimum we expect: title row, blank line, wrapped header line(s), Year line
+        assert len(header_lines) >= 4, f"Expected multi-line headers, got: {header_lines}"
+    
+    def test_custom_renderer_get_header_lines(self):
+        """Test the _get_header_lines method."""
+        from render.renderers import CustomRenderer
+        
+        renderer = CustomRenderer(
+            title='Test',
+            fields=['short_term_capital_gains', 'gross_income'],
+        )
+        
+        headers = renderer._get_header_lines()
+        
+        # Should have 2 sets of headers (one for each field)
+        assert len(headers) == 2
+        
+        # short_term_capital_gains should be wrapped (multiple lines)
+        assert len(headers[0]) >= 2, f"Expected wrapped header for short_term_capital_gains, got: {headers[0]}"
+        
+        # gross_income should fit on one line
+        assert len(headers[1]) == 1, f"Expected single line for gross_income, got: {headers[1]}"
+    
+    def test_custom_renderer_column_width_long_name(self):
+        """Test that column width uses MAX_HEADER_WIDTH for long names."""
+        from render.renderers import CustomRenderer
+        
+        renderer = CustomRenderer(
+            title='Test',
+            fields=['short_term_capital_gains'],
+        )
+        
+        width = renderer._get_column_width('short_term_capital_gains')
+        
+        # Width should be at least 12 (minimum) but not exceed MAX_HEADER_WIDTH too much
+        assert width >= 12
+        # Width should be based on wrapped lines, not full field name length
+        assert width <= renderer.MAX_HEADER_WIDTH + 2
+
 
 class TestCreateCustomRenderer:
     """Test the create_custom_renderer factory function."""
