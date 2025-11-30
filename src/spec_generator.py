@@ -441,9 +441,9 @@ def generate_spec(existing_spec: Optional[dict] = None) -> dict:
         )
         
         if insurance['fullInsurancePremiums'] > 0:
-            insurance['medicalInflationRate'] = prompt_percent(
-                "Expected annual medical/insurance inflation rate",
-                default=ex_insurance.get('medicalInflationRate', 0.05)
+            insurance['premiumInflationRate'] = prompt_percent(
+                "Expected annual insurance premium inflation rate",
+                default=ex_insurance.get('premiumInflationRate', 0.05)
             )
         
         if insurance['fullInsurancePremiums'] > 0:
