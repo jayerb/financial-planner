@@ -59,7 +59,16 @@ from calc.plan_calculator import PlanCalculator
 from model.PlanData import PlanData, YearlyData
 from model.field_metadata import FIELD_METADATA, get_short_name, get_description
 from spec_generator import run_generator
-from render.renderers import RENDERER_REGISTRY, TaxDetailsRenderer
+from render.renderers import (
+    RENDERER_REGISTRY, 
+    TaxDetailsRenderer,
+    list_user_configs,
+    get_user_config,
+    save_user_config,
+    delete_user_config,
+    reload_renderer_registry,
+    USER_CONFIG_DIR,
+)
 
 
 def load_plan(program_name: str) -> PlanData:
@@ -628,6 +637,268 @@ Type 'exit' or 'quit' to exit.
             return [mode for mode in RENDERER_REGISTRY.keys() if text_lower in mode.lower()]
         return []
     
+    def do_config(self, arg: str):
+        """Manage custom renderer configurations.
+        
+        Usage: config <subcommand> [arguments]
+        
+        Subcommands:
+            list              - List all custom renderer configurations
+            show <name>       - Show details of a specific configuration
+            create <name>     - Interactively create a new configuration
+            delete <name>     - Delete a configuration
+            reload            - Reload configurations from disk
+        
+        Custom configurations are stored in the report-config directory.
+        
+        Examples:
+            config list
+            config show IncomeSummary
+            config create MyReport
+            config delete MyReport
+            config reload
+        """
+        parts = arg.strip().split(maxsplit=1)
+        
+        if not parts:
+            print("\nCustom Renderer Configuration Management")
+            print("=" * 45)
+            print("\nSubcommands:")
+            print("  list              - List all custom configurations")
+            print("  show <name>       - Show details of a configuration")
+            print("  create <name>     - Create a new configuration")
+            print("  delete <name>     - Delete a configuration")
+            print("  reload            - Reload configurations from disk")
+            print(f"\nConfigurations are stored in: {USER_CONFIG_DIR}")
+            print()
+            return
+        
+        subcommand = parts[0].lower()
+        subarg = parts[1] if len(parts) > 1 else ''
+        
+        if subcommand == 'list':
+            self._config_list()
+        elif subcommand == 'show':
+            self._config_show(subarg)
+        elif subcommand == 'create':
+            self._config_create(subarg)
+        elif subcommand == 'delete':
+            self._config_delete(subarg)
+        elif subcommand == 'reload':
+            self._config_reload()
+        else:
+            print(f"Unknown subcommand: {subcommand}")
+            print("Use 'config' without arguments for help.")
+    
+    def _config_list(self):
+        """List all custom renderer configurations."""
+        configs = list_user_configs()
+        
+        if not configs:
+            print("\nNo custom renderer configurations found.")
+            print(f"Create one with 'config create <name>' or add JSON files to: {USER_CONFIG_DIR}")
+            print()
+            return
+        
+        print("\nCustom Renderer Configurations:")
+        print("=" * 70)
+        print(f"  {'Name':<20} {'Title':<30} {'Source File':<20}")
+        print(f"  {'-' * 20} {'-' * 30} {'-' * 20}")
+        
+        for cfg in configs:
+            print(f"  {cfg['name']:<20} {cfg['title'][:28]:<30} {cfg['source_file']:<20}")
+        
+        print(f"\nTotal: {len(configs)} configuration(s)")
+        print()
+    
+    def _config_show(self, name: str):
+        """Show details of a specific configuration."""
+        if not name:
+            print("Error: Please specify a configuration name.")
+            print("Usage: config show <name>")
+            return
+        
+        config = get_user_config(name)
+        if config is None:
+            print(f"Error: Configuration '{name}' not found.")
+            print("Use 'config list' to see available configurations.")
+            return
+        
+        print(f"\nConfiguration: {name}")
+        print("=" * 50)
+        print(f"  Title:       {config.get('title', name)}")
+        print(f"  Show Totals: {'Yes' if config.get('show_totals', True) else 'No'}")
+        print(f"  Source File: {config.get('_source_file', 'unknown')}")
+        print()
+        print("  Fields:")
+        for field in config.get('fields', []):
+            short_name = get_short_name(field)
+            print(f"    - {field} [{short_name}]")
+        print()
+    
+    def _config_create(self, name: str):
+        """Interactively create a new configuration."""
+        if not name:
+            print("Error: Please specify a configuration name.")
+            print("Usage: config create <name>")
+            return
+        
+        # Check if name already exists
+        existing = get_user_config(name)
+        if existing:
+            overwrite = input(f"Configuration '{name}' already exists. Overwrite? [y/N]: ").strip().lower()
+            if overwrite not in ('y', 'yes'):
+                print("Cancelled.")
+                return
+        
+        print(f"\nCreating configuration: {name}")
+        print("=" * 50)
+        
+        # Get title
+        title = input(f"Title [{name}]: ").strip()
+        if not title:
+            title = name
+        
+        # Get fields with tab completion support
+        print("\nEnter field names one per line (empty line to finish):")
+        print("Tip: Use TAB to search/complete field names.")
+        print()
+        
+        fields = []
+        
+        # Set up custom completer for field names
+        def field_completer(text, state):
+            """Completer function for field names."""
+            text_lower = text.lower()
+            if not text:
+                matches = self.available_fields[:]
+            else:
+                # Case-insensitive substring match
+                matches = [f for f in self.available_fields if text_lower in f.lower()]
+            
+            try:
+                return matches[state]
+            except IndexError:
+                return None
+        
+        # Save original completer and delims
+        old_completer = readline.get_completer()
+        old_delims = readline.get_completer_delims()
+        
+        try:
+            # Set custom completer for field input
+            readline.set_completer(field_completer)
+            readline.set_completer_delims(' \t\n')
+            
+            while True:
+                try:
+                    field = input("  Field: ").strip()
+                except EOFError:
+                    print()
+                    break
+                    
+                if not field:
+                    break
+                
+                if field not in self.available_fields:
+                    print(f"    Warning: '{field}' is not a recognized field name.")
+                    add_anyway = input("    Add anyway? [y/N]: ").strip().lower()
+                    if add_anyway not in ('y', 'yes'):
+                        continue
+                
+                fields.append(field)
+                print(f"    Added: {field}")
+        finally:
+            # Restore original completer
+            readline.set_completer(old_completer)
+            readline.set_completer_delims(old_delims)
+        
+        if not fields:
+            print("\nError: At least one field is required.")
+            return
+        
+        # Get show_totals
+        show_totals_input = input("\nShow totals row? [Y/n]: ").strip().lower()
+        show_totals = show_totals_input not in ('n', 'no')
+        
+        # Get filename
+        filename = input("\nSave to file [custom.json]: ").strip()
+        if not filename:
+            filename = 'custom.json'
+        if not filename.endswith('.json'):
+            filename += '.json'
+        
+        # Create config
+        config = {
+            'title': title,
+            'fields': fields,
+            'show_totals': show_totals
+        }
+        
+        # Save config
+        if save_user_config(name, config, filename):
+            print(f"\nConfiguration '{name}' saved to {filename}")
+            reload_renderer_registry()
+            print("Renderer registry updated. You can now use 'render {name}'.")
+        else:
+            print("\nFailed to save configuration.")
+        print()
+    
+    def _config_delete(self, name: str):
+        """Delete a configuration."""
+        if not name:
+            print("Error: Please specify a configuration name.")
+            print("Usage: config delete <name>")
+            return
+        
+        config = get_user_config(name)
+        if config is None:
+            print(f"Error: Configuration '{name}' not found.")
+            print("Use 'config list' to see available configurations.")
+            return
+        
+        # Confirm deletion
+        confirm = input(f"Delete configuration '{name}'? [y/N]: ").strip().lower()
+        if confirm not in ('y', 'yes'):
+            print("Cancelled.")
+            return
+        
+        if delete_user_config(name):
+            print(f"Configuration '{name}' deleted.")
+            reload_renderer_registry()
+            print("Renderer registry updated.")
+        else:
+            print("Failed to delete configuration.")
+        print()
+    
+    def _config_reload(self):
+        """Reload configurations from disk."""
+        reload_renderer_registry()
+        configs = list_user_configs()
+        print(f"\nReloaded configurations. {len(configs)} custom renderer(s) available.")
+        print()
+    
+    def complete_config(self, text, line, begidx, endidx):
+        """Tab completion for the config command."""
+        parts = line.split()
+        
+        if len(parts) <= 2:
+            # Complete subcommands
+            subcommands = ['list', 'show', 'create', 'delete', 'reload']
+            if not text:
+                return subcommands
+            return [s for s in subcommands if s.startswith(text.lower())]
+        elif len(parts) == 3 or (len(parts) == 2 and text):
+            # Complete configuration names for show/delete
+            subcommand = parts[1].lower()
+            if subcommand in ('show', 'delete'):
+                configs = list_user_configs()
+                config_names = [c['name'] for c in configs]
+                if not text:
+                    return config_names
+                return [n for n in config_names if n.lower().startswith(text.lower())]
+        return []
+
     def do_generate(self, arg: str):
         """Launch the interactive wizard to create or update a financial plan.
         
@@ -712,7 +983,7 @@ Available Commands:
   render [mode] [year_or_range]
       Render financial data using different output formats.
       Modes: TaxDetails, Balances, AnnualSummary, Contributions,
-             MoneyMovement, CashFlow
+             MoneyMovement, CashFlow, plus any custom renderers.
       Note: TaxDetails requires a single year argument.
             Other modes accept year ranges like 2026-2030
       
@@ -722,6 +993,22 @@ Available Commands:
         render Balances 2026-2030    - Show balances for 2026-2030
         render AnnualSummary 2028-   - Show summary from 2028 to end
         render TaxDetails 2026       - Show tax details for 2026
+
+  config <subcommand> [arguments]
+      Manage custom renderer configurations stored in report-config/.
+      
+      Subcommands:
+        list              - List all custom configurations
+        show <name>       - Show details of a configuration
+        create <name>     - Interactively create a new configuration
+        delete <name>     - Delete a configuration
+        reload            - Reload configurations from disk
+      
+      Examples:
+        config list
+        config show IncomeSummary
+        config create MyReport
+        config delete MyReport
 
   generate
       Launch the interactive wizard to create or update a financial plan.
