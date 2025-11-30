@@ -89,6 +89,7 @@ FIELD_METADATA: Dict[str, FieldInfo] = {
     # Expenses and Money Movement
     "annual_expenses": FieldInfo("Annual Expenses", "Annual living expenses"),
     "special_expenses": FieldInfo("Special Expenses", "One-time special expenses"),
+    "travel_expenses": FieldInfo("Travel Expenses", "Annual travel expenses"),
     "medical_premium": FieldInfo("Medical Premium", "Medical/insurance premium (tracked all years)"),
     "medical_premium_expense": FieldInfo("Medical Premium Expense", "Medical premium expense (retirement only)"),
     "total_expenses": FieldInfo("Total Expenses", "Total annual expenses"),

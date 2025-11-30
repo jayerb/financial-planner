@@ -4,6 +4,7 @@
         "fields": [
             "annual_expenses",
             "special_expenses",
+            "travel_expenses",
             "medical_premium",
             "medical_premium_expense",
             "total_expenses",

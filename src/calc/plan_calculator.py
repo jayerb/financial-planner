@@ -110,6 +110,9 @@ class PlanCalculator:
         initial_annual_expenses = expenses_spec.get('annualAmount', 0)
         expense_inflation = expenses_spec.get('inflationRate', 0.03)
         special_expenses = {se['year']: se['amount'] for se in expenses_spec.get('specialExpenses', [])}
+        initial_travel_expenses = expenses_spec.get('travelAmount', 0)
+        travel_inflation = expenses_spec.get('travelInflationRate', expense_inflation)  # Default to general expense inflation
+        travel_retirement_multiplier = expenses_spec.get('travelRetirementMultiplier', 1.0)
         
         # Life insurance
         life_premium = spec.get('companyProvidedLifeInsurance', {}).get('annualPremium', 0)
@@ -127,6 +130,7 @@ class PlanCalculator:
         current_employer_hsa = initial_employer_hsa
         current_local_tax = initial_local_tax
         current_annual_expenses = initial_annual_expenses
+        current_travel_expenses = initial_travel_expenses
         current_insurance_premium = initial_insurance_premium
         current_medicare_premium = initial_medicare_premium
         current_hsa_withdrawal = initial_hsa_withdrawal
@@ -155,6 +159,7 @@ class PlanCalculator:
                 current_employer_hsa = current_employer_hsa * (1 + inflation_rate)
                 current_local_tax = current_local_tax * (1 + local_tax_inflation)
                 current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
+                current_travel_expenses = current_travel_expenses * (1 + travel_inflation)
                 current_insurance_premium = current_insurance_premium * (1 + premium_inflation)
                 current_medicare_premium = current_medicare_premium * (1 + premium_inflation)
                 current_hsa_withdrawal = current_hsa_withdrawal * (1 + hsa_withdrawal_inflation)
@@ -259,9 +264,10 @@ class PlanCalculator:
             # Expenses and money movement
             yd.annual_expenses = current_annual_expenses
             yd.special_expenses = special_expenses.get(year, 0)
+            yd.travel_expenses = current_travel_expenses
             yd.medical_premium = current_insurance_premium  # Track premium (employer covers during working years)
             yd.medical_premium_expense = 0  # Employer covers premium during working years
-            yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.medical_premium_expense
+            yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.travel_expenses + yd.medical_premium_expense
             yd.income_expense_difference = yd.take_home_pay - yd.total_expenses
             yd.taxable_account_adjustment = yd.income_expense_difference
             
@@ -343,6 +349,11 @@ class PlanCalculator:
             
             current_local_tax = current_local_tax * (1 + local_tax_inflation)
             current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
+            # Apply retirement multiplier in first retirement year, then normal inflation
+            if year == disbursement_start:
+                current_travel_expenses = current_travel_expenses * travel_retirement_multiplier
+            else:
+                current_travel_expenses = current_travel_expenses * (1 + travel_inflation)
             current_insurance_premium = current_insurance_premium * (1 + premium_inflation)
             current_medicare_premium = current_medicare_premium * (1 + premium_inflation)
             current_hsa_withdrawal = current_hsa_withdrawal * (1 + hsa_withdrawal_inflation)
@@ -406,8 +417,9 @@ class PlanCalculator:
             # Expenses and money movement
             yd.annual_expenses = current_annual_expenses
             yd.special_expenses = special_expenses.get(year, 0)
+            yd.travel_expenses = current_travel_expenses
             yd.medical_premium_expense = yd.medical_premium  # Use appropriate premium based on Medicare eligibility
-            yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.medical_premium_expense
+            yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.travel_expenses + yd.medical_premium_expense
             yd.income_expense_difference = yd.take_home_pay - yd.total_expenses
             # HSA contribution comes from cash flow (reduces taxable account)
             yd.taxable_account_adjustment = yd.income_expense_difference - yd.hsa_contribution
@@ -461,6 +473,8 @@ class PlanCalculator:
             
             current_local_tax = current_local_tax * (1 + local_tax_inflation)
             current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
+            # Normal inflation for travel (retirement multiplier was applied in first retirement year)
+            current_travel_expenses = current_travel_expenses * (1 + travel_inflation)
             current_insurance_premium = current_insurance_premium * (1 + premium_inflation)
             current_medicare_premium = current_medicare_premium * (1 + premium_inflation)
             current_hsa_withdrawal = current_hsa_withdrawal * (1 + hsa_withdrawal_inflation)
@@ -519,8 +533,9 @@ class PlanCalculator:
             # Expenses and money movement
             yd.annual_expenses = current_annual_expenses
             yd.special_expenses = special_expenses.get(year, 0)
+            yd.travel_expenses = current_travel_expenses
             yd.medical_premium_expense = yd.medical_premium  # Use appropriate premium based on Medicare eligibility
-            yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.medical_premium_expense
+            yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.travel_expenses + yd.medical_premium_expense
             yd.income_expense_difference = yd.take_home_pay - yd.total_expenses
             
             # Calculate expense shortfall (includes HSA contribution as a cash outflow)

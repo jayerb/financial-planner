@@ -669,7 +669,30 @@ def generate_spec(existing_spec: Optional[dict] = None) -> dict:
         if special_expenses:
             expenses['specialExpenses'] = special_expenses
         
-        if expenses['annualAmount'] > 0 or special_expenses:
+        # Travel expenses
+        print()
+        has_existing_travel = 'travelAmount' in ex_expenses
+        has_travel = prompt_yes_no("Do you want to track travel expenses separately?", default=has_existing_travel)
+        
+        if has_travel:
+            expenses['travelAmount'] = prompt_currency(
+                "Annual travel expense amount (as of plan start year)",
+                default=ex_expenses.get('travelAmount', 0.0)
+            )
+            
+            if expenses['travelAmount'] > 0:
+                expenses['travelRetirementMultiplier'] = prompt_float(
+                    "Retirement year travel multiplier (e.g., 1.5 = 50% increase in retirement)",
+                    default=ex_expenses.get('travelRetirementMultiplier', 1.0),
+                    min_val=0.0
+                )
+                
+                expenses['travelInflationRate'] = prompt_percent(
+                    "Expected annual travel expense inflation rate",
+                    default=ex_expenses.get('travelInflationRate', ex_expenses.get('inflationRate', 0.03))
+                )
+        
+        if expenses['annualAmount'] > 0 or special_expenses or expenses.get('travelAmount', 0) > 0:
             spec['expenses'] = expenses
 
     return spec

@@ -435,7 +435,7 @@ Type 'exit' or 'quit' to exit.
             "Tax Summary": ["total_taxes", "effective_tax_rate", "take_home_pay"],
             "Contributions": ["employee_401k_contribution", "employer_401k_match", "total_401k_contribution",
                              "hsa_contribution", "deferred_comp_contribution", "taxable_contribution", "total_contributions"],
-            "Expenses": ["annual_expenses", "special_expenses", "medical_premium", "medical_premium_expense",
+            "Expenses": ["annual_expenses", "special_expenses", "travel_expenses", "medical_premium", "medical_premium_expense",
                         "total_expenses", "income_expense_difference", "hsa_withdrawal", "ira_withdrawal",
                         "taxable_account_adjustment"],
             "Appreciation": ["appreciation_ira", "appreciation_deferred_comp", "appreciation_hsa", 

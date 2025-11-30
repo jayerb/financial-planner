@@ -471,7 +471,8 @@ class FinancialPlannerTools:
             "401k": ["max_401k", "employee_401k_contribution", "employer_401k_match", "balance_ira"],
             "hsa": ["max_hsa", "employee_hsa", "hsa_contribution", "balance_hsa"],
             "balance": ["balance_ira", "balance_deferred_comp", "balance_hsa", "balance_taxable", "total_assets"],
-            "expense": ["annual_expenses", "special_expenses", "total_expenses"],
+            "expense": ["annual_expenses", "special_expenses", "travel_expenses", "total_expenses"],
+            "travel": ["travel_expenses"],
             "contribution": ["employee_401k_contribution", "employer_401k_match", "hsa_contribution", "deferred_comp_contribution"]
         }
         
