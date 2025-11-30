@@ -562,27 +562,27 @@ class CashFlowRenderer(BaseRenderer):
             data: PlanData containing all yearly calculations
         """
         print()
-        print("=" * 200)
-        print(f"{'CASH FLOW - EXPENSE FUNDING BY SOURCE':^200}")
-        print("=" * 200)
+        print("=" * 170)
+        print(f"{'CASH FLOW - EXPENSE FUNDING BY SOURCE':^170}")
+        print("=" * 170)
         print()
         
         # Build multi-line headers for the complex CashFlow layout
         # Column groups: Expenses | Funding Sources | Surplus | Account Balances
-        # Match widths exactly to data row format (using field metadata where applicable)
-        expense_cols = [(get_short_name("total_expenses"), 14)]
+        # All columns are 12 characters wide for consistency (using field metadata where applicable)
+        expense_cols = [(get_short_name("total_expenses"), 12)]
         funding_cols = [
-            (get_short_name("take_home_pay"), 14),
-            (get_short_name("total_capital_gains"), 14),
-            ("Deferred Comp", 14),  # Funding source, not a field
-            ("IRA/401k", 14),  # Funding source, not a field
-            ("Taxable", 14),  # Funding source, not a field
+            (get_short_name("take_home_pay"), 12),
+            (get_short_name("total_capital_gains"), 12),
+            ("Deferred Comp", 12),  # Funding source, not a field
+            ("IRA/401k", 12),  # Funding source, not a field
+            ("Taxable", 12),  # Funding source, not a field
         ]
-        surplus_cols = [("Surplus", 14)]  # Calculated value, not a field
+        surplus_cols = [("Surplus", 12)]  # Calculated value, not a field
         balance_cols = [
-            (get_short_name("balance_deferred_comp"), 14),
-            (get_short_name("balance_ira"), 16),
-            (get_short_name("balance_taxable"), 14),
+            (get_short_name("balance_deferred_comp"), 12),
+            (get_short_name("balance_ira"), 12),
+            (get_short_name("balance_taxable"), 12),
         ]
         
         # Get wrapped headers for each group
@@ -635,7 +635,7 @@ class CashFlowRenderer(BaseRenderer):
             print(header_line)
         
         # Print separator
-        sep_line = f"  {'-' * 6} {'-' * 14} {'-':^3} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-':^3} {'-' * 14} {'-':^3} {'-' * 14} {'-' * 16} {'-' * 14}"
+        sep_line = f"  {'-' * 6} {'-' * 12} {'-':^3} {'-' * 12} {'-' * 12} {'-' * 12} {'-' * 12} {'-' * 12} {'-':^3} {'-' * 12} {'-':^3} {'-' * 12} {'-' * 12} {'-' * 12}"
         print(sep_line)
         
         start = self.start_year if self.start_year is not None else data.first_year
@@ -710,15 +710,15 @@ class CashFlowRenderer(BaseRenderer):
             # Calculate total capital gains for the year
             capital_gains = yd.short_term_capital_gains + yd.long_term_capital_gains
             
-            # Format output
-            take_home_str = f"${take_home_used:>12,.0f}" if take_home_used > 0 else f"{'':>14}"
-            cap_gains_str = f"${capital_gains:>12,.0f}" if capital_gains > 0 else f"{'':>14}"
-            deferred_str = f"${deferred_comp_used:>12,.0f}" if deferred_comp_used > 0 else f"{'':>14}"
-            ira_str = f"${ira_used:>12,.0f}" if ira_used > 0 else f"{'':>14}"
-            taxable_str = f"${taxable_used:>12,.0f}" if taxable_used > 0 else f"{'':>14}"
-            surplus_str = f"+${surplus:>11,.0f}" if surplus > 0 else f"{'':>14}"
+            # Format output (12-char columns)
+            take_home_str = f"${take_home_used:>10,.0f}" if take_home_used > 0 else f"{'':>12}"
+            cap_gains_str = f"${capital_gains:>10,.0f}" if capital_gains > 0 else f"{'':>12}"
+            deferred_str = f"${deferred_comp_used:>10,.0f}" if deferred_comp_used > 0 else f"{'':>12}"
+            ira_str = f"${ira_used:>10,.0f}" if ira_used > 0 else f"{'':>12}"
+            taxable_str = f"${taxable_used:>10,.0f}" if taxable_used > 0 else f"{'':>12}"
+            surplus_str = f"+${surplus:>9,.0f}" if surplus > 0 else f"{'':>12}"
             
-            print(f"  {year:<6} ${yd.total_expenses:>12,.0f} {'|':^3} {take_home_str:>14} {cap_gains_str:>14} {deferred_str:>14} {ira_str:>14} {taxable_str:>14} {'|':^3} {surplus_str:>14} {'|':^3} ${yd.balance_deferred_comp:>12,.0f} ${yd.balance_ira:>14,.0f} ${yd.balance_taxable:>12,.0f}")
+            print(f"  {year:<6} ${yd.total_expenses:>10,.0f} {'|':^3} {take_home_str:>12} {cap_gains_str:>12} {deferred_str:>12} {ira_str:>12} {taxable_str:>12} {'|':^3} {surplus_str:>12} {'|':^3} ${yd.balance_deferred_comp:>10,.0f} ${yd.balance_ira:>10,.0f} ${yd.balance_taxable:>10,.0f}")
             
             # Accumulate totals
             total_expenses += yd.total_expenses
@@ -729,17 +729,17 @@ class CashFlowRenderer(BaseRenderer):
             total_taxable_used += taxable_used
             total_surplus += surplus
         
-        print(f"  {'-' * 6} {'-' * 14} {'-':^3} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-':^3} {'-' * 14} {'-':^3} {'-' * 14} {'-' * 16} {'-' * 14}")
+        print(f"  {'-' * 6} {'-' * 12} {'-':^3} {'-' * 12} {'-' * 12} {'-' * 12} {'-' * 12} {'-' * 12} {'-':^3} {'-' * 12} {'-':^3} {'-' * 12} {'-' * 12} {'-' * 12}")
         
-        # Format totals
-        surplus_total_str = f"+${total_surplus:>11,.0f}" if total_surplus > 0 else f"{'':>14}"
-        cap_gains_total_str = f"${total_capital_gains:>12,.0f}" if total_capital_gains > 0 else f"{'':>14}"
+        # Format totals (12-char columns)
+        surplus_total_str = f"+${total_surplus:>9,.0f}" if total_surplus > 0 else f"{'':>12}"
+        cap_gains_total_str = f"${total_capital_gains:>10,.0f}" if total_capital_gains > 0 else f"{'':>12}"
         
         # Get final balances for the filtered range
         final_year = min(end, max(data.yearly_data.keys()))
         final_yd = data.yearly_data[final_year]
         
-        print(f"  {'TOTAL':<6} ${total_expenses:>12,.0f} {'|':^3} ${total_take_home_used:>12,.0f} {cap_gains_total_str:>14} ${total_deferred_comp_used:>12,.0f} ${total_ira_used:>12,.0f} ${total_taxable_used:>12,.0f} {'|':^3} {surplus_total_str:>14} {'|':^3} ${final_yd.balance_deferred_comp:>12,.0f} ${final_yd.balance_ira:>14,.0f} ${final_yd.balance_taxable:>12,.0f}")
+        print(f"  {'TOTAL':<6} ${total_expenses:>10,.0f} {'|':^3} ${total_take_home_used:>10,.0f} {cap_gains_total_str:>12} ${total_deferred_comp_used:>10,.0f} ${total_ira_used:>10,.0f} ${total_taxable_used:>10,.0f} {'|':^3} {surplus_total_str:>12} {'|':^3} ${final_yd.balance_deferred_comp:>10,.0f} ${final_yd.balance_ira:>10,.0f} ${final_yd.balance_taxable:>10,.0f}")
         print()
         
         # Summary section
@@ -764,7 +764,7 @@ class CashFlowRenderer(BaseRenderer):
         total_final_balance = final_yd.balance_deferred_comp + final_yd.balance_ira + final_yd.balance_taxable
         print(f"    {'Total Assets:':<36} ${total_final_balance:>14,.0f}")
         print()
-        print("=" * 200)
+        print("=" * 170)
         print()
 
 
