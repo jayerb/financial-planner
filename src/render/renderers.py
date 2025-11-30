@@ -155,8 +155,39 @@ class TaxDetailsRenderer(BaseRenderer):
         print()
 
 
+def parse_year_range(year_range: str, data: PlanData) -> tuple:
+    """Parse a year range string into start and end years.
+    
+    Args:
+        year_range: String in format 'startYear-endYear', 'startYear-', or '-endYear'
+        data: PlanData to get default years from
+        
+    Returns:
+        Tuple of (start_year, end_year)
+    """
+    if '-' not in year_range:
+        # Single year
+        year = int(year_range)
+        return (year, year)
+    
+    parts = year_range.split('-')
+    start_year = int(parts[0]) if parts[0] else data.first_year
+    end_year = int(parts[1]) if parts[1] else data.last_planning_year
+    return (start_year, end_year)
+
+
 class BalancesRenderer(BaseRenderer):
     """Renderer for accumulated balance display."""
+    
+    def __init__(self, start_year: int = None, end_year: int = None):
+        """Initialize with optional year range.
+        
+        Args:
+            start_year: First year to display (defaults to plan's first year)
+            end_year: Last year to display (defaults to plan's last planning year)
+        """
+        self.start_year = start_year
+        self.end_year = end_year
     
     def render(self, data: PlanData) -> None:
         """Render the accumulated balances.
@@ -172,7 +203,12 @@ class BalancesRenderer(BaseRenderer):
         print(f"  {'Year':<8} {'401(k) Contrib':>16} {'401(k) Balance':>18} {'Deferred Contrib':>18} {'Deferred Balance':>18} {'HSA Contrib':>14} {'HSA Balance':>16} {'Taxable Bal':>16}")
         print(f"  {'-' * 8} {'-' * 16} {'-' * 18} {'-' * 18} {'-' * 18} {'-' * 14} {'-' * 16} {'-' * 16}")
         
+        start = self.start_year if self.start_year is not None else data.first_year
+        end = self.end_year if self.end_year is not None else data.last_planning_year
+        
         for year in sorted(data.yearly_data.keys()):
+            if year < start or year > end:
+                continue
             yd = data.yearly_data[year]
             print(f"  {year:<8} ${yd.total_401k_contribution:>14,.2f} ${yd.balance_ira:>16,.2f} ${yd.deferred_comp_contribution:>16,.2f} ${yd.balance_deferred_comp:>16,.2f} ${yd.hsa_contribution:>12,.2f} ${yd.balance_hsa:>14,.2f} ${yd.balance_taxable:>14,.2f}")
         
@@ -193,6 +229,16 @@ class BalancesRenderer(BaseRenderer):
 class AnnualSummaryRenderer(BaseRenderer):
     """Renderer for annual income and tax burden summary table."""
     
+    def __init__(self, start_year: int = None, end_year: int = None):
+        """Initialize with optional year range.
+        
+        Args:
+            start_year: First year to display (defaults to plan's first year)
+            end_year: Last year to display (defaults to plan's last planning year)
+        """
+        self.start_year = start_year
+        self.end_year = end_year
+    
     def render(self, data: PlanData) -> None:
         """Render a summary table of income and taxes for each year.
         
@@ -207,16 +253,35 @@ class AnnualSummaryRenderer(BaseRenderer):
         print(f"  {'Year':<6} {'Gross Income':>14} {'Federal Tax':>14} {'FICA':>14} {'State Tax':>14} {'Total Tax':>14} {'Eff Rate':>10} {'Take Home':>14}")
         print(f"  {'-' * 6} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 10} {'-' * 14}")
         
+        start = self.start_year if self.start_year is not None else data.first_year
+        end = self.end_year if self.end_year is not None else data.last_planning_year
+        
+        # Track totals for the filtered range
+        total_gross = 0.0
+        total_federal = 0.0
+        total_fica = 0.0
+        total_state = 0.0
+        total_taxes = 0.0
+        total_take_home = 0.0
+        
         for year in sorted(data.yearly_data.keys()):
+            if year < start or year > end:
+                continue
             yd = data.yearly_data[year]
             print(f"  {year:<6} ${yd.gross_income:>12,.0f} ${yd.federal_tax:>12,.0f} ${yd.total_fica:>12,.0f} ${yd.state_tax:>12,.0f} ${yd.total_taxes:>12,.0f} {yd.effective_tax_rate:>9.1%} ${yd.take_home_pay:>12,.0f}")
+            total_gross += yd.gross_income
+            total_federal += yd.federal_tax
+            total_fica += yd.total_fica
+            total_state += yd.state_tax
+            total_taxes += yd.total_taxes
+            total_take_home += yd.take_home_pay
         
         print(f"  {'-' * 6} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 10} {'-' * 14}")
         
-        # Calculate overall effective rate
-        overall_eff_rate = data.total_taxes / data.total_gross_income if data.total_gross_income > 0 else 0
+        # Calculate overall effective rate for filtered range
+        overall_eff_rate = total_taxes / total_gross if total_gross > 0 else 0
         
-        print(f"  {'TOTAL':<6} ${data.total_gross_income:>12,.0f} ${data.total_federal_tax:>12,.0f} ${data.total_fica:>12,.0f} ${data.total_state_tax:>12,.0f} ${data.total_taxes:>12,.0f} {overall_eff_rate:>9.1%} ${data.total_take_home:>12,.0f}")
+        print(f"  {'TOTAL':<6} ${total_gross:>12,.0f} ${total_federal:>12,.0f} ${total_fica:>12,.0f} ${total_state:>12,.0f} ${total_taxes:>12,.0f} {overall_eff_rate:>9.1%} ${total_take_home:>12,.0f}")
         print()
         print("=" * 110)
         print()
@@ -224,6 +289,16 @@ class AnnualSummaryRenderer(BaseRenderer):
 
 class ContributionsRenderer(BaseRenderer):
     """Renderer for yearly contributions to investment accounts."""
+    
+    def __init__(self, start_year: int = None, end_year: int = None):
+        """Initialize with optional year range.
+        
+        Args:
+            start_year: First year to display (defaults to plan's first year)
+            end_year: Last year to display (defaults to plan's last planning year)
+        """
+        self.start_year = start_year
+        self.end_year = end_year
     
     def render(self, data: PlanData) -> None:
         """Render the yearly contributions breakdown.
@@ -239,6 +314,9 @@ class ContributionsRenderer(BaseRenderer):
         print(f"  {'Year':<6} {'401(k) Emp':>14} {'401(k) Empr':>14} {'401(k) Total':>14} {'HSA Emp':>12} {'HSA Empr':>12} {'Deferred':>14} {'Taxable':>14} {'Total':>14}")
         print(f"  {'-' * 6} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 12} {'-' * 12} {'-' * 14} {'-' * 14} {'-' * 14}")
         
+        start = self.start_year if self.start_year is not None else data.first_year
+        end = self.end_year if self.end_year is not None else data.last_planning_year
+        
         total_401k_employee = 0
         total_401k_employer = 0
         total_401k = 0
@@ -249,6 +327,8 @@ class ContributionsRenderer(BaseRenderer):
         total_all = 0
         
         for year in sorted(data.yearly_data.keys()):
+            if year < start or year > end:
+                continue
             yd = data.yearly_data[year]
             
             if not yd.is_working_year:
@@ -277,6 +357,16 @@ class ContributionsRenderer(BaseRenderer):
 class MoneyMovementRenderer(BaseRenderer):
     """Renderer for yearly expenses vs income and money movement to/from taxable account."""
     
+    def __init__(self, start_year: int = None, end_year: int = None):
+        """Initialize with optional year range.
+        
+        Args:
+            start_year: First year to display (defaults to plan's first year)
+            end_year: Last year to display (defaults to plan's last planning year)
+        """
+        self.start_year = start_year
+        self.end_year = end_year
+    
     def render(self, data: PlanData) -> None:
         """Render the yearly money movement breakdown.
         
@@ -295,6 +385,9 @@ class MoneyMovementRenderer(BaseRenderer):
         print(f"  {'Year':<6} {'Take Home':>14} {'Annual Exp':>14} {'Special Exp':>14} {'Total Exp':>14} {'IRA W/D':>14} {'Taxable Adj':>14} {'Taxable Bal':>16} {'IRA Bal':>16}")
         print(f"  {'-' * 6} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 16} {'-' * 16}")
         
+        start = self.start_year if self.start_year is not None else data.first_year
+        end = self.end_year if self.end_year is not None else data.last_planning_year
+        
         total_take_home = 0
         total_annual_expenses = 0
         total_special_expenses = 0
@@ -303,6 +396,8 @@ class MoneyMovementRenderer(BaseRenderer):
         total_adjustment = 0
         
         for year in sorted(data.yearly_data.keys()):
+            if year < start or year > end:
+                continue
             yd = data.yearly_data[year]
             
             # Format adjustment with +/- sign
@@ -331,6 +426,16 @@ class MoneyMovementRenderer(BaseRenderer):
 class CashFlowRenderer(BaseRenderer):
     """Renderer for cash flow showing expenses and funding sources breakdown."""
     
+    def __init__(self, start_year: int = None, end_year: int = None):
+        """Initialize with optional year range.
+        
+        Args:
+            start_year: First year to display (defaults to plan's first year)
+            end_year: Last year to display (defaults to plan's last planning year)
+        """
+        self.start_year = start_year
+        self.end_year = end_year
+    
     def render(self, data: PlanData) -> None:
         """Render the cash flow breakdown.
         
@@ -350,6 +455,9 @@ class CashFlowRenderer(BaseRenderer):
         print(f"  {'Year':<6} {'Total Exp':>14} {'|':^3} {'Take Home':>14} {'Def Comp':>14} {'IRA/401k':>14} {'Taxable':>14} {'|':^3} {'Surplus':>14} {'|':^3} {'Def Comp Bal':>14} {'IRA/401k Bal':>16} {'Taxable Bal':>14}")
         print(f"  {'-' * 6} {'-' * 14} {'-':^3} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-':^3} {'-' * 14} {'-':^3} {'-' * 14} {'-' * 16} {'-' * 14}")
         
+        start = self.start_year if self.start_year is not None else data.first_year
+        end = self.end_year if self.end_year is not None else data.last_planning_year
+        
         total_expenses = 0
         total_take_home_used = 0
         total_deferred_comp_used = 0
@@ -358,6 +466,8 @@ class CashFlowRenderer(BaseRenderer):
         total_surplus = 0
         
         for year in sorted(data.yearly_data.keys()):
+            if year < start or year > end:
+                continue
             yd = data.yearly_data[year]
             
             # Calculate how expenses are funded
@@ -435,8 +545,8 @@ class CashFlowRenderer(BaseRenderer):
         # Format totals
         surplus_total_str = f"+${total_surplus:>11,.0f}" if total_surplus > 0 else f"{'':>14}"
         
-        # Get final balances
-        final_year = max(data.yearly_data.keys())
+        # Get final balances for the filtered range
+        final_year = min(end, max(data.yearly_data.keys()))
         final_yd = data.yearly_data[final_year]
         
         print(f"  {'TOTAL':<6} ${total_expenses:>12,.0f} {'|':^3} ${total_take_home_used:>12,.0f} ${total_deferred_comp_used:>12,.0f} ${total_ira_used:>12,.0f} ${total_taxable_used:>12,.0f} {'|':^3} {surplus_total_str:>14} {'|':^3} ${final_yd.balance_deferred_comp:>12,.0f} ${final_yd.balance_ira:>14,.0f} ${final_yd.balance_taxable:>12,.0f}")

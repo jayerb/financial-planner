@@ -499,7 +499,7 @@ Type 'exit' or 'quit' to exit.
     def do_render(self, arg: str):
         """Render financial data using different output formats.
         
-        Usage: render [mode] [year]
+        Usage: render [mode] [year_or_range]
         
         If no mode is specified, shows available render modes.
         
@@ -511,10 +511,16 @@ Type 'exit' or 'quit' to exit.
             MoneyMovement  - Cash flow and account movements
             CashFlow       - Income, expenses, and net cash flow
         
+        Year range format (for multi-year modes):
+            2026-2030    - From 2026 to 2030 inclusive
+            2026-        - From 2026 to end of plan
+            -2030        - From start of plan to 2030
+        
         Examples:
-            render                    - List available modes
-            render Balances           - Show account balances
-            render TaxDetails 2026    - Show tax details for 2026
+            render                       - List available modes
+            render Balances              - Show all account balances
+            render Balances 2026-2030    - Show balances for 2026-2030
+            render TaxDetails 2026       - Show tax details for 2026
         """
         if not self._require_plan():
             return
@@ -527,8 +533,9 @@ Type 'exit' or 'quit' to exit.
             print("=" * 40)
             for mode in RENDERER_REGISTRY.keys():
                 print(f"  - {mode}")
-            print("\nUsage: render <mode> [year]")
-            print("Note: TaxDetails requires a year argument.")
+            print("\nUsage: render <mode> [year_or_range]")
+            print("Note: TaxDetails requires a single year.")
+            print("      Other modes accept year ranges like 2026-2030")
             print()
             return
         
@@ -549,7 +556,7 @@ Type 'exit' or 'quit' to exit.
         
         renderer_class = RENDERER_REGISTRY[matched_mode]
         
-        # TaxDetails requires a year argument
+        # TaxDetails requires a single year argument
         if matched_mode == 'TaxDetails':
             if len(parts) < 2:
                 print("Error: TaxDetails requires a year argument.")
@@ -566,7 +573,41 @@ Type 'exit' or 'quit' to exit.
                 print(f"Error: Invalid year '{parts[1]}'")
                 return
         else:
-            renderer = renderer_class()
+            # Multi-year renderers accept optional year range
+            start_year = None
+            end_year = None
+            
+            if len(parts) >= 2:
+                year_arg = parts[1]
+                try:
+                    if '-' in year_arg:
+                        # Parse year range
+                        range_parts = year_arg.split('-')
+                        if range_parts[0]:
+                            start_year = int(range_parts[0])
+                        else:
+                            start_year = self.plan_data.first_year
+                        if len(range_parts) > 1 and range_parts[1]:
+                            end_year = int(range_parts[1])
+                        else:
+                            end_year = self.plan_data.last_planning_year
+                    else:
+                        # Single year - show just that year
+                        single_year = int(year_arg)
+                        start_year = single_year
+                        end_year = single_year
+                    
+                    # Validate year range
+                    if start_year < self.plan_data.first_year or end_year > self.plan_data.last_planning_year:
+                        print(f"Warning: Year range extends beyond plan data ({self.plan_data.first_year}-{self.plan_data.last_planning_year})")
+                    if start_year > end_year:
+                        print(f"Error: Start year ({start_year}) cannot be greater than end year ({end_year})")
+                        return
+                except ValueError:
+                    print(f"Error: Invalid year or range '{year_arg}'")
+                    return
+            
+            renderer = renderer_class(start_year=start_year, end_year=end_year)
         
         # Render the output
         print()
@@ -668,16 +709,19 @@ Available Commands:
   summary
       Show lifetime summary totals.
 
-  render [mode] [year]
+  render [mode] [year_or_range]
       Render financial data using different output formats.
       Modes: TaxDetails, Balances, AnnualSummary, Contributions,
              MoneyMovement, CashFlow
-      Note: TaxDetails requires a year argument.
+      Note: TaxDetails requires a single year argument.
+            Other modes accept year ranges like 2026-2030
       
       Examples:
-        render                    - List available modes
-        render Balances           - Show account balances
-        render TaxDetails 2026    - Show tax details for 2026
+        render                       - List available modes
+        render Balances              - Show all account balances
+        render Balances 2026-2030    - Show balances for 2026-2030
+        render AnnualSummary 2028-   - Show summary from 2028 to end
+        render TaxDetails 2026       - Show tax details for 2026
 
   generate
       Launch the interactive wizard to create or update a financial plan.
