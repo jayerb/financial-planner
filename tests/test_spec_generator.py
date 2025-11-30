@@ -246,6 +246,7 @@ def test_save_spec_with_insurance():
             'income': {'baseSalary': 100000},
             'insurance': {
                 'fullInsurancePremiums': 30000.0,
+                'medicarePremiums': 8000.0,
                 'premiumInflationRate': 0.04
             }
         }
@@ -259,6 +260,7 @@ def test_save_spec_with_insurance():
         
         assert 'insurance' in saved_spec
         assert saved_spec['insurance']['fullInsurancePremiums'] == 30000.0
+        assert saved_spec['insurance']['medicarePremiums'] == 8000.0
         assert saved_spec['insurance']['premiumInflationRate'] == 0.04
 
 
@@ -266,12 +268,14 @@ def test_insurance_section_structure():
     """Test that the insurance section has the expected structure."""
     insurance = {
         'fullInsurancePremiums': 30000.0,
+        'medicarePremiums': 8000.0,
         'premiumInflationRate': 0.05
     }
     
     # Verify all expected keys are present
     expected_keys = [
         'fullInsurancePremiums',
+        'medicarePremiums',
         'premiumInflationRate'
     ]
     
@@ -280,6 +284,7 @@ def test_insurance_section_structure():
     
     # Verify types
     assert isinstance(insurance['fullInsurancePremiums'], float)
+    assert isinstance(insurance['medicarePremiums'], float)
     assert isinstance(insurance['premiumInflationRate'], float)
     
     # Verify inflation rate is a fraction (0-1), not a percentage
@@ -287,6 +292,66 @@ def test_insurance_section_structure():
     
     # Verify premiums are positive
     assert insurance['fullInsurancePremiums'] >= 0
+    assert insurance['medicarePremiums'] >= 0
+
+
+def test_medicare_premiums_saved_correctly():
+    """Test that Medicare premiums are saved correctly in the spec."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        spec = {
+            'firstYear': 2025,
+            'lastWorkingYear': 2035,
+            'lastPlanningYear': 2065,
+            'income': {'baseSalary': 100000},
+            'insurance': {
+                'fullInsurancePremiums': 25000.0,
+                'medicarePremiums': 6000.0,
+                'premiumInflationRate': 0.05
+            }
+        }
+        
+        os.makedirs(os.path.join(tmpdir, 'input-parameters'))
+        
+        result_path = save_spec(spec, 'testprogram', tmpdir)
+        
+        with open(result_path, 'r') as f:
+            saved_spec = json.load(f)
+        
+        # Verify Medicare premiums are saved and distinct from full insurance
+        assert saved_spec['insurance']['medicarePremiums'] == 6000.0
+        assert saved_spec['insurance']['fullInsurancePremiums'] == 25000.0
+        # Medicare should typically be less than full insurance
+        assert saved_spec['insurance']['medicarePremiums'] < saved_spec['insurance']['fullInsurancePremiums']
+
+
+def test_medicare_premiums_loaded_correctly():
+    """Test that Medicare premiums are loaded correctly from existing spec."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create a spec with Medicare premiums
+        spec = {
+            'firstYear': 2025,
+            'lastWorkingYear': 2035,
+            'lastPlanningYear': 2065,
+            'insurance': {
+                'fullInsurancePremiums': 20000.0,
+                'medicarePremiums': 5000.0,
+                'premiumInflationRate': 0.04
+            }
+        }
+        
+        # Save it
+        os.makedirs(os.path.join(tmpdir, 'input-parameters', 'testprogram'))
+        spec_path = os.path.join(tmpdir, 'input-parameters', 'testprogram', 'spec.json')
+        with open(spec_path, 'w') as f:
+            json.dump(spec, f)
+        
+        # Load it back
+        loaded = load_existing_spec('testprogram', tmpdir)
+        
+        assert loaded is not None
+        assert 'insurance' in loaded
+        assert loaded['insurance']['medicarePremiums'] == 5000.0
+        assert loaded['insurance']['fullInsurancePremiums'] == 20000.0
 
 
 def test_insurance_section_optional():

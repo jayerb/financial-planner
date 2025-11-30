@@ -430,9 +430,10 @@ def generate_spec(existing_spec: Optional[dict] = None) -> dict:
     # =========================================================================
     print_section("Insurance (Post-Retirement)")
     
-    print("Note: These values represent your full insurance costs as of your plan start year.")
-    print("They will be used after your working years end (e.g., for COBRA or private insurance).")
-    print("The costs will be inflated from the plan start year to when you actually need them.")
+    print("Note: These values represent your insurance costs as of your plan start year.")
+    print("Pre-Medicare costs are used after retirement until age 65 (e.g., COBRA or private insurance).")
+    print("Medicare costs are used starting at age 65.")
+    print("All costs will be inflated from the plan start year to when you actually need them.")
     print()
     
     ex_insurance = ex.get('insurance', {})
@@ -443,17 +444,22 @@ def generate_spec(existing_spec: Optional[dict] = None) -> dict:
         insurance: dict[str, Any] = {}
         
         insurance['fullInsurancePremiums'] = prompt_currency(
-            "Annual full insurance premiums (as of plan start year)",
+            "Annual pre-Medicare insurance premiums (as of plan start year)",
             default=ex_insurance.get('fullInsurancePremiums', 0.0)
         )
         
-        if insurance['fullInsurancePremiums'] > 0:
+        insurance['medicarePremiums'] = prompt_currency(
+            "Annual Medicare premiums (as of plan start year, used at age 65+)",
+            default=ex_insurance.get('medicarePremiums', 0.0)
+        )
+        
+        if insurance['fullInsurancePremiums'] > 0 or insurance['medicarePremiums'] > 0:
             insurance['premiumInflationRate'] = prompt_percent(
                 "Expected annual insurance premium inflation rate",
                 default=ex_insurance.get('premiumInflationRate', 0.05)
             )
         
-        if insurance['fullInsurancePremiums'] > 0:
+        if insurance['fullInsurancePremiums'] > 0 or insurance['medicarePremiums'] > 0:
             spec['insurance'] = insurance
 
     # =========================================================================

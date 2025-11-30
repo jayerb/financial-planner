@@ -102,6 +102,7 @@ class PlanCalculator:
         # Insurance parameters
         insurance_spec = spec.get('insurance', {})
         initial_insurance_premium = insurance_spec.get('fullInsurancePremiums', 0)
+        initial_medicare_premium = insurance_spec.get('medicarePremiums', 0)
         premium_inflation = insurance_spec.get('premiumInflationRate', 0.04)
         
         # Expense parameters
@@ -127,6 +128,7 @@ class PlanCalculator:
         current_local_tax = initial_local_tax
         current_annual_expenses = initial_annual_expenses
         current_insurance_premium = initial_insurance_premium
+        current_medicare_premium = initial_medicare_premium
         current_hsa_withdrawal = initial_hsa_withdrawal
         current_max_hsa = 0  # Will be set from last working year for retirement contributions
         
@@ -154,6 +156,7 @@ class PlanCalculator:
                 current_local_tax = current_local_tax * (1 + local_tax_inflation)
                 current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
                 current_insurance_premium = current_insurance_premium * (1 + premium_inflation)
+                current_medicare_premium = current_medicare_premium * (1 + premium_inflation)
                 current_hsa_withdrawal = current_hsa_withdrawal * (1 + hsa_withdrawal_inflation)
                 
                 # Calculate appreciation amounts before applying growth
@@ -341,6 +344,7 @@ class PlanCalculator:
             current_local_tax = current_local_tax * (1 + local_tax_inflation)
             current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
             current_insurance_premium = current_insurance_premium * (1 + premium_inflation)
+            current_medicare_premium = current_medicare_premium * (1 + premium_inflation)
             current_hsa_withdrawal = current_hsa_withdrawal * (1 + hsa_withdrawal_inflation)
             # Double HSA withdrawal at Medicare eligibility (medical expenses typically increase)
             if year == medicare_eligibility_year:
@@ -348,7 +352,11 @@ class PlanCalculator:
             current_max_hsa = current_max_hsa * (1 + inflation_rate)  # Inflate HSA limit
             
             yd.local_tax = current_local_tax
-            yd.medical_premium = current_insurance_premium  # Track premium for reference
+            # Track appropriate premium based on Medicare eligibility
+            if year >= medicare_eligibility_year:
+                yd.medical_premium = current_medicare_premium
+            else:
+                yd.medical_premium = current_insurance_premium
             
             # HSA contributions allowed until Medicare eligibility (age 65)
             if year < medicare_eligibility_year:
@@ -398,7 +406,7 @@ class PlanCalculator:
             # Expenses and money movement
             yd.annual_expenses = current_annual_expenses
             yd.special_expenses = special_expenses.get(year, 0)
-            yd.medical_premium_expense = current_insurance_premium  # Must pay own premium in retirement
+            yd.medical_premium_expense = yd.medical_premium  # Use appropriate premium based on Medicare eligibility
             yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.medical_premium_expense
             yd.income_expense_difference = yd.take_home_pay - yd.total_expenses
             # HSA contribution comes from cash flow (reduces taxable account)
@@ -454,6 +462,7 @@ class PlanCalculator:
             current_local_tax = current_local_tax * (1 + local_tax_inflation)
             current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
             current_insurance_premium = current_insurance_premium * (1 + premium_inflation)
+            current_medicare_premium = current_medicare_premium * (1 + premium_inflation)
             current_hsa_withdrawal = current_hsa_withdrawal * (1 + hsa_withdrawal_inflation)
             # Double HSA withdrawal at Medicare eligibility (medical expenses typically increase)
             if year == medicare_eligibility_year:
@@ -461,7 +470,11 @@ class PlanCalculator:
             current_max_hsa = current_max_hsa * (1 + inflation_rate)  # Inflate HSA limit
             
             yd.local_tax = current_local_tax
-            yd.medical_premium = current_insurance_premium  # Track premium for reference
+            # Track appropriate premium based on Medicare eligibility
+            if year >= medicare_eligibility_year:
+                yd.medical_premium = current_medicare_premium
+            else:
+                yd.medical_premium = current_insurance_premium
             
             # HSA contributions allowed until Medicare eligibility (age 65)
             if year < medicare_eligibility_year:
@@ -506,7 +519,7 @@ class PlanCalculator:
             # Expenses and money movement
             yd.annual_expenses = current_annual_expenses
             yd.special_expenses = special_expenses.get(year, 0)
-            yd.medical_premium_expense = current_insurance_premium  # Must pay own premium in retirement
+            yd.medical_premium_expense = yd.medical_premium  # Use appropriate premium based on Medicare eligibility
             yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.medical_premium_expense
             yd.income_expense_difference = yd.take_home_pay - yd.total_expenses
             

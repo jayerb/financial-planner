@@ -1198,6 +1198,7 @@ class TestHSAWithdrawalDoubleAtMedicare:
         expected_2035 = 10000 * (1.05 ** 9) * 2
         assert abs(y2035.hsa_withdrawal - expected_2035) < 0.01
         
+        
         # Year after Medicare (2036): continues to inflate from doubled amount (10 inflations total, doubled)
         y2036 = result.yearly_data[2036]
         expected_2036 = 10000 * (1.05 ** 9) * 2 * 1.05
@@ -1207,4 +1208,108 @@ class TestHSAWithdrawalDoubleAtMedicare:
         y2037 = result.yearly_data[2037]
         expected_2037 = 10000 * (1.05 ** 9) * 2 * (1.05 ** 2)
         assert abs(y2037.hsa_withdrawal - expected_2037) < 0.01
+
+
+class TestMedicarePremiumSwitch:
+    """Tests for switching from full insurance to Medicare premium at age 65."""
+    
+    @pytest.fixture
+    def calculator(self):
+        """Create a PlanCalculator with mock dependencies."""
+        return PlanCalculator(
+            federal=create_mock_federal(),
+            state=create_mock_state(),
+            espp=create_mock_espp(),
+            social_security=create_mock_social_security(),
+            medicare=create_mock_medicare(),
+            rsu_calculator=create_mock_rsu_calculator()
+        )
+    
+    def test_uses_full_insurance_before_medicare(self, calculator):
+        """Test that full insurance premium is used before Medicare eligibility."""
+        spec = create_basic_spec()
+        spec['birthYear'] = 1970  # Medicare eligibility at 2035
+        spec['lastWorkingYear'] = 2030
+        spec['lastPlanningYear'] = 2040
+        spec['insurance'] = {
+            'fullInsurancePremiums': 20000.0,
+            'medicarePremiums': 5000.0,
+            'premiumInflationRate': 0.0  # No inflation for simpler test
+        }
+        
+        result = calculator.calculate(spec)
+        
+        # Years before Medicare (2031-2034) should use full insurance premium
+        for year in [2031, 2032, 2033, 2034]:
+            yd = result.yearly_data[year]
+            assert yd.medical_premium == 20000.0, f"Year {year} should use full insurance"
+            assert yd.medical_premium_expense == 20000.0
+    
+    def test_uses_medicare_premium_at_eligibility(self, calculator):
+        """Test that Medicare premium is used at Medicare eligibility year."""
+        spec = create_basic_spec()
+        spec['birthYear'] = 1970  # Medicare eligibility at 2035
+        spec['lastWorkingYear'] = 2030
+        spec['lastPlanningYear'] = 2040
+        spec['insurance'] = {
+            'fullInsurancePremiums': 20000.0,
+            'medicarePremiums': 5000.0,
+            'premiumInflationRate': 0.0  # No inflation for simpler test
+        }
+        
+        result = calculator.calculate(spec)
+        
+        # Medicare eligibility year (2035) should use Medicare premium
+        y2035 = result.yearly_data[2035]
+        assert y2035.medical_premium == 5000.0
+        assert y2035.medical_premium_expense == 5000.0
+    
+    def test_uses_medicare_premium_after_eligibility(self, calculator):
+        """Test that Medicare premium continues after eligibility."""
+        spec = create_basic_spec()
+        spec['birthYear'] = 1970  # Medicare eligibility at 2035
+        spec['lastWorkingYear'] = 2030
+        spec['lastPlanningYear'] = 2040
+        spec['insurance'] = {
+            'fullInsurancePremiums': 20000.0,
+            'medicarePremiums': 5000.0,
+            'premiumInflationRate': 0.0  # No inflation for simpler test
+        }
+        
+        result = calculator.calculate(spec)
+        
+        # Years after Medicare eligibility should use Medicare premium
+        for year in [2035, 2036, 2037, 2038, 2039, 2040]:
+            yd = result.yearly_data[year]
+            assert yd.medical_premium == 5000.0, f"Year {year} should use Medicare"
+            assert yd.medical_premium_expense == 5000.0
+    
+    def test_medicare_premium_inflates_separately(self, calculator):
+        """Test that Medicare premium inflates along with full insurance premium."""
+        spec = create_basic_spec()
+        spec['birthYear'] = 1970  # Medicare eligibility at 2035
+        spec['lastWorkingYear'] = 2030
+        spec['lastPlanningYear'] = 2037
+        spec['insurance'] = {
+            'fullInsurancePremiums': 20000.0,
+            'medicarePremiums': 5000.0,
+            'premiumInflationRate': 0.05  # 5% inflation
+        }
+        
+        result = calculator.calculate(spec)
+        
+        # 2034 (before Medicare): full insurance with 8 inflations (2027-2034)
+        y2034 = result.yearly_data[2034]
+        expected_full_2034 = 20000 * (1.05 ** 8)
+        assert abs(y2034.medical_premium - expected_full_2034) < 0.01
+        
+        # 2035 (Medicare eligibility): Medicare premium with 9 inflations
+        y2035 = result.yearly_data[2035]
+        expected_medicare_2035 = 5000 * (1.05 ** 9)
+        assert abs(y2035.medical_premium - expected_medicare_2035) < 0.01
+        
+        # 2036: Medicare premium with 10 inflations
+        y2036 = result.yearly_data[2036]
+        expected_medicare_2036 = 5000 * (1.05 ** 10)
+        assert abs(y2036.medical_premium - expected_medicare_2036) < 0.01
 
