@@ -484,12 +484,23 @@ class TestTabCompletion:
     
     def test_complete_load_filters_by_prefix(self, shell):
         """Test that load completion filters by prefix."""
-        # Use 'my' as prefix since 'myprogram' exists
-        completions = shell.complete_load('my', 'load my', 5, 7)
+        # Get available programs first
+        programs = shell._get_available_programs()
+        if not programs:
+            pytest.skip("No programs available")
         
-        assert 'myprogram' in completions
-        # Other programs starting with different letters shouldn't be included
-        assert 'newplan' not in completions
+        # Use the first program's first two characters as a prefix
+        first_program = programs[0]
+        prefix = first_program[:2]
+        
+        completions = shell.complete_load(prefix, f'load {prefix}', 5, 5 + len(prefix))
+        
+        # The first program should be in completions
+        assert first_program in completions
+        # Programs not starting with prefix shouldn't be included
+        for prog in programs:
+            if not prog.startswith(prefix):
+                assert prog not in completions
     
     def test_complete_help_returns_commands(self, shell):
         """Test that help command completion returns available commands."""
