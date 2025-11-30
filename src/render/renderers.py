@@ -53,10 +53,26 @@ class TaxDetailsRenderer(BaseRenderer):
         
         print()
         print("-" * 60)
-        print("INCOME")
+        print("INCOME BREAKDOWN")
         print("-" * 60)
+        print(f"  {'Base Salary:':<40} ${yd.base_salary:>14,.2f}")
+        print(f"  {'Bonus:':<40} ${yd.bonus:>14,.2f}")
+        if yd.other_income > 0:
+            print(f"  {'Other Income:':<40} ${yd.other_income:>14,.2f}")
+        if yd.rsu_vested_value > 0:
+            print(f"  {'RSUs Vested:':<40} ${yd.rsu_vested_value:>14,.2f}")
+        if yd.espp_income > 0:
+            print(f"  {'ESPP Income:':<40} ${yd.espp_income:>14,.2f}")
+        if yd.short_term_capital_gains > 0:
+            print(f"  {'Short-Term Capital Gains:':<40} ${yd.short_term_capital_gains:>14,.2f}")
+        if yd.long_term_capital_gains > 0:
+            print(f"  {'Long-Term Capital Gains:':<40} ${yd.long_term_capital_gains:>14,.2f}")
+        if yd.deferred_comp_disbursement > 0:
+            print(f"  {'Deferred Comp Disbursement:':<40} ${yd.deferred_comp_disbursement:>14,.2f}")
+        print(f"  {'-' * 40}")
         print(f"  {'Gross Income:':<40} ${yd.gross_income:>14,.2f}")
-        print(f"  {'RSU Vested:':<40} ${yd.rsu_vested_value:>14,.2f}")
+        print()
+        print(f"  {'Taxable Income (AGI):':<40} ${yd.adjusted_gross_income:>14,.2f}")
         
         print()
         print("-" * 60)
@@ -89,9 +105,6 @@ class TaxDetailsRenderer(BaseRenderer):
         print(f"  {'Bonus Deferral:':<40} ${yd.bonus_deferral:>14,.2f}")
         print(f"  {'-' * 40}")
         print(f"  {'Total Deferred:':<40} ${yd.total_deferral:>14,.2f}")
-        
-        print()
-        print(f"  {'Adjusted Gross Income:':<40} ${yd.adjusted_gross_income:>14,.2f}")
         
         print()
         print("-" * 60)
