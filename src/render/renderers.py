@@ -21,6 +21,52 @@ CUSTOM_CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config', 'custom.j
 USER_CONFIG_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), '../../report-config'))
 
 
+def format_multiline_headers(columns: List[tuple], year_width: int = 6) -> tuple[List[str], str]:
+    """Format column headers with multi-line wrapping support.
+    
+    Args:
+        columns: List of (header_text, width) tuples for each column
+        year_width: Width of the Year column (default 6)
+        
+    Returns:
+        Tuple of (list of header lines, separator line)
+    """
+    # Wrap each column header
+    wrapped_headers = []
+    for header, width in columns:
+        lines = wrap_header(header, width)
+        wrapped_headers.append((lines, width))
+    
+    # Find max number of lines needed
+    max_lines = max(len(lines) for lines, _ in wrapped_headers) if wrapped_headers else 1
+    
+    # Pad all headers to have the same number of lines (pad at top)
+    for i, (lines, width) in enumerate(wrapped_headers):
+        while len(lines) < max_lines:
+            lines.insert(0, "")
+    
+    # Build header lines
+    header_lines = []
+    for line_idx in range(max_lines):
+        if line_idx == max_lines - 1:
+            # Last line includes "Year" label
+            header_line = f"  {'Year':<{year_width}}"
+        else:
+            # Non-last lines have empty space for Year column
+            header_line = f"  {'':<{year_width}}"
+        
+        for lines, width in wrapped_headers:
+            header_line += f" {lines[line_idx]:>{width}}"
+        header_lines.append(header_line)
+    
+    # Build separator line
+    sep_line = f"  {'-' * year_width}"
+    for _, width in wrapped_headers:
+        sep_line += f" {'-' * width}"
+    
+    return header_lines, sep_line
+
+
 class BaseRenderer(ABC):
     """Abstract base class for all renderers."""
     
@@ -206,12 +252,26 @@ class BalancesRenderer(BaseRenderer):
             data: PlanData containing all yearly calculations
         """
         print()
-        print("=" * 136)
-        print(f"{'ACCUMULATED BALANCES':^136}")
-        print("=" * 136)
+        print("=" * 150)
+        print(f"{'ACCUMULATED BALANCES':^150}")
+        print("=" * 150)
         print()
-        print(f"  {'Year':<8} {'401(k) Contrib':>16} {'401(k) Balance':>18} {'Deferred Contrib':>18} {'Deferred Balance':>18} {'HSA Contrib':>14} {'HSA Balance':>16} {'Taxable Bal':>16}")
-        print(f"  {'-' * 8} {'-' * 16} {'-' * 18} {'-' * 18} {'-' * 18} {'-' * 14} {'-' * 16} {'-' * 16}")
+        
+        # Define columns with their headers and widths (using field metadata)
+        columns = [
+            (get_short_name("total_401k_contribution"), 18),
+            (get_short_name("balance_ira"), 16),
+            (get_short_name("deferred_comp_contribution"), 18),
+            (get_short_name("balance_deferred_comp"), 16),
+            (get_short_name("hsa_contribution"), 14),
+            (get_short_name("balance_hsa"), 14),
+            (get_short_name("balance_taxable"), 16),
+        ]
+        
+        header_lines, sep_line = format_multiline_headers(columns, year_width=8)
+        for line in header_lines:
+            print(line)
+        print(sep_line)
         
         start = self.start_year if self.start_year is not None else data.first_year
         end = self.end_year if self.end_year is not None else data.last_planning_year
@@ -220,12 +280,12 @@ class BalancesRenderer(BaseRenderer):
             if year < start or year > end:
                 continue
             yd = data.yearly_data[year]
-            print(f"  {year:<8} ${yd.total_401k_contribution:>14,.2f} ${yd.balance_ira:>16,.2f} ${yd.deferred_comp_contribution:>16,.2f} ${yd.balance_deferred_comp:>16,.2f} ${yd.hsa_contribution:>12,.2f} ${yd.balance_hsa:>14,.2f} ${yd.balance_taxable:>14,.2f}")
+            print(f"  {year:<8} ${yd.total_401k_contribution:>16,.2f} ${yd.balance_ira:>14,.2f} ${yd.deferred_comp_contribution:>16,.2f} ${yd.balance_deferred_comp:>14,.2f} ${yd.hsa_contribution:>12,.2f} ${yd.balance_hsa:>12,.2f} ${yd.balance_taxable:>14,.2f}")
         
         print()
-        print("=" * 136)
-        print(f"{'FINAL BALANCES':^136}")
-        print("=" * 136)
+        print("=" * 150)
+        print(f"{'FINAL BALANCES':^150}")
+        print("=" * 150)
         print(f"  {'401(k) Balance:':<40} ${data.final_401k_balance:>18,.2f}")
         print(f"  {'Deferred Compensation Balance:':<40} ${data.final_deferred_comp_balance:>18,.2f}")
         print(f"  {'HSA Balance:':<40} ${data.final_hsa_balance:>18,.2f}")
@@ -256,12 +316,26 @@ class AnnualSummaryRenderer(BaseRenderer):
             data: PlanData containing all yearly calculations
         """
         print()
-        print("=" * 110)
-        print(f"{'ANNUAL INCOME AND TAX SUMMARY':^110}")
-        print("=" * 110)
+        print("=" * 118)
+        print(f"{'ANNUAL INCOME AND TAX SUMMARY':^118}")
+        print("=" * 118)
         print()
-        print(f"  {'Year':<6} {'Gross Income':>14} {'Federal Tax':>14} {'FICA':>14} {'State Tax':>14} {'Total Tax':>14} {'Eff Rate':>10} {'Take Home':>14}")
-        print(f"  {'-' * 6} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 10} {'-' * 14}")
+        
+        # Define columns with their headers and widths (using field metadata)
+        columns = [
+            (get_short_name("gross_income"), 14),
+            (get_short_name("federal_tax"), 14),
+            (get_short_name("total_fica"), 14),
+            (get_short_name("state_tax"), 14),
+            (get_short_name("total_taxes"), 14),
+            (get_short_name("effective_tax_rate"), 12),
+            (get_short_name("take_home_pay"), 14),
+        ]
+        
+        header_lines, sep_line = format_multiline_headers(columns)
+        for line in header_lines:
+            print(line)
+        print(sep_line)
         
         start = self.start_year if self.start_year is not None else data.first_year
         end = self.end_year if self.end_year is not None else data.last_planning_year
@@ -278,7 +352,7 @@ class AnnualSummaryRenderer(BaseRenderer):
             if year < start or year > end:
                 continue
             yd = data.yearly_data[year]
-            print(f"  {year:<6} ${yd.gross_income:>12,.0f} ${yd.federal_tax:>12,.0f} ${yd.total_fica:>12,.0f} ${yd.state_tax:>12,.0f} ${yd.total_taxes:>12,.0f} {yd.effective_tax_rate:>9.1%} ${yd.take_home_pay:>12,.0f}")
+            print(f"  {year:<6} ${yd.gross_income:>12,.0f} ${yd.federal_tax:>12,.0f} ${yd.total_fica:>12,.0f} ${yd.state_tax:>12,.0f} ${yd.total_taxes:>12,.0f} {yd.effective_tax_rate:>11.1%} ${yd.take_home_pay:>12,.0f}")
             total_gross += yd.gross_income
             total_federal += yd.federal_tax
             total_fica += yd.total_fica
@@ -286,14 +360,14 @@ class AnnualSummaryRenderer(BaseRenderer):
             total_taxes += yd.total_taxes
             total_take_home += yd.take_home_pay
         
-        print(f"  {'-' * 6} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 10} {'-' * 14}")
+        print(sep_line)
         
         # Calculate overall effective rate for filtered range
         overall_eff_rate = total_taxes / total_gross if total_gross > 0 else 0
         
-        print(f"  {'TOTAL':<6} ${total_gross:>12,.0f} ${total_federal:>12,.0f} ${total_fica:>12,.0f} ${total_state:>12,.0f} ${total_taxes:>12,.0f} {overall_eff_rate:>9.1%} ${total_take_home:>12,.0f}")
+        print(f"  {'TOTAL':<6} ${total_gross:>12,.0f} ${total_federal:>12,.0f} ${total_fica:>12,.0f} ${total_state:>12,.0f} ${total_taxes:>12,.0f} {overall_eff_rate:>11.1%} ${total_take_home:>12,.0f}")
         print()
-        print("=" * 110)
+        print("=" * 118)
         print()
 
 
@@ -317,12 +391,27 @@ class ContributionsRenderer(BaseRenderer):
             data: PlanData containing all yearly calculations
         """
         print()
-        print("=" * 130)
-        print(f"{'YEARLY CONTRIBUTIONS':^130}")
-        print("=" * 130)
+        print("=" * 136)
+        print(f"{'YEARLY CONTRIBUTIONS':^136}")
+        print("=" * 136)
         print()
-        print(f"  {'Year':<6} {'401(k) Emp':>14} {'401(k) Empr':>14} {'401(k) Total':>14} {'HSA Emp':>12} {'HSA Empr':>12} {'Deferred':>14} {'Taxable':>14} {'Total':>14}")
-        print(f"  {'-' * 6} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 12} {'-' * 12} {'-' * 14} {'-' * 14} {'-' * 14}")
+        
+        # Define columns with their headers and widths (using field metadata)
+        columns = [
+            (get_short_name("employee_401k_contribution"), 14),
+            (get_short_name("employer_401k_match"), 14),
+            (get_short_name("total_401k_contribution"), 14),
+            (get_short_name("employee_hsa"), 12),
+            (get_short_name("employer_hsa"), 12),
+            (get_short_name("deferred_comp_contribution"), 14),
+            (get_short_name("taxable_contribution"), 14),
+            (get_short_name("total_contributions"), 14),
+        ]
+        
+        header_lines, sep_line = format_multiline_headers(columns)
+        for line in header_lines:
+            print(line)
+        print(sep_line)
         
         start = self.start_year if self.start_year is not None else data.first_year
         end = self.end_year if self.end_year is not None else data.last_planning_year
@@ -357,10 +446,10 @@ class ContributionsRenderer(BaseRenderer):
             total_taxable += yd.taxable_contribution
             total_all += year_total
         
-        print(f"  {'-' * 6} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 12} {'-' * 12} {'-' * 14} {'-' * 14} {'-' * 14}")
+        print(sep_line)
         print(f"  {'TOTAL':<6} ${total_401k_employee:>12,.0f} ${total_401k_employer:>12,.0f} ${total_401k:>12,.0f} ${total_hsa_employee:>10,.0f} ${total_hsa_employer:>10,.0f} ${total_deferred:>12,.0f} ${total_taxable:>12,.0f} ${total_all:>12,.0f}")
         print()
-        print("=" * 130)
+        print("=" * 136)
         print()
 
 
@@ -388,12 +477,27 @@ class MoneyMovementRenderer(BaseRenderer):
             data: PlanData containing all yearly calculations
         """
         print()
-        print("=" * 148)
-        print(f"{'MONEY MOVEMENT - INCOME VS EXPENSES':^148}")
-        print("=" * 148)
+        print("=" * 152)
+        print(f"{'MONEY MOVEMENT - INCOME VS EXPENSES':^152}")
+        print("=" * 152)
         print()
-        print(f"  {'Year':<6} {'Take Home':>14} {'Annual Exp':>14} {'Special Exp':>14} {'Total Exp':>14} {'IRA W/D':>14} {'Taxable Adj':>14} {'Taxable Bal':>16} {'IRA Bal':>16}")
-        print(f"  {'-' * 6} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 16} {'-' * 16}")
+        
+        # Define columns with their headers and widths (using field metadata)
+        columns = [
+            (get_short_name("take_home_pay"), 14),
+            (get_short_name("annual_expenses"), 14),
+            (get_short_name("special_expenses"), 14),
+            (get_short_name("total_expenses"), 14),
+            (get_short_name("ira_withdrawal"), 14),
+            (get_short_name("taxable_account_adjustment"), 14),
+            (get_short_name("balance_taxable"), 16),
+            (get_short_name("balance_ira"), 16),
+        ]
+        
+        header_lines, sep_line = format_multiline_headers(columns)
+        for line in header_lines:
+            print(line)
+        print(sep_line)
         
         start = self.start_year if self.start_year is not None else data.first_year
         end = self.end_year if self.end_year is not None else data.last_planning_year
@@ -423,13 +527,13 @@ class MoneyMovementRenderer(BaseRenderer):
             total_ira_withdrawal += yd.ira_withdrawal
             total_adjustment += yd.taxable_account_adjustment
         
-        print(f"  {'-' * 6} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 16} {'-' * 16}")
+        print(sep_line)
         
         adj_total_str = f"+${total_adjustment:>11,.0f}" if total_adjustment >= 0 else f"-${abs(total_adjustment):>11,.0f}"
         
         print(f"  {'TOTAL':<6} ${total_take_home:>12,.0f} ${total_annual_expenses:>12,.0f} ${total_special_expenses:>12,.0f} ${total_expenses:>12,.0f} ${total_ira_withdrawal:>12,.0f} {adj_total_str:>14}")
         print()
-        print("=" * 148)
+        print("=" * 152)
         print()
 
 
@@ -458,12 +562,81 @@ class CashFlowRenderer(BaseRenderer):
             data: PlanData containing all yearly calculations
         """
         print()
-        print("=" * 196)
-        print(f"{'CASH FLOW - EXPENSE FUNDING BY SOURCE':^196}")
-        print("=" * 196)
+        print("=" * 200)
+        print(f"{'CASH FLOW - EXPENSE FUNDING BY SOURCE':^200}")
+        print("=" * 200)
         print()
-        print(f"  {'Year':<6} {'Total Exp':>14} {'|':^3} {'Take Home':>14} {'Cap Gains':>14} {'Def Comp':>14} {'IRA/401k':>14} {'Taxable':>14} {'|':^3} {'Surplus':>14} {'|':^3} {'Def Comp Bal':>14} {'IRA/401k Bal':>16} {'Taxable Bal':>14}")
-        print(f"  {'-' * 6} {'-' * 14} {'-':^3} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-':^3} {'-' * 14} {'-':^3} {'-' * 14} {'-' * 16} {'-' * 14}")
+        
+        # Build multi-line headers for the complex CashFlow layout
+        # Column groups: Expenses | Funding Sources | Surplus | Account Balances
+        # Match widths exactly to data row format (using field metadata where applicable)
+        expense_cols = [(get_short_name("total_expenses"), 14)]
+        funding_cols = [
+            (get_short_name("take_home_pay"), 14),
+            (get_short_name("total_capital_gains"), 14),
+            ("Deferred Comp", 14),  # Funding source, not a field
+            ("IRA/401k", 14),  # Funding source, not a field
+            ("Taxable", 14),  # Funding source, not a field
+        ]
+        surplus_cols = [("Surplus", 14)]  # Calculated value, not a field
+        balance_cols = [
+            (get_short_name("balance_deferred_comp"), 14),
+            (get_short_name("balance_ira"), 16),
+            (get_short_name("balance_taxable"), 14),
+        ]
+        
+        # Get wrapped headers for each group
+        all_cols = expense_cols + funding_cols + surplus_cols + balance_cols
+        wrapped = []
+        for header, width in all_cols:
+            lines = wrap_header(header, width)
+            wrapped.append((lines, width))
+        
+        max_lines = max(len(lines) for lines, _ in wrapped)
+        
+        # Pad headers
+        for lines, _ in wrapped:
+            while len(lines) < max_lines:
+                lines.insert(0, "")
+        
+        # Print header lines with separators
+        for line_idx in range(max_lines):
+            if line_idx == max_lines - 1:
+                header_line = f"  {'Year':<6}"
+            else:
+                header_line = f"  {'':<6}"
+            
+            col_idx = 0
+            # Expense column
+            lines, width = wrapped[col_idx]
+            header_line += f" {lines[line_idx]:>{width}}"
+            header_line += f" {'|':^3}"
+            col_idx += 1
+            
+            # Funding columns
+            for i in range(5):
+                lines, width = wrapped[col_idx]
+                header_line += f" {lines[line_idx]:>{width}}"
+                col_idx += 1
+            header_line += f" {'|':^3}"
+            
+            # Surplus column
+            lines, width = wrapped[col_idx]
+            header_line += f" {lines[line_idx]:>{width}}"
+            header_line += f" {'|':^3}"
+            col_idx += 1
+            
+            # Balance columns
+            for i in range(3):
+                lines, width = wrapped[col_idx]
+                header_line += f" {lines[line_idx]:>{width}}"
+                col_idx += 1
+            
+            print(header_line)
+        
+        # Print separator
+        sep_line = f"  {'-' * 6} {'-' * 14} {'-':^3} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 14} {'-':^3} {'-' * 14} {'-':^3} {'-' * 14} {'-' * 16} {'-' * 14}"
+        print(sep_line)
         
         start = self.start_year if self.start_year is not None else data.first_year
         end = self.end_year if self.end_year is not None else data.last_planning_year
@@ -591,7 +764,7 @@ class CashFlowRenderer(BaseRenderer):
         total_final_balance = final_yd.balance_deferred_comp + final_yd.balance_ira + final_yd.balance_taxable
         print(f"    {'Total Assets:':<36} ${total_final_balance:>14,.0f}")
         print()
-        print("=" * 196)
+        print("=" * 200)
         print()
 
 
