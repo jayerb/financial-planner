@@ -444,8 +444,13 @@ Type 'exit' or 'quit' to exit.
         print()
     
     def complete_fields(self, text, line, begidx, endidx):
-        """Tab completion for the fields command."""
-        return [f for f in self.available_fields if f.startswith(text)]
+        """Tab completion for the fields command.
+        
+        Matches field names containing the text anywhere (substring match).
+        """
+        if not text:
+            return self.available_fields
+        return [f for f in self.available_fields if text in f]
         print()
     
     def do_years(self, arg: str):
@@ -696,16 +701,25 @@ Available Commands:
         print("Type 'help' for available commands.")
     
     def completedefault(self, text, line, begidx, endidx):
-        """Provide tab completion for field names."""
+        """Provide tab completion for field names.
+        
+        Matches field names containing the text anywhere (substring match).
+        """
         if line.startswith('get '):
-            # Complete field names
-            return [f for f in self.available_fields if f.startswith(text)]
+            # Complete field names - substring match
+            if not text:
+                return self.available_fields
+            return [f for f in self.available_fields if text in f]
         return []
     
     def complete_get(self, text, line, begidx, endidx):
-        """Tab completion for the get command."""
-        # Get the part after 'get '
-        return [f for f in self.available_fields if f.startswith(text)]
+        """Tab completion for the get command.
+        
+        Matches field names containing the text anywhere (substring match).
+        """
+        if not text:
+            return self.available_fields
+        return [f for f in self.available_fields if text in f]
     
     def complete_load(self, text, line, begidx, endidx):
         """Tab completion for the load command."""
