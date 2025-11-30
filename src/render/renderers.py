@@ -8,14 +8,17 @@ the unified PlanData structure and extracts the fields it needs.
 import json
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from model.PlanData import PlanData, YearlyData
 from model.field_metadata import get_short_name, get_field_info
 
 
-# Path to custom renderer configuration file
+# Path to built-in custom renderer configuration file (in source)
 CUSTOM_CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config', 'custom.json')
+
+# Path to user's custom renderer configuration directory (at workspace root)
+USER_CONFIG_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), '../../report-config'))
 
 
 class BaseRenderer(ABC):
@@ -735,7 +738,7 @@ def create_custom_renderer(title: str, fields: List[str], start_year: int = None
 
 
 def load_custom_renderers() -> Dict[str, dict]:
-    """Load custom renderer configurations from the config file.
+    """Load custom renderer configurations from the built-in config file.
     
     Returns:
         Dictionary mapping renderer names to their configurations
@@ -749,6 +752,201 @@ def load_custom_renderers() -> Dict[str, dict]:
     except (json.JSONDecodeError, IOError) as e:
         print(f"Warning: Could not load custom renderers from {CUSTOM_CONFIG_PATH}: {e}")
         return {}
+
+
+def load_user_custom_renderers() -> Dict[str, dict]:
+    """Load custom renderer configurations from all JSON files in the user's report-config directory.
+    
+    Returns:
+        Dictionary mapping renderer names to their configurations (with source file info)
+    """
+    if not os.path.exists(USER_CONFIG_DIR):
+        return {}
+    
+    all_configs = {}
+    
+    try:
+        for filename in sorted(os.listdir(USER_CONFIG_DIR)):
+            if filename.endswith('.json'):
+                filepath = os.path.join(USER_CONFIG_DIR, filename)
+                try:
+                    with open(filepath, 'r') as f:
+                        file_configs = json.load(f)
+                        for name, config in file_configs.items():
+                            # Add source file info to the config
+                            config['_source_file'] = filename
+                            all_configs[name] = config
+                except (json.JSONDecodeError, IOError) as e:
+                    print(f"Warning: Could not load custom renderers from {filepath}: {e}")
+    except OSError as e:
+        print(f"Warning: Could not read report-config directory: {e}")
+    
+    return all_configs
+
+
+def get_all_custom_configs() -> Dict[str, dict]:
+    """Get all custom renderer configurations from both built-in and user directories.
+    
+    User configurations take precedence over built-in configurations with the same name.
+    
+    Returns:
+        Dictionary mapping renderer names to their configurations
+    """
+    configs = load_custom_renderers()  # Built-in configs first
+    user_configs = load_user_custom_renderers()  # User configs override
+    configs.update(user_configs)
+    return configs
+
+
+def list_user_configs() -> List[Dict[str, Any]]:
+    """List all user-defined custom renderer configurations.
+    
+    Returns:
+        List of dicts with 'name', 'title', 'fields', 'source_file' keys
+    """
+    configs = load_user_custom_renderers()
+    result = []
+    for name, config in configs.items():
+        result.append({
+            'name': name,
+            'title': config.get('title', name),
+            'fields': config.get('fields', []),
+            'show_totals': config.get('show_totals', True),
+            'source_file': config.get('_source_file', 'unknown')
+        })
+    return result
+
+
+def get_user_config(name: str) -> Optional[dict]:
+    """Get a specific user configuration by name.
+    
+    Args:
+        name: The name of the renderer configuration
+        
+    Returns:
+        The configuration dict if found, None otherwise
+    """
+    configs = load_user_custom_renderers()
+    return configs.get(name)
+
+
+def save_user_config(name: str, config: dict, filename: str = 'custom.json') -> bool:
+    """Save a custom renderer configuration to the user's report-config directory.
+    
+    Args:
+        name: The name for the renderer configuration
+        config: Configuration dict with 'title', 'fields', and optionally 'show_totals'
+        filename: The JSON file to save to (default: 'custom.json')
+        
+    Returns:
+        True if saved successfully, False otherwise
+    """
+    # Ensure the directory exists
+    if not os.path.exists(USER_CONFIG_DIR):
+        try:
+            os.makedirs(USER_CONFIG_DIR)
+        except OSError as e:
+            print(f"Error: Could not create report-config directory: {e}")
+            return False
+    
+    filepath = os.path.join(USER_CONFIG_DIR, filename)
+    
+    # Load existing configs from the file
+    existing_configs = {}
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, 'r') as f:
+                existing_configs = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass  # Start with empty dict if file is corrupted
+    
+    # Remove internal source file tracking before saving
+    save_config = {k: v for k, v in config.items() if not k.startswith('_')}
+    
+    # Add/update the configuration
+    existing_configs[name] = save_config
+    
+    try:
+        with open(filepath, 'w') as f:
+            json.dump(existing_configs, f, indent=4)
+        return True
+    except IOError as e:
+        print(f"Error: Could not save configuration: {e}")
+        return False
+
+
+def delete_user_config(name: str) -> bool:
+    """Delete a custom renderer configuration from the user's report-config directory.
+    
+    Args:
+        name: The name of the renderer configuration to delete
+        
+    Returns:
+        True if deleted successfully, False otherwise
+    """
+    # Find which file contains this config
+    config = get_user_config(name)
+    if config is None:
+        print(f"Error: Configuration '{name}' not found")
+        return False
+    
+    source_file = config.get('_source_file')
+    if not source_file:
+        print(f"Error: Could not determine source file for '{name}'")
+        return False
+    
+    filepath = os.path.join(USER_CONFIG_DIR, source_file)
+    
+    try:
+        with open(filepath, 'r') as f:
+            file_configs = json.load(f)
+    except (json.JSONDecodeError, IOError) as e:
+        print(f"Error: Could not read configuration file: {e}")
+        return False
+    
+    if name not in file_configs:
+        print(f"Error: Configuration '{name}' not found in {source_file}")
+        return False
+    
+    del file_configs[name]
+    
+    try:
+        if file_configs:
+            # Save remaining configs
+            with open(filepath, 'w') as f:
+                json.dump(file_configs, f, indent=4)
+        else:
+            # Delete empty file
+            os.remove(filepath)
+        return True
+    except IOError as e:
+        print(f"Error: Could not update configuration file: {e}")
+        return False
+
+
+def reload_renderer_registry() -> None:
+    """Reload custom renderer configurations into the registry.
+    
+    This should be called after saving or deleting configurations
+    to make them immediately available.
+    """
+    global RENDERER_REGISTRY
+    
+    # Start with base renderers
+    RENDERER_REGISTRY.clear()
+    RENDERER_REGISTRY.update({
+        'TaxDetails': TaxDetailsRenderer,
+        'Balances': BalancesRenderer,
+        'AnnualSummary': AnnualSummaryRenderer,
+        'Contributions': ContributionsRenderer,
+        'MoneyMovement': MoneyMovementRenderer,
+        'CashFlow': CashFlowRenderer,
+    })
+    
+    # Load all custom configs (built-in and user)
+    custom_configs = get_all_custom_configs()
+    for name, config in custom_configs.items():
+        RENDERER_REGISTRY[name] = get_custom_renderer_factory(name, config)
 
 
 def create_custom_renderer_from_config(name: str, config: dict, start_year: int = None, end_year: int = None) -> CustomRenderer:
@@ -797,7 +995,7 @@ RENDERER_REGISTRY = {
     'CashFlow': CashFlowRenderer,
 }
 
-# Load custom renderers from config file and add to registry
-_custom_configs = load_custom_renderers()
+# Load custom renderers from both built-in and user config directories and add to registry
+_custom_configs = get_all_custom_configs()
 for _name, _config in _custom_configs.items():
     RENDERER_REGISTRY[_name] = get_custom_renderer_factory(_name, _config)
