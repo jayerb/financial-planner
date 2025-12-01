@@ -561,10 +561,11 @@ class CashFlowRenderer(BaseRenderer):
         Args:
             data: PlanData containing all yearly calculations
         """
+        report_width = 152
         print()
-        print("=" * 170)
-        print(f"{'CASH FLOW - EXPENSE FUNDING BY SOURCE':^170}")
-        print("=" * 170)
+        print("=" * report_width)
+        print(f"{'CASH FLOW - EXPENSE FUNDING BY SOURCE':^{report_width}}")
+        print("=" * report_width)
         print()
         
         # Build multi-line headers for the complex CashFlow layout
