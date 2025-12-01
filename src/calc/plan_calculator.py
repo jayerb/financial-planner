@@ -500,18 +500,101 @@ class PlanCalculator:
             yd.short_term_capital_gains = balance_taxable * short_term_cg_percent
             yd.long_term_capital_gains = balance_taxable * long_term_cg_percent
             
-            # Gross income from realized capital gains only
-            yd.gross_income = yd.short_term_capital_gains + yd.long_term_capital_gains
+            # Expenses (needed to calculate IRA withdrawal requirement)
+            yd.annual_expenses = current_annual_expenses
+            yd.special_expenses = special_expenses.get(year, 0)
+            yd.travel_expenses = current_travel_expenses
+            yd.medical_premium_expense = yd.medical_premium  # Use appropriate premium based on Medicare eligibility
+            yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.travel_expenses + yd.medical_premium_expense
             
             # Federal deductions (standard deduction only)
             deductions = self.federal.totalDeductions(year, 0, 0, yd.local_tax)
             yd.standard_deduction = deductions['standardDeduction']
             yd.total_deductions = yd.standard_deduction
             
-            # Adjusted gross income
-            yd.adjusted_gross_income = yd.gross_income - yd.total_deductions
+            # Calculate IRA annuity: balance divided by remaining years in plan
+            # This is the minimum withdrawal to spread IRA evenly, but we may withdraw more if needed
+            remaining_years = last_planning_year - year + 1
+            ira_annuity = balance_401k / remaining_years if remaining_years > 0 else 0
             
-            # Federal taxes
+            # Iteratively calculate IRA withdrawal needed to cover expenses after taxes
+            # Start with capital gains income only, then add IRA withdrawal if needed
+            base_income = yd.short_term_capital_gains + yd.long_term_capital_gains
+            
+            # First pass: calculate taxes assuming no IRA withdrawal
+            yd.gross_income = base_income
+            yd.adjusted_gross_income = max(0, yd.gross_income - yd.total_deductions)
+            
+            federal_result = self.federal.taxBurden(yd.adjusted_gross_income, year)
+            base_federal_tax = federal_result.totalFederalTax
+            base_ltcg_tax = self.federal.longTermCapitalGainsTax(
+                yd.adjusted_gross_income, yd.long_term_capital_gains, year)
+            
+            state_taxable = yd.gross_income
+            base_state_tax = self.state.taxBurden(state_taxable, 0, year=year, employer_hsa_contribution=0)
+            base_state_stcg_tax = self.state.shortTermCapitalGainsTax(yd.short_term_capital_gains)
+            
+            base_total_taxes = base_federal_tax + base_ltcg_tax + base_state_tax + base_state_stcg_tax
+            base_take_home = base_income - base_total_taxes
+            
+            # Calculate expense shortfall (includes HSA contribution as a cash outflow)
+            total_cash_needs = yd.total_expenses + yd.hsa_contribution
+            expense_shortfall = max(0, total_cash_needs - base_take_home)
+            
+            # If there's a shortfall and we have IRA balance, calculate withdrawal needed
+            # Use iterative approach to find the right withdrawal amount that covers
+            # both the expense shortfall AND the taxes on the withdrawal itself
+            if expense_shortfall > 0 and balance_401k > 0:
+                # Iteratively solve for the withdrawal amount
+                # We need: withdrawal - taxes_on_withdrawal >= expense_shortfall
+                # Start with a gross-up estimate and refine
+                
+                # Initial estimate using marginal rate
+                marginal_rate = federal_result.marginalBracket + 0.05  # Add ~5% for state
+                if marginal_rate < 1:
+                    withdrawal_estimate = expense_shortfall / (1 - marginal_rate)
+                else:
+                    withdrawal_estimate = expense_shortfall
+                
+                # Cap at available balance
+                withdrawal_estimate = min(withdrawal_estimate, balance_401k)
+                
+                # Iterate to find the correct withdrawal amount
+                # (taxes depend on withdrawal, so we need to converge)
+                for _ in range(5):  # 5 iterations should be enough to converge
+                    test_gross = base_income + withdrawal_estimate
+                    test_agi = max(0, test_gross - yd.total_deductions)
+                    
+                    test_federal = self.federal.taxBurden(test_agi, year)
+                    test_ltcg = self.federal.longTermCapitalGainsTax(test_agi, yd.long_term_capital_gains, year)
+                    test_state = self.state.taxBurden(test_gross, 0, year=year, employer_hsa_contribution=0)
+                    test_state_stcg = self.state.shortTermCapitalGainsTax(yd.short_term_capital_gains)
+                    
+                    test_total_taxes = test_federal.totalFederalTax + test_ltcg + test_state + test_state_stcg
+                    test_take_home = test_gross - test_total_taxes
+                    
+                    # How much more do we need?
+                    remaining_shortfall = total_cash_needs - test_take_home
+                    
+                    if remaining_shortfall <= 0:
+                        # We have enough, but don't reduce below what's needed
+                        break
+                    
+                    # Need to withdraw more - gross up the remaining shortfall
+                    additional_needed = remaining_shortfall / (1 - test_federal.marginalBracket - 0.05)
+                    withdrawal_estimate = min(withdrawal_estimate + additional_needed, balance_401k)
+                
+                yd.ira_withdrawal = withdrawal_estimate
+                balance_401k -= yd.ira_withdrawal
+            
+            # Now recalculate everything with the IRA withdrawal included in income
+            # IRA withdrawals are taxable as ordinary income
+            yd.gross_income = base_income + yd.ira_withdrawal
+            
+            # Adjusted gross income
+            yd.adjusted_gross_income = max(0, yd.gross_income - yd.total_deductions)
+            
+            # Federal taxes (IRA withdrawal is ordinary income)
             federal_result = self.federal.taxBurden(yd.adjusted_gross_income, year)
             yd.ordinary_income_tax = federal_result.totalFederalTax
             yd.marginal_bracket = federal_result.marginalBracket
@@ -519,7 +602,7 @@ class PlanCalculator:
                 yd.adjusted_gross_income, yd.long_term_capital_gains, year)
             yd.federal_tax = yd.ordinary_income_tax + yd.long_term_capital_gains_tax
             
-            # State taxes (gross_income already includes LTCG)
+            # State taxes (IRA withdrawal is also state taxable)
             state_taxable = yd.gross_income
             yd.state_income_tax = self.state.taxBurden(state_taxable, 0, year=year, employer_hsa_contribution=0)
             yd.state_short_term_capital_gains_tax = self.state.shortTermCapitalGainsTax(yd.short_term_capital_gains)
@@ -530,36 +613,18 @@ class PlanCalculator:
             yd.effective_tax_rate = yd.total_taxes / yd.gross_income if yd.gross_income > 0 else 0
             yd.take_home_pay = yd.gross_income - yd.total_taxes
             
-            # Expenses and money movement
-            yd.annual_expenses = current_annual_expenses
-            yd.special_expenses = special_expenses.get(year, 0)
-            yd.travel_expenses = current_travel_expenses
-            yd.medical_premium_expense = yd.medical_premium  # Use appropriate premium based on Medicare eligibility
-            yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.travel_expenses + yd.medical_premium_expense
+            # Money movement
             yd.income_expense_difference = yd.take_home_pay - yd.total_expenses
-            
-            # Calculate expense shortfall (includes HSA contribution as a cash outflow)
-            total_cash_needs = yd.total_expenses + yd.hsa_contribution
-            expense_shortfall = max(0, total_cash_needs - yd.take_home_pay)
-            
-            # Calculate IRA annuity: balance divided by remaining years in plan
-            remaining_years = last_planning_year - year + 1
-            ira_annuity = balance_401k / remaining_years if remaining_years > 0 else 0
-            
-            # Withdraw from IRA up to the lesser of annuity or expense shortfall
-            if expense_shortfall > 0 and balance_401k > 0:
-                yd.ira_withdrawal = min(ira_annuity, expense_shortfall, balance_401k)
-                balance_401k -= yd.ira_withdrawal
-                expense_shortfall -= yd.ira_withdrawal
             
             # Any remaining shortfall comes from taxable account
             # If there's excess income, it goes to taxable account
-            if expense_shortfall > 0:
+            actual_shortfall = max(0, total_cash_needs - yd.take_home_pay)
+            if actual_shortfall > 0:
                 # Still need money after IRA withdrawal - take from taxable
-                yd.taxable_account_adjustment = -expense_shortfall
+                yd.taxable_account_adjustment = -actual_shortfall
             else:
-                # Excess income (take_home + ira_withdrawal - expenses - hsa_contribution) goes to taxable
-                yd.taxable_account_adjustment = yd.take_home_pay + yd.ira_withdrawal - yd.total_expenses - yd.hsa_contribution
+                # Excess income (take_home - expenses - hsa_contribution) goes to taxable
+                yd.taxable_account_adjustment = yd.take_home_pay - yd.total_expenses - yd.hsa_contribution
             
             # Adjust taxable account balance
             balance_taxable += yd.taxable_account_adjustment

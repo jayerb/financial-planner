@@ -446,3 +446,41 @@ class TestIRAWithdrawals:
             y = result.yearly_data[post_deferred_start]
             # When IRA covers shortfall, taxable adjustment should be >= 0
             assert y.taxable_account_adjustment >= 0
+
+    def test_ira_withdrawal_included_in_gross_income(self, calculator):
+        """Test that IRA withdrawals are included in gross income for tax purposes."""
+        spec = create_spec_with_expenses()
+        spec['expenses']['annualAmount'] = 200000  # High expenses to trigger IRA withdrawal
+        result = calculator.calculate(spec)
+        
+        disbursement_years = spec['deferredCompensationPlan']['disbursementYears']
+        first_retirement = spec['lastWorkingYear'] + 1
+        post_deferred_start = first_retirement + disbursement_years
+        
+        if post_deferred_start <= spec['lastPlanningYear']:
+            y = result.yearly_data[post_deferred_start]
+            if y.ira_withdrawal > 0:
+                # Gross income should include IRA withdrawal
+                base_income = y.short_term_capital_gains + y.long_term_capital_gains
+                assert y.gross_income == base_income + y.ira_withdrawal
+
+    def test_ira_withdrawal_is_taxable(self, calculator):
+        """Test that IRA withdrawals are subject to income tax when above deductions."""
+        spec = create_spec_with_expenses()
+        spec['expenses']['annualAmount'] = 200000  # High expenses
+        # Set high initial 401k balance to ensure substantial withdrawals
+        spec['investments']['taxDeferredBalance'] = 2000000
+        result = calculator.calculate(spec)
+        
+        disbursement_years = spec['deferredCompensationPlan']['disbursementYears']
+        first_retirement = spec['lastWorkingYear'] + 1
+        post_deferred_start = first_retirement + disbursement_years
+        
+        if post_deferred_start <= spec['lastPlanningYear']:
+            y = result.yearly_data[post_deferred_start]
+            if y.ira_withdrawal > 0:
+                # Gross income should equal base income (capital gains) + IRA withdrawal
+                base_income = y.short_term_capital_gains + y.long_term_capital_gains
+                expected_gross = base_income + y.ira_withdrawal
+                assert abs(y.gross_income - expected_gross) < 0.01, \
+                    f"Gross income {y.gross_income} should equal base {base_income} + IRA {y.ira_withdrawal} = {expected_gross}"
