@@ -774,7 +774,7 @@ class CashFlowRenderer(BaseRenderer):
         total_final_balance = final_yd.balance_deferred_comp + final_yd.balance_ira + final_yd.balance_taxable
         print(f"    {'Total Assets:':<36} ${total_final_balance:>14,.0f}")
         print()
-        print("=" * 170)
+        print("=" * report_width)
         print()
 
 
