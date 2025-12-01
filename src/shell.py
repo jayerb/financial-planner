@@ -176,6 +176,10 @@ Type 'exit' or 'quit' to exit.
         self.plan_data = plan_data
         self.program_name = program_name
         self.available_fields = get_yearly_fields()
+        # Dictionary of loaded programs for comparison
+        self.loaded_programs: dict[str, PlanData] = {}
+        if plan_data and program_name:
+            self.loaded_programs[program_name] = plan_data
         self._update_intro()
     
     def preloop(self):
@@ -637,6 +641,261 @@ Type 'exit' or 'quit' to exit.
             return [mode for mode in RENDERER_REGISTRY.keys() if text_lower in mode.lower()]
         return []
     
+    def do_compare(self, arg: str):
+        """Compare fields from two loaded programs side by side.
+        
+        Usage: compare <program1> <program2> <fields> [year_or_range]
+        
+        Arguments:
+            program1, program2  - Names of loaded programs to compare
+            fields              - Comma-separated list of field names
+            year_or_range       - Optional: single year (2026) or range (2026-2030)
+        
+        For each field, displays the values from both programs side by side.
+        Column headers include the program name for clarity.
+        
+        Examples:
+            compare myprogram newplan gross_income
+            compare myprogram newplan gross_income, total_taxes
+            compare myprogram newplan take_home_pay 2026-2030
+            compare plan1 plan2 balance_ira, balance_taxable
+        """
+        if not arg.strip():
+            # Show help and list loaded programs
+            print("\nCompare financial data from two programs side by side.")
+            print("\nUsage: compare <program1> <program2> <fields> [year_or_range]")
+            print("\nLoaded programs:")
+            if self.loaded_programs:
+                for name in self.loaded_programs:
+                    active = " (active)" if name == self.program_name else ""
+                    print(f"  - {name}{active}")
+            else:
+                print("  No programs loaded. Use 'load <program_name>' to load programs.")
+            print("\nExample: compare myprogram newplan gross_income, total_taxes")
+            print()
+            return
+        
+        # Parse arguments: program1 program2 fields [year_range]
+        parts = arg.strip().split()
+        
+        if len(parts) < 3:
+            print("Error: Please specify two program names and at least one field.")
+            print("Usage: compare <program1> <program2> <fields> [year_or_range]")
+            return
+        
+        program1_name = parts[0]
+        program2_name = parts[1]
+        
+        # Get or load program 1
+        if program1_name in self.loaded_programs:
+            program1 = self.loaded_programs[program1_name]
+        else:
+            try:
+                print(f"Loading program '{program1_name}'...")
+                program1 = load_plan(program1_name)
+                self.loaded_programs[program1_name] = program1
+            except FileNotFoundError:
+                print(f"Error: Program '{program1_name}' not found.")
+                return
+            except Exception as e:
+                print(f"Error loading '{program1_name}': {e}")
+                return
+        
+        # Get or load program 2
+        if program2_name in self.loaded_programs:
+            program2 = self.loaded_programs[program2_name]
+        else:
+            try:
+                print(f"Loading program '{program2_name}'...")
+                program2 = load_plan(program2_name)
+                self.loaded_programs[program2_name] = program2
+            except FileNotFoundError:
+                print(f"Error: Program '{program2_name}' not found.")
+                return
+            except Exception as e:
+                print(f"Error loading '{program2_name}': {e}")
+                return
+        
+        # Parse remaining arguments for fields and optional year range
+        remaining = ' '.join(parts[2:])
+        
+        # Check if the last part looks like a year or year range
+        year_range = None
+        remaining_parts = remaining.rsplit(' ', 1)
+        if len(remaining_parts) == 2:
+            potential_range = remaining_parts[1].strip()
+            if '-' in potential_range:
+                try:
+                    range_parts = potential_range.split('-')
+                    if len(range_parts) == 2:
+                        # Handle open-ended ranges
+                        start = int(range_parts[0]) if range_parts[0] else None
+                        end = int(range_parts[1]) if range_parts[1] else None
+                        year_range = (start, end)
+                        remaining = remaining_parts[0]
+                except ValueError:
+                    pass  # Not a valid year range
+            else:
+                try:
+                    single_year = int(potential_range)
+                    if 1900 <= single_year <= 2200:
+                        year_range = (single_year, single_year)
+                        remaining = remaining_parts[0]
+                except ValueError:
+                    pass  # Not a valid year
+        
+        # Parse field names (comma-separated)
+        field_names = [f.strip() for f in remaining.split(',') if f.strip()]
+        
+        if not field_names:
+            print("Error: No valid field names provided.")
+            print("Use 'fields' command to see available field names.")
+            return
+        
+        # Validate field names
+        invalid_fields = [f for f in field_names if f not in self.available_fields]
+        if invalid_fields:
+            print(f"Error: Unknown field(s): {', '.join(invalid_fields)}")
+            print("Use 'fields' command to see available field names.")
+            return
+        
+        # Determine year range - use intersection of both programs
+        first_year = max(program1.first_year, program2.first_year)
+        last_year = min(program1.last_planning_year, program2.last_planning_year)
+        
+        if year_range:
+            if year_range[0] is not None:
+                first_year = max(first_year, year_range[0])
+            if year_range[1] is not None:
+                last_year = min(last_year, year_range[1])
+        
+        if first_year > last_year:
+            print(f"Error: No overlapping years between programs.")
+            print(f"  {program1_name}: {program1.first_year}-{program1.last_planning_year}")
+            print(f"  {program2_name}: {program2.first_year}-{program2.last_planning_year}")
+            return
+        
+        # Build headers: Year, then for each field: program1_field, program2_field
+        header = ["Year"]
+        for field in field_names:
+            short_name = get_short_name(field)
+            header.append(f"{short_name} ({program1_name})")
+            header.append(f"{short_name} ({program2_name})")
+        
+        # Calculate column widths
+        col_widths = [max(len(str(header[i])), 6) for i in range(len(header))]
+        
+        # Collect rows first to determine proper column widths
+        rows = []
+        totals1 = {f: 0.0 for f in field_names}
+        totals2 = {f: 0.0 for f in field_names}
+        can_sum_field = {f: True for f in field_names}
+        
+        for year in range(first_year, last_year + 1):
+            yearly1 = program1.get_year(year)
+            yearly2 = program2.get_year(year)
+            
+            if yearly1 is None or yearly2 is None:
+                continue
+            
+            row = [str(year)]
+            for field_name in field_names:
+                value1 = getattr(yearly1, field_name, None)
+                value2 = getattr(yearly2, field_name, None)
+                row.append(format_value(value1))
+                row.append(format_value(value2))
+                
+                # Accumulate totals for numeric non-rate fields
+                if isinstance(value1, (int, float)) and not isinstance(value1, bool):
+                    if field_name not in ('year', 'is_working_year', 'marginal_bracket', 'effective_tax_rate'):
+                        totals1[field_name] += value1
+                    else:
+                        can_sum_field[field_name] = False
+                elif isinstance(value1, bool):
+                    can_sum_field[field_name] = False
+                
+                if isinstance(value2, (int, float)) and not isinstance(value2, bool):
+                    if field_name not in ('year', 'is_working_year', 'marginal_bracket', 'effective_tax_rate'):
+                        totals2[field_name] += value2
+            
+            rows.append(row)
+            
+            # Update column widths
+            for i, cell in enumerate(row):
+                col_widths[i] = max(col_widths[i], len(cell))
+        
+        if not rows:
+            print(f"No data available for years {first_year}-{last_year}")
+            return
+        
+        # Print title
+        print()
+        title = f"COMPARISON: {program1_name} vs {program2_name}"
+        total_width = sum(col_widths) + (len(col_widths) - 1) * 2
+        print("=" * total_width)
+        print(f"{title:^{total_width}}")
+        print("=" * total_width)
+        print()
+        
+        # Print header
+        header_line = "  ".join(h.rjust(col_widths[i]) for i, h in enumerate(header))
+        print(header_line)
+        print("-" * len(header_line))
+        
+        # Print data rows
+        for row in rows:
+            print("  ".join(cell.rjust(col_widths[i]) for i, cell in enumerate(row)))
+        
+        # Print totals if multiple years
+        if len(rows) > 1:
+            print("-" * len(header_line))
+            total_row = ["Total"]
+            for field_name in field_names:
+                if can_sum_field[field_name] and field_name not in ('year', 'is_working_year'):
+                    total_row.append(format_value(totals1[field_name]))
+                    total_row.append(format_value(totals2[field_name]))
+                else:
+                    total_row.append("-")
+                    total_row.append("-")
+            
+            print("  ".join(cell.rjust(col_widths[i]) for i, cell in enumerate(total_row)))
+        
+        print()
+    
+    def complete_compare(self, text, line, begidx, endidx):
+        """Tab completion for the compare command.
+        
+        Completes program names for positions 1 and 2,
+        and field names for position 3 onwards.
+        """
+        parts = line.split()
+        
+        # Get available programs (loaded + available on disk)
+        available_programs = list(self.loaded_programs.keys())
+        disk_programs = self._get_available_programs()
+        all_programs = list(set(available_programs + disk_programs))
+        
+        if len(parts) == 1:
+            # After 'compare ', complete first program name
+            if not text:
+                return all_programs
+            return [p for p in all_programs if p.startswith(text)]
+        elif len(parts) == 2:
+            # Completing first program name or second program name
+            if text:
+                return [p for p in all_programs if p.startswith(text)]
+            else:
+                return all_programs
+        elif len(parts) == 3 and not text:
+            # Just typed space after second program, show fields
+            return self.available_fields
+        else:
+            # Complete field names (case-insensitive substring match)
+            if not text:
+                return self.available_fields
+            text_lower = text.lower()
+            return [f for f in self.available_fields if text_lower in f.lower()]
+
     def do_config(self, arg: str):
         """Manage custom renderer configurations.
         
@@ -921,6 +1180,7 @@ Type 'exit' or 'quit' to exit.
         Usage: load <program_name>
         
         If no program name is given and a plan is already loaded, reloads it.
+        Loaded programs are available for comparison with the 'compare' command.
         """
         program_name = arg.strip() if arg.strip() else self.program_name
         
@@ -932,12 +1192,19 @@ Type 'exit' or 'quit' to exit.
                 for item in sorted(os.listdir(input_params_dir)):
                     if os.path.isdir(os.path.join(input_params_dir, item)):
                         print(f"  - {item}")
+            if self.loaded_programs:
+                print("\nLoaded programs (available for comparison):")
+                for name in self.loaded_programs:
+                    active = " (active)" if name == self.program_name else ""
+                    print(f"  - {name}{active}")
             return
         
         try:
             print(f"Loading financial plan '{program_name}'...")
-            self.plan_data = load_plan(program_name)
+            plan_data = load_plan(program_name)
+            self.plan_data = plan_data
             self.program_name = program_name
+            self.loaded_programs[program_name] = plan_data
             print(f"Plan loaded successfully!")
             print(f"Years: {self.plan_data.first_year} - {self.plan_data.last_planning_year}")
             print(f"Working years: {self.plan_data.first_year} - {self.plan_data.last_working_year}")
@@ -993,6 +1260,24 @@ Available Commands:
         render Balances 2026-2030    - Show balances for 2026-2030
         render AnnualSummary 2028-   - Show summary from 2028 to end
         render TaxDetails 2026       - Show tax details for 2026
+
+  compare <program1> <program2> <fields> [year_or_range]
+      Compare fields from two programs side by side.
+      Programs will be loaded automatically if not already loaded.
+      
+      For each field, displays values from both programs next to each other.
+      Column headers include the program name for clarity.
+      
+      Arguments:
+        program1, program2  - Names of programs to compare
+        fields              - Comma-separated list of field names
+        year_or_range       - Optional: 2026 or 2026-2030
+      
+      Examples:
+        compare myprogram newplan gross_income
+        compare myprogram newplan gross_income, total_taxes
+        compare plan1 plan2 take_home_pay 2026-2030
+        compare plan1 plan2 balance_ira, balance_taxable
 
   config <subcommand> [arguments]
       Manage custom renderer configurations stored in report-config/.
@@ -1076,7 +1361,7 @@ Available Commands:
     
     def complete_help(self, text, line, begidx, endidx):
         """Tab completion for the help command."""
-        commands = ['get', 'fields', 'years', 'summary', 'render', 'generate', 'load', 'exit', 'quit']
+        commands = ['get', 'fields', 'years', 'summary', 'render', 'compare', 'config', 'generate', 'load', 'exit', 'quit']
         return [c for c in commands if c.startswith(text)]
 
 

@@ -764,3 +764,167 @@ class TestCaseInsensitiveRendererSearch:
         completions = shell_with_plan.complete_render('', 'render ', 7, 7)
         
         assert len(completions) == len(RENDERER_REGISTRY)
+
+
+class TestCompareCommand:
+    """Test the compare command functionality."""
+    
+    @pytest.fixture
+    def shell_with_two_programs(self, test_base_path):
+        """Create a shell with two programs loaded for comparison."""
+        # Load the same test program twice as if they were different programs
+        # This is just for testing the compare functionality
+        plan = load_test_plan(test_base_path)
+        shell = FinancialPlanShell(plan, 'testprogram')
+        # Add as second program with different name for comparison
+        shell.loaded_programs['testprogram2'] = plan
+        return shell
+    
+    def test_compare_no_args_shows_help(self, shell_with_two_programs):
+        """Test that compare with no arguments shows help."""
+        output = StringIO()
+        sys.stdout = output
+        try:
+            shell_with_two_programs.do_compare('')
+        finally:
+            sys.stdout = sys.__stdout__
+        
+        result = output.getvalue()
+        assert 'Usage:' in result
+        assert 'compare' in result
+        assert 'program1' in result
+    
+    def test_compare_shows_loaded_programs(self, shell_with_two_programs):
+        """Test that compare shows loaded programs in help."""
+        output = StringIO()
+        sys.stdout = output
+        try:
+            shell_with_two_programs.do_compare('')
+        finally:
+            sys.stdout = sys.__stdout__
+        
+        result = output.getvalue()
+        assert 'testprogram' in result
+        assert 'testprogram2' in result
+    
+    def test_compare_too_few_args_shows_error(self, shell_with_two_programs):
+        """Test that compare with too few arguments shows error."""
+        output = StringIO()
+        sys.stdout = output
+        try:
+            shell_with_two_programs.do_compare('testprogram')
+        finally:
+            sys.stdout = sys.__stdout__
+        
+        result = output.getvalue()
+        assert 'Error' in result
+        assert 'two program names' in result
+    
+    def test_compare_invalid_field_shows_error(self, shell_with_two_programs):
+        """Test that compare with invalid field shows error."""
+        output = StringIO()
+        sys.stdout = output
+        try:
+            shell_with_two_programs.do_compare('testprogram testprogram2 invalid_field')
+        finally:
+            sys.stdout = sys.__stdout__
+        
+        result = output.getvalue()
+        assert 'Unknown field' in result
+        assert 'invalid_field' in result
+    
+    def test_compare_valid_single_field(self, shell_with_two_programs):
+        """Test compare with a valid single field."""
+        output = StringIO()
+        sys.stdout = output
+        try:
+            shell_with_two_programs.do_compare('testprogram testprogram2 gross_income')
+        finally:
+            sys.stdout = sys.__stdout__
+        
+        result = output.getvalue()
+        assert 'COMPARISON:' in result
+        assert 'testprogram' in result
+        assert 'testprogram2' in result
+        assert 'Gross Income' in result
+    
+    def test_compare_valid_multiple_fields(self, shell_with_two_programs):
+        """Test compare with multiple valid fields."""
+        output = StringIO()
+        sys.stdout = output
+        try:
+            shell_with_two_programs.do_compare('testprogram testprogram2 gross_income, total_taxes')
+        finally:
+            sys.stdout = sys.__stdout__
+        
+        result = output.getvalue()
+        assert 'COMPARISON:' in result
+        assert 'Gross Income' in result
+        assert 'Total Taxes' in result
+    
+    def test_compare_with_year_range(self, shell_with_two_programs):
+        """Test compare with year range."""
+        output = StringIO()
+        sys.stdout = output
+        try:
+            shell_with_two_programs.do_compare('testprogram testprogram2 gross_income 2026-2028')
+        finally:
+            sys.stdout = sys.__stdout__
+        
+        result = output.getvalue()
+        assert 'COMPARISON:' in result
+        # Should only show years in the range
+        assert '2026' in result
+        assert '2027' in result
+        assert '2028' in result
+    
+    def test_compare_shows_totals(self, shell_with_two_programs):
+        """Test that compare shows totals row."""
+        output = StringIO()
+        sys.stdout = output
+        try:
+            shell_with_two_programs.do_compare('testprogram testprogram2 gross_income')
+        finally:
+            sys.stdout = sys.__stdout__
+        
+        result = output.getvalue()
+        assert 'Total' in result
+    
+    def test_complete_compare_returns_programs(self, shell_with_two_programs):
+        """Test that complete_compare returns program names."""
+        completions = shell_with_two_programs.complete_compare('', 'compare ', 8, 8)
+        
+        assert 'testprogram' in completions
+        assert 'testprogram2' in completions
+    
+    def test_complete_compare_filters_programs(self, shell_with_two_programs):
+        """Test that complete_compare filters program names by prefix."""
+        completions = shell_with_two_programs.complete_compare('test', 'compare test', 8, 12)
+        
+        assert 'testprogram' in completions
+        assert 'testprogram2' in completions
+    
+    def test_complete_compare_returns_fields_after_two_programs(self, shell_with_two_programs):
+        """Test that complete_compare returns field names after two programs."""
+        completions = shell_with_two_programs.complete_compare(
+            '', 'compare testprogram testprogram2 ', 33, 33
+        )
+        
+        # Should return field names
+        assert 'gross_income' in completions
+        assert 'total_taxes' in completions
+        assert 'take_home_pay' in completions
+    
+    def test_compare_column_headers_include_program_names(self, shell_with_two_programs):
+        """Test that compare column headers include program names."""
+        output = StringIO()
+        sys.stdout = output
+        try:
+            shell_with_two_programs.do_compare('testprogram testprogram2 gross_income')
+        finally:
+            sys.stdout = sys.__stdout__
+        
+        result = output.getvalue()
+        # Headers should include program names in parentheses
+        assert '(testprogram)' in result
+        assert '(testprogram2)' in result

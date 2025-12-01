@@ -54,9 +54,11 @@ Type 'exit' or 'quit' to exit.
 | Command | Description |
 |---------|-------------|
 | `get <fields> [year_range]` | Query one or more fields from yearly data |
+| `compare <prog1> <prog2> <fields> [year_range]` | Compare fields from two programs side by side |
 | `fields` | List all available field names (50+ fields) |
 | `years` | Show available year range and categorization |
 | `summary` | Show lifetime summary totals |
+| `load <program>` | Load a financial plan (multiple can be loaded for comparison) |
 | `help` | Show help message |
 | `exit` / `quit` | Exit the shell |
 
@@ -93,6 +95,49 @@ Type 'exit' or 'quit' to exit.
   2030    $218,043.36   $49,629.00  $14,629.32
 ---------------------------------------------
  Total  $1,084,687.13  $266,921.51  $82,377.72
+```
+
+### Comparing Programs
+
+Use the `compare` command to view fields from two programs side by side. This is useful for evaluating different financial scenarios (e.g., different retirement dates, salary assumptions, or investment strategies).
+
+**Basic comparison:**
+```
+> compare myprogram newplan gross_income
+```
+
+**Multiple fields:**
+```
+> compare myprogram newplan gross_income, total_taxes
+```
+
+**With year range:**
+```
+> compare myprogram newplan take_home_pay, balance_ira 2026-2030
+```
+
+**Sample output:**
+```
+========================================================================================================
+                                    COMPARISON: myprogram vs newplan                                    
+========================================================================================================
+
+  Year  Gross Income (myprogram)  Gross Income (newplan)  Total Taxes (myprogram)  Total Taxes (newplan)
+--------------------------------------------------------------------------------------------------------
+  2026               $449,684.16             $430,802.00              $100,814.97             $87,314.73
+  2027               $448,352.11             $464,778.94               $98,948.92             $96,803.34
+  2028               $418,610.35             $472,375.79               $88,123.06             $98,039.64
+  2029               $401,216.04             $493,591.84               $81,112.81            $103,345.86
+  2030               $415,231.88             $512,118.82               $83,892.32            $107,791.48
+--------------------------------------------------------------------------------------------------------
+ Total             $2,133,094.53           $2,373,667.39              $452,892.08            $493,295.05
+```
+
+Programs are automatically loaded if not already in memory. You can also pre-load multiple programs using the `load` command:
+```
+> load myprogram
+> load newplan
+> compare myprogram newplan balance_taxable, total_assets
 ```
 
 ### Available Data Fields
