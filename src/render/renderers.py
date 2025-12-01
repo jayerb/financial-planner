@@ -688,7 +688,21 @@ class CashFlowRenderer(BaseRenderer):
                     deferred_comp_income = 0
                     take_home_available = yd.take_home_pay
             
-            # Fund from take-home pay first
+            # IRA/401k withdrawal - use actual value from data (already included in gross income and take_home_pay)
+            ira_used = yd.ira_withdrawal
+            
+            # Fund from take-home pay first (excludes IRA withdrawal which is shown separately)
+            # Note: take_home_pay includes after-tax proceeds from IRA withdrawal, so we subtract it for clearer breakdown
+            if ira_used > 0:
+                # Estimate after-tax value of IRA withdrawal (taxes are part of total taxes)
+                # IRA withdrawals are taxed as ordinary income
+                if yd.gross_income > 0:
+                    ira_tax_fraction = (yd.federal_tax + yd.state_tax) / yd.gross_income
+                    ira_after_tax = ira_used * (1 - ira_tax_fraction)
+                else:
+                    ira_after_tax = ira_used
+                take_home_available = max(0, take_home_available - ira_after_tax)
+            
             take_home_used = min(take_home_available, remaining_expenses)
             remaining_expenses -= take_home_used
             
@@ -696,9 +710,15 @@ class CashFlowRenderer(BaseRenderer):
             deferred_comp_used = min(deferred_comp_income, remaining_expenses)
             remaining_expenses -= deferred_comp_used
             
-            # Fund from IRA/401k withdrawal
-            ira_used = min(yd.ira_withdrawal, remaining_expenses)
-            remaining_expenses -= ira_used
+            # IRA contribution to funding - estimate after-tax value
+            if ira_used > 0:
+                if yd.gross_income > 0:
+                    ira_tax_fraction = (yd.federal_tax + yd.state_tax) / yd.gross_income
+                    ira_funding = ira_used * (1 - ira_tax_fraction)
+                else:
+                    ira_funding = ira_used
+                ira_funding = min(ira_funding, remaining_expenses)
+                remaining_expenses -= ira_funding
             
             # Fund from taxable account (negative adjustment means withdrawal)
             taxable_withdrawal = -yd.taxable_account_adjustment if yd.taxable_account_adjustment < 0 else 0

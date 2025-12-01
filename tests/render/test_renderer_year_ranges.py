@@ -524,6 +524,71 @@ class TestCashFlowRendererYearRange:
         
         # The output should contain "Final Account Balances" section
         assert "Final Account Balances" in result
+    
+    def test_ira_withdrawal_displayed_in_cashflow(self):
+        """Test that IRA withdrawals are correctly displayed in CashFlow output.
+        
+        This test verifies that when a year has an IRA withdrawal, it shows up
+        in the IRA/401k funding column of the CashFlow renderer, even when
+        take_home_pay already covers expenses (since IRA withdrawals are 
+        included in gross income and thus in take_home_pay).
+        """
+        # Create plan data with specific IRA withdrawal values
+        plan = PlanData(
+            first_year=2050,
+            last_working_year=2049,  # Already retired
+            last_planning_year=2055
+        )
+        
+        # Add years with IRA withdrawals
+        for year in range(2050, 2056):
+            yd = YearlyData(
+                year=year,
+                is_working_year=False,
+                gross_income=20000.0,  # IRA withdrawal is taxable income
+                take_home_pay=18000.0,  # After-tax income from IRA
+                ira_withdrawal=20000.0,  # Actual IRA withdrawal before tax
+                total_expenses=15000.0,
+                annual_expenses=15000.0,
+                taxable_account_adjustment=3000.0,  # Excess goes to taxable
+                balance_ira=500000.0 - (year - 2050) * 20000,
+                balance_taxable=100000.0 + (year - 2050) * 3000,
+                balance_deferred_comp=0.0,
+                federal_tax=1500.0,
+                state_tax=500.0,
+            )
+            plan.yearly_data[year] = yd
+        
+        renderer = CashFlowRenderer()
+        
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            renderer.render(plan)
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        
+        # The IRA withdrawal should appear in the output
+        # Look for the IRA/401k column having values
+        assert "IRA/401k Withdrawals" in result
+        
+        # The summary should show IRA withdrawals were used
+        # With 6 years * $20,000 = $120,000 total IRA withdrawals
+        # The format includes spaces, so check for the number without formatting
+        assert "120,000" in result
+        
+        # Each year line should show the IRA withdrawal value
+        lines = result.split('\n')
+        year_2050_lines = [l for l in lines if l.strip().startswith('2050')]
+        assert len(year_2050_lines) > 0
+        # The line should contain the IRA withdrawal amount (formatted)
+        year_line = year_2050_lines[0]
+        # IRA withdrawal of $20,000 should appear in some form
+        assert '20,000' in year_line or '20000' in year_line
 
 
 class TestShellRenderWithYearRange:
