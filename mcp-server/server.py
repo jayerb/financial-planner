@@ -219,6 +219,29 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": ["query"]
             }
+        ),
+        Tool(
+            name="compare_programs",
+            description="Compare two financial planning programs and get analysis of which is better. Compares lifetime income, taxes, take-home pay, tax efficiency, and retirement assets. Returns a recommendation on which program is better overall with specific insights.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "program1": {
+                        "type": "string",
+                        "description": "First program name to compare"
+                    },
+                    "program2": {
+                        "type": "string",
+                        "description": "Second program name to compare"
+                    },
+                    "metrics": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional: specific metrics to compare. Options: 'lifetime_income', 'lifetime_taxes', 'take_home', 'tax_efficiency', 'retirement_assets', 'working_income', 'working_take_home', 'retirement_income', 'retirement_take_home', 'assets_at_retirement'. If not specified, compares all metrics."
+                    }
+                },
+                "required": ["program1", "program2"]
+            }
         )
     ]
 
@@ -257,6 +280,12 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
                 arguments["query"],
                 arguments.get("year"),
                 program
+            )
+        elif name == "compare_programs":
+            result = fp_tools.compare_programs(
+                arguments["program1"],
+                arguments["program2"],
+                arguments.get("metrics")
             )
         else:
             result = {"error": f"Unknown tool: {name}"}

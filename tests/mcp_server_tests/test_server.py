@@ -272,6 +272,33 @@ class TestCallTool:
         assert 'query' in data or 'error' in data
     
     @pytest.mark.asyncio
+    async def test_call_compare_programs(self):
+        """Test calling compare_programs tool."""
+        result = await mcp_server.call_tool('compare_programs', {
+            'program1': 'quickexample',
+            'program2': 'myprogram'
+        })
+        
+        data = json.loads(result[0].text)
+        assert 'metrics' in data or 'error' in data
+        if 'metrics' in data:
+            assert 'summary' in data
+            assert 'recommendation' in data
+    
+    @pytest.mark.asyncio
+    async def test_call_compare_programs_with_metrics(self):
+        """Test calling compare_programs tool with specific metrics."""
+        result = await mcp_server.call_tool('compare_programs', {
+            'program1': 'quickexample',
+            'program2': 'myprogram',
+            'metrics': ['lifetime_income', 'take_home']
+        })
+        
+        data = json.loads(result[0].text)
+        if 'metrics' in data:
+            assert len(data['metrics']) == 2
+    
+    @pytest.mark.asyncio
     async def test_call_unknown_tool(self):
         """Test calling an unknown tool returns error."""
         result = await mcp_server.call_tool('unknown_tool', {})

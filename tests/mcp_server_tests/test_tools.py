@@ -498,3 +498,125 @@ class TestEdgeCases:
         
         # Effective rate should be between 0% and 60%
         assert 0 <= summary['effective_tax_rate'] < 60
+
+
+class TestCompareProgramsTools:
+    """Tests for the compare_programs functionality in MultiProgramTools."""
+    
+    @pytest.fixture
+    def multi_tools_with_two_programs(self, test_base_path):
+        """Create MultiProgramTools with two test programs."""
+        # Create a second test program with different values
+        input_params_dir = os.path.join(test_base_path, 'input-parameters')
+        testprogram2_dir = os.path.join(input_params_dir, 'testprogram2')
+        os.makedirs(testprogram2_dir, exist_ok=True)
+        
+        # Copy and modify the spec for the second program
+        with open(os.path.join(input_params_dir, 'testprogram', 'spec.json'), 'r') as f:
+            spec = json.load(f)
+        
+        # Modify to create a different scenario (higher salary, longer working years)
+        spec['income']['baseSalary'] = 150000
+        spec['lastWorkingYear'] = 2040
+        
+        with open(os.path.join(testprogram2_dir, 'spec.json'), 'w') as f:
+            json.dump(spec, f)
+        
+        tools = MultiProgramTools(test_base_path)
+        yield tools
+        
+        # Cleanup the second program
+        shutil.rmtree(testprogram2_dir, ignore_errors=True)
+    
+    def test_compare_programs_returns_structure(self, multi_tools_with_two_programs):
+        """Test that compare_programs returns the expected structure."""
+        result = multi_tools_with_two_programs.compare_programs('testprogram', 'testprogram2')
+        
+        assert 'programs' in result
+        assert 'metrics' in result
+        assert 'summary' in result
+        assert 'recommendation' in result
+    
+    def test_compare_programs_includes_all_metrics(self, multi_tools_with_two_programs):
+        """Test that all expected metrics are compared."""
+        result = multi_tools_with_two_programs.compare_programs('testprogram', 'testprogram2')
+        
+        expected_metrics = [
+            'lifetime_income', 'lifetime_taxes', 'take_home', 'tax_efficiency',
+            'working_income', 'working_take_home', 'retirement_income', 
+            'retirement_take_home', 'retirement_assets', 'assets_at_retirement'
+        ]
+        
+        for metric in expected_metrics:
+            assert metric in result['metrics'], f"Missing metric: {metric}"
+    
+    def test_compare_programs_metric_structure(self, multi_tools_with_two_programs):
+        """Test that each metric comparison has expected fields."""
+        result = multi_tools_with_two_programs.compare_programs('testprogram', 'testprogram2')
+        
+        for metric_name, metric_data in result['metrics'].items():
+            assert 'description' in metric_data
+            assert 'testprogram' in metric_data
+            assert 'testprogram2' in metric_data
+            assert 'difference' in metric_data
+            assert 'percent_difference' in metric_data
+            assert 'better' in metric_data
+            assert 'higher_is_better' in metric_data
+    
+    def test_compare_programs_summary_has_wins(self, multi_tools_with_two_programs):
+        """Test that summary includes win counts."""
+        result = multi_tools_with_two_programs.compare_programs('testprogram', 'testprogram2')
+        
+        assert 'wins' in result['summary']
+        assert 'testprogram' in result['summary']['wins']
+        assert 'testprogram2' in result['summary']['wins']
+        assert 'tied' in result['summary']['wins']
+        assert 'overall_better' in result['summary']
+        assert 'metrics_compared' in result['summary']
+    
+    def test_compare_programs_with_specific_metrics(self, multi_tools_with_two_programs):
+        """Test comparing only specific metrics."""
+        result = multi_tools_with_two_programs.compare_programs(
+            'testprogram', 'testprogram2',
+            metrics=['lifetime_income', 'take_home']
+        )
+        
+        assert len(result['metrics']) == 2
+        assert 'lifetime_income' in result['metrics']
+        assert 'take_home' in result['metrics']
+        assert result['summary']['metrics_compared'] == 2
+    
+    def test_compare_programs_invalid_program(self, multi_tools_with_two_programs):
+        """Test error handling for invalid program name."""
+        result = multi_tools_with_two_programs.compare_programs('testprogram', 'nonexistent')
+        
+        assert 'error' in result
+        assert 'nonexistent' in result['error']
+    
+    def test_compare_programs_invalid_metrics(self, multi_tools_with_two_programs):
+        """Test error handling for invalid metrics."""
+        result = multi_tools_with_two_programs.compare_programs(
+            'testprogram', 'testprogram2',
+            metrics=['invalid_metric']
+        )
+        
+        assert 'error' in result
+        assert 'Available metrics' in result['error']
+    
+    def test_compare_programs_recommendation_text(self, multi_tools_with_two_programs):
+        """Test that recommendation is a meaningful string."""
+        result = multi_tools_with_two_programs.compare_programs('testprogram', 'testprogram2')
+        
+        assert isinstance(result['recommendation'], str)
+        assert len(result['recommendation']) > 20  # Should be a meaningful sentence
+    
+    def test_compare_programs_self_comparison(self, multi_tools_with_two_programs):
+        """Test comparing a program to itself results in ties."""
+        result = multi_tools_with_two_programs.compare_programs('testprogram', 'testprogram')
+        
+        # All metrics should be tied when comparing to self
+        for metric_data in result['metrics'].values():
+            assert metric_data['difference'] == 0
+            assert metric_data['better'] == 'tie'
+        
+        assert result['summary']['overall_better'] == 'tie'

@@ -672,3 +672,226 @@ class MultiProgramTools:
         result = self._get_program(program, require_explicit=True).search_financial_data(query, year)
         result["program"] = program or self.default_program
         return result
+
+    def compare_programs(self, program1: str, program2: str, metrics: Optional[List[str]] = None) -> dict:
+        """Compare two financial planning programs and analyze which is better.
+        
+        Args:
+            program1: First program name to compare
+            program2: Second program name to compare
+            metrics: Optional list of specific metrics to focus on. If None, compares all key metrics.
+                     Options: 'lifetime_income', 'lifetime_taxes', 'take_home', 'tax_efficiency',
+                              'retirement_assets', 'working_income', 'retirement_income'
+        """
+        if program1 not in self.programs:
+            return {"error": f"Program '{program1}' not found. Available: {list(self.programs.keys())}"}
+        if program2 not in self.programs:
+            return {"error": f"Program '{program2}' not found. Available: {list(self.programs.keys())}"}
+        
+        tools1 = self.programs[program1]
+        tools2 = self.programs[program2]
+        
+        # Get lifetime totals for both
+        totals1 = tools1.get_lifetime_totals()
+        totals2 = tools2.get_lifetime_totals()
+        
+        # Get investment balances for both
+        investments1 = tools1.get_investment_balances()
+        investments2 = tools2.get_investment_balances()
+        
+        # Get overviews for context
+        overview1 = tools1.get_program_overview()
+        overview2 = tools2.get_program_overview()
+        
+        def safe_get(d: dict, *keys, default=0):
+            """Safely get nested dictionary value."""
+            for key in keys:
+                if isinstance(d, dict):
+                    d = d.get(key, default)
+                else:
+                    return default
+            return d if d is not None else default
+        
+        def compare_metric(name: str, val1: float, val2: float, higher_is_better: bool = True) -> dict:
+            """Compare a metric and determine winner."""
+            diff = val2 - val1
+            if val1 != 0:
+                pct_diff = (diff / abs(val1)) * 100
+            else:
+                pct_diff = 100 if val2 > 0 else (-100 if val2 < 0 else 0)
+            
+            if higher_is_better:
+                winner = program1 if val1 > val2 else (program2 if val2 > val1 else "tie")
+            else:
+                winner = program1 if val1 < val2 else (program2 if val2 < val1 else "tie")
+            
+            return {
+                program1: round(val1, 2),
+                program2: round(val2, 2),
+                "difference": round(diff, 2),
+                "percent_difference": round(pct_diff, 1),
+                "better": winner,
+                "higher_is_better": higher_is_better
+            }
+        
+        # Build comprehensive comparison
+        comparison = {
+            "programs": {
+                program1: {
+                    "planning_horizon": f"{overview1['planning_horizon']['first_year']}-{overview1['planning_horizon']['last_planning_year']}",
+                    "working_years": overview1['planning_horizon']['working_years'],
+                    "retirement_years": overview1['planning_horizon']['retirement_years']
+                },
+                program2: {
+                    "planning_horizon": f"{overview2['planning_horizon']['first_year']}-{overview2['planning_horizon']['last_planning_year']}",
+                    "working_years": overview2['planning_horizon']['working_years'],
+                    "retirement_years": overview2['planning_horizon']['retirement_years']
+                }
+            },
+            "metrics": {}
+        }
+        
+        # Define all available metrics
+        all_metrics = {
+            "lifetime_income": {
+                "name": "Lifetime Gross Income",
+                "val1": safe_get(totals1, "lifetime_totals", "gross_income"),
+                "val2": safe_get(totals2, "lifetime_totals", "gross_income"),
+                "higher_is_better": True
+            },
+            "lifetime_taxes": {
+                "name": "Lifetime Total Taxes",
+                "val1": safe_get(totals1, "lifetime_totals", "total_tax"),
+                "val2": safe_get(totals2, "lifetime_totals", "total_tax"),
+                "higher_is_better": False
+            },
+            "take_home": {
+                "name": "Lifetime Take-Home Pay",
+                "val1": safe_get(totals1, "lifetime_totals", "take_home_pay"),
+                "val2": safe_get(totals2, "lifetime_totals", "take_home_pay"),
+                "higher_is_better": True
+            },
+            "tax_efficiency": {
+                "name": "Effective Lifetime Tax Rate (%)",
+                "val1": safe_get(totals1, "effective_lifetime_tax_rate"),
+                "val2": safe_get(totals2, "effective_lifetime_tax_rate"),
+                "higher_is_better": False
+            },
+            "working_income": {
+                "name": "Working Years Gross Income",
+                "val1": safe_get(totals1, "working_years_totals", "gross_income"),
+                "val2": safe_get(totals2, "working_years_totals", "gross_income"),
+                "higher_is_better": True
+            },
+            "working_take_home": {
+                "name": "Working Years Take-Home Pay",
+                "val1": safe_get(totals1, "working_years_totals", "take_home_pay"),
+                "val2": safe_get(totals2, "working_years_totals", "take_home_pay"),
+                "higher_is_better": True
+            },
+            "retirement_income": {
+                "name": "Retirement Years Gross Income",
+                "val1": safe_get(totals1, "retirement_years_totals", "gross_income"),
+                "val2": safe_get(totals2, "retirement_years_totals", "gross_income"),
+                "higher_is_better": True
+            },
+            "retirement_take_home": {
+                "name": "Retirement Years Take-Home Pay",
+                "val1": safe_get(totals1, "retirement_years_totals", "take_home_pay"),
+                "val2": safe_get(totals2, "retirement_years_totals", "take_home_pay"),
+                "higher_is_better": True
+            },
+            "retirement_assets": {
+                "name": "Final Total Assets",
+                "val1": safe_get(investments1, "final_balances", "total", default=0),
+                "val2": safe_get(investments2, "final_balances", "total", default=0),
+                "higher_is_better": True
+            },
+            "assets_at_retirement": {
+                "name": "Assets at Retirement",
+                "val1": safe_get(investments1, "at_retirement", "total", default=0),
+                "val2": safe_get(investments2, "at_retirement", "total", default=0),
+                "higher_is_better": True
+            }
+        }
+        
+        # Filter to requested metrics if specified
+        if metrics:
+            metrics_to_compare = {k: v for k, v in all_metrics.items() if k in metrics}
+            if not metrics_to_compare:
+                return {
+                    "error": f"No valid metrics specified. Available metrics: {list(all_metrics.keys())}"
+                }
+        else:
+            metrics_to_compare = all_metrics
+        
+        # Perform comparisons
+        wins = {program1: 0, program2: 0, "tie": 0}
+        
+        for key, metric_info in metrics_to_compare.items():
+            result = compare_metric(
+                metric_info["name"],
+                metric_info["val1"],
+                metric_info["val2"],
+                metric_info["higher_is_better"]
+            )
+            comparison["metrics"][key] = {
+                "description": metric_info["name"],
+                **result
+            }
+            wins[result["better"]] += 1
+        
+        # Generate analysis
+        comparison["summary"] = {
+            "metrics_compared": len(metrics_to_compare),
+            "wins": {
+                program1: wins[program1],
+                program2: wins[program2],
+                "tied": wins["tie"]
+            }
+        }
+        
+        # Determine overall recommendation
+        if wins[program1] > wins[program2]:
+            overall_winner = program1
+            win_margin = wins[program1] - wins[program2]
+        elif wins[program2] > wins[program1]:
+            overall_winner = program2
+            win_margin = wins[program2] - wins[program1]
+        else:
+            overall_winner = "tie"
+            win_margin = 0
+        
+        comparison["summary"]["overall_better"] = overall_winner
+        
+        # Generate recommendation text
+        if overall_winner == "tie":
+            recommendation = f"Both programs are roughly equivalent, each winning {wins[program1]} metrics."
+        else:
+            loser = program2 if overall_winner == program1 else program1
+            recommendation = f"'{overall_winner}' appears better overall, winning {wins[overall_winner]} of {len(metrics_to_compare)} metrics compared to {wins[loser]} for '{loser}'."
+            
+            # Add specific insights
+            take_home_better = comparison["metrics"].get("take_home", {}).get("better")
+            tax_better = comparison["metrics"].get("tax_efficiency", {}).get("better")
+            assets_better = comparison["metrics"].get("retirement_assets", {}).get("better")
+            
+            insights = []
+            if take_home_better and take_home_better != "tie":
+                diff = comparison["metrics"]["take_home"]["difference"]
+                insights.append(f"'{take_home_better}' provides ${abs(diff):,.0f} more lifetime take-home pay")
+            
+            if tax_better and tax_better != "tie":
+                diff = comparison["metrics"]["tax_efficiency"]["difference"]
+                insights.append(f"'{tax_better}' has a {abs(diff):.1f}% lower effective tax rate")
+            
+            if assets_better and assets_better != "tie" and comparison["metrics"].get("retirement_assets", {}).get(assets_better, 0) > 0:
+                diff = comparison["metrics"]["retirement_assets"]["difference"]
+                insights.append(f"'{assets_better}' results in ${abs(diff):,.0f} more in final assets")
+            
+            if insights:
+                recommendation += " Key differences: " + "; ".join(insights) + "."
+        
+        comparison["recommendation"] = recommendation
+        
+        return comparison
