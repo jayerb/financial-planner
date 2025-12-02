@@ -8,6 +8,14 @@ A retirement planning application that estimates tax burden and financial projec
 
 ## Quick Start
 
+The preferred way to use the financial planner is through the interactive shell, launched via the `fp` executable:
+
+```bash
+./fp myprogram
+```
+
+This launches the shell with your financial plan loaded, ready for queries.
+
 ### Step 1: Create Your Financial Plan
 
 First, create a configuration file with your financial details:
@@ -27,7 +35,13 @@ cp -r input-parameters/myprogram input-parameters/myplan
 
 ### Step 2: Query Your Data with the Interactive Shell
 
-The interactive shell loads your complete financial plan and lets you query any data fields across any year range:
+Launch the interactive shell using the `fp` executable:
+
+```bash
+./fp myprogram
+```
+
+Alternatively, you can run it directly with Python:
 
 ```bash
 python src/shell.py myprogram
@@ -55,6 +69,8 @@ Type 'exit' or 'quit' to exit.
 |---------|-------------|
 | `get <fields> [year_range]` | Query one or more fields from yearly data |
 | `compare <prog1> <prog2> <fields> [year_range]` | Compare fields from two programs side by side |
+| `render [mode] [year_range]` | Generate formatted reports using pre-built or custom renderers |
+| `config <subcommand>` | Manage custom renderer configurations |
 | `fields` | List all available field names (50+ fields) |
 | `years` | Show available year range and categorization |
 | `summary` | Show lifetime summary totals |
@@ -140,6 +156,78 @@ Programs are automatically loaded if not already in memory. You can also pre-loa
 > compare myprogram newplan balance_taxable, total_assets
 ```
 
+### Rendering Reports
+
+The `render` command generates formatted reports using pre-built renderers. This is ideal for viewing comprehensive summaries without specifying individual fields.
+
+**List available renderers:**
+```
+> render
+```
+
+**Render a report:**
+```
+> render AnnualSummary
+> render Balances 2026-2035
+> render TaxDetails 2026
+```
+
+#### Pre-Built Renderers
+
+| Renderer | Description |
+|----------|-------------|
+| `TaxDetails` | Detailed tax breakdown for a single year (income, deductions, federal/state/FICA taxes) |
+| `Balances` | Account balances over time (401k, deferred comp, HSA, taxable) |
+| `AnnualSummary` | Year-by-year summary of income, taxes, and take-home pay |
+| `Contributions` | Breakdown of retirement contributions (401k, HSA, deferred comp) |
+| `MoneyMovement` | Cash flow showing income vs expenses and account adjustments |
+| `CashFlow` | Detailed expense funding breakdown by source (take-home, IRA, taxable) |
+
+#### Creating Custom Reports
+
+You can create your own custom renderers to display exactly the fields you need. Custom reports are saved to the `report-config/` directory and become available immediately.
+
+**Create a new custom renderer interactively:**
+```
+> config create MyIncomeReport
+```
+
+You'll be prompted to:
+1. Enter a title for the report
+2. Add fields one by one (with tab completion)
+3. Choose whether to show totals
+4. Specify the filename to save to
+
+**Manage custom configurations:**
+```
+> config list                    # List all custom configurations
+> config show MyIncomeReport     # Show details of a configuration
+> config delete MyIncomeReport   # Delete a configuration
+> config reload                  # Reload configurations from disk
+```
+
+**Example custom configuration file** (`report-config/custom.json`):
+```json
+{
+    "Expenses": {
+        "title": "Expenses Breakdown",
+        "fields": [
+            "annual_expenses",
+            "special_expenses",
+            "total_expenses",
+            "hsa_withdrawal",
+            "ira_withdrawal"
+        ],
+        "show_totals": true
+    }
+}
+```
+
+Once created, use your custom renderer like any built-in one:
+```
+> render Expenses 2026-2040
+```
+
 ### Available Data Fields
 
 The shell can query 50+ fields organized by category:
@@ -194,7 +282,13 @@ financial-planner/
 
 ## MCP Server (Alternative)
 
-For AI assistant integration, an MCP (Model Context Protocol) server is also available. See `mcp-server/README.md` for setup instructions.
+For AI assistant integration, an MCP (Model Context Protocol) server is also available. The MCP server enables conversational interaction with your financial data and provides powerful capabilities:
+
+- **Scenario Generation**: Ask the AI to generate different financial scenarios for you (e.g., "create a scenario with 10% deferred compensation" or "what if I retire in 5 years instead of 10")
+- **Outcome Comparison**: Compare the outcomes of different programs side by side to understand the impact of various financial decisions
+- **Natural Language Queries**: Query your financial data using plain English instead of shell commands
+
+See `mcp-server/README.md` for setup instructions.
 
 ## Technical Details
 
