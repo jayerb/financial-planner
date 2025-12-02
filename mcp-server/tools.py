@@ -607,6 +607,41 @@ class MultiProgramTools:
             "programs_info": programs_info
         }
     
+    def reload_programs(self) -> dict:
+        """Reload all programs from disk, refreshing the cache.
+        
+        Use this after adding, modifying, or removing program spec.json files
+        to pick up changes without restarting the server.
+        """
+        old_programs = set(self.programs.keys())
+        old_default = self.default_program
+        
+        # Clear existing programs
+        self.programs.clear()
+        self.default_program = None
+        
+        # Re-discover programs
+        self._discover_programs()
+        
+        new_programs = set(self.programs.keys())
+        
+        # Determine what changed
+        added = new_programs - old_programs
+        removed = old_programs - new_programs
+        unchanged = old_programs & new_programs
+        
+        return {
+            "status": "success",
+            "message": f"Reloaded {len(self.programs)} programs",
+            "programs_loaded": list(self.programs.keys()),
+            "default_program": self.default_program,
+            "changes": {
+                "added": list(added),
+                "removed": list(removed),
+                "reloaded": list(unchanged)
+            }
+        }
+    
     def get_program_overview(self, program: Optional[str] = None) -> dict:
         """Get an overview of the specified financial plan."""
         result = self._get_program(program, require_explicit=True).get_program_overview()

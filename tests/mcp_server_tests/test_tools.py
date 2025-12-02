@@ -442,6 +442,76 @@ class TestMultiProgramTools:
         assert 'program' in result
         assert 'query' in result
 
+    def test_reload_programs(self, multi_tools):
+        """Test reload_programs refreshes the program cache."""
+        # Get initial state
+        initial_programs = set(multi_tools.programs.keys())
+        
+        # Reload programs
+        result = multi_tools.reload_programs()
+        
+        # Check result structure
+        assert result['status'] == 'success'
+        assert 'programs_loaded' in result
+        assert 'default_program' in result
+        assert 'changes' in result
+        assert 'added' in result['changes']
+        assert 'removed' in result['changes']
+        assert 'reloaded' in result['changes']
+        
+        # Programs should still be loaded
+        assert len(multi_tools.programs) > 0
+        assert 'testprogram' in multi_tools.programs
+        
+        # Since we didn't add/remove any files, everything should be reloaded
+        assert set(result['changes']['reloaded']) == initial_programs
+
+    def test_reload_programs_detects_new_program(self, test_base_path):
+        """Test reload_programs detects newly added programs."""
+        tools = MultiProgramTools(test_base_path)
+        initial_count = len(tools.programs)
+        
+        # Create a new program by copying testprogram
+        new_program_dir = os.path.join(test_base_path, 'input-parameters', 'newprogram')
+        shutil.copytree(
+            os.path.join(test_base_path, 'input-parameters', 'testprogram'),
+            new_program_dir
+        )
+        
+        try:
+            # Reload and check
+            result = tools.reload_programs()
+            
+            assert 'newprogram' in result['changes']['added']
+            assert 'newprogram' in tools.programs
+            assert len(tools.programs) == initial_count + 1
+        finally:
+            # Cleanup
+            shutil.rmtree(new_program_dir, ignore_errors=True)
+
+    def test_reload_programs_detects_removed_program(self, test_base_path):
+        """Test reload_programs detects removed programs."""
+        # Create a temporary program first
+        temp_program_dir = os.path.join(test_base_path, 'input-parameters', 'tempprogram')
+        shutil.copytree(
+            os.path.join(test_base_path, 'input-parameters', 'testprogram'),
+            temp_program_dir
+        )
+        
+        tools = MultiProgramTools(test_base_path)
+        assert 'tempprogram' in tools.programs
+        initial_count = len(tools.programs)
+        
+        # Remove the program
+        shutil.rmtree(temp_program_dir)
+        
+        # Reload and check
+        result = tools.reload_programs()
+        
+        assert 'tempprogram' in result['changes']['removed']
+        assert 'tempprogram' not in tools.programs
+        assert len(tools.programs) == initial_count - 1
+
 
 class TestEdgeCases:
     """Test edge cases and error handling."""

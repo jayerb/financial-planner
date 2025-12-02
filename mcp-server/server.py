@@ -60,6 +60,15 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="reload_programs",
+            description="Reload all financial planning programs from disk. Use this after adding, modifying, or removing program spec.json files to refresh the cache without restarting the server.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        ),
+        Tool(
             name="get_program_overview",
             description="Get an overview of the financial plan including key dates, income sources, and plan parameters. Use this first to understand the scope of the plan.",
             inputSchema={
@@ -255,6 +264,8 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
         
         if name == "list_programs":
             result = fp_tools.list_programs()
+        elif name == "reload_programs":
+            result = fp_tools.reload_programs()
         elif name == "get_program_overview":
             result = fp_tools.get_program_overview(program)
         elif name == "list_available_years":
