@@ -11,7 +11,7 @@ A retirement planning application that estimates tax burden and financial projec
 The preferred way to use the financial planner is through the interactive shell, launched via the `fp` executable:
 
 ```bash
-./fp myprogram
+./fp
 ```
 
 This launches the shell with your financial plan loaded, ready for queries.
@@ -22,7 +22,9 @@ First, create a configuration file with your financial details:
 
 **Option A: Interactive Wizard (Recommended)**
 ```bash
-python src/Program.py --generate
+./fp
+>generate
+>plan name [myplan]: plan-a
 ```
 Answer the prompts to enter your income, deductions, retirement plans, RSUs, ESPP, and other financial details. Your configuration will be saved to `input-parameters/<your-plan-name>/spec.json`.
 
