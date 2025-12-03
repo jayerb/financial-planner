@@ -512,9 +512,15 @@ Type 'exit' or 'quit' to exit.
     def do_render(self, arg: str):
         """Render financial data using different output formats.
         
-        Usage: render [mode] [year_or_range]
+        Usage: render [program] [mode] [year_or_range]
         
         If no mode is specified, shows available render modes.
+        If program is specified, renders data from that loaded program.
+        
+        Arguments:
+            program      - Optional: name of a loaded program (use 'load' first)
+            mode         - The render mode (e.g., Balances, TaxDetails)
+            year_or_range - Optional: year range for multi-year modes
         
         Available modes:
             TaxDetails     - Detailed tax breakdown (requires year)
@@ -531,24 +537,55 @@ Type 'exit' or 'quit' to exit.
         
         Examples:
             render                       - List available modes
-            render Balances              - Show all account balances
+            render Balances              - Show all account balances (active program)
+            render myplan Balances       - Show balances from 'myplan'
             render Balances 2026-2030    - Show balances for 2026-2030
-            render TaxDetails 2026       - Show tax details for 2026
+            render myplan TaxDetails 2026 - Show tax details for 2026 from 'myplan'
         """
-        if not self._require_plan():
-            return
-        
         parts = arg.strip().split()
         
         if not parts:
             # List available render modes
+            if not self._require_plan():
+                return
             print("\nAvailable render modes:")
             print("=" * 40)
             for mode in RENDERER_REGISTRY.keys():
                 print(f"  - {mode}")
-            print("\nUsage: render <mode> [year_or_range]")
+            print("\nUsage: render [program] <mode> [year_or_range]")
             print("Note: TaxDetails requires a single year.")
             print("      Other modes accept year ranges like 2026-2030")
+            if self.loaded_programs:
+                print("\nLoaded programs:")
+                for name in self.loaded_programs:
+                    active = " (active)" if name == self.program_name else ""
+                    print(f"  - {name}{active}")
+            print()
+            return
+        
+        # Check if first argument is a loaded program name
+        target_plan = self.plan_data
+        target_program = self.program_name
+        arg_offset = 0
+        
+        if parts[0] in self.loaded_programs:
+            target_plan = self.loaded_programs[parts[0]]
+            target_program = parts[0]
+            arg_offset = 1
+            parts = parts[1:]
+        
+        if target_plan is None:
+            print("No plan loaded. Use 'load <program_name>' first.")
+            return
+        
+        if not parts:
+            # Only program name was given, list modes
+            print(f"\nRendering for program: {target_program}")
+            print("\nAvailable render modes:")
+            print("=" * 40)
+            for mode in RENDERER_REGISTRY.keys():
+                print(f"  - {mode}")
+            print("\nUsage: render [program] <mode> [year_or_range]")
             print()
             return
         
@@ -573,15 +610,15 @@ Type 'exit' or 'quit' to exit.
         if matched_mode == 'TaxDetails':
             if len(parts) < 2:
                 print("Error: TaxDetails requires a year argument.")
-                print(f"Usage: render TaxDetails <year>")
-                print(f"Example: render TaxDetails {self.plan_data.first_year}")
+                print(f"Usage: render [program] TaxDetails <year>")
+                print(f"Example: render TaxDetails {target_plan.first_year}")
                 return
             try:
                 tax_year = int(parts[1])
-                if tax_year < self.plan_data.first_year or tax_year > self.plan_data.last_planning_year:
-                    print(f"Error: Year must be between {self.plan_data.first_year} and {self.plan_data.last_planning_year}")
+                if tax_year < target_plan.first_year or tax_year > target_plan.last_planning_year:
+                    print(f"Error: Year must be between {target_plan.first_year} and {target_plan.last_planning_year}")
                     return
-                renderer = TaxDetailsRenderer(tax_year)
+                renderer = TaxDetailsRenderer(tax_year, program_name=target_program)
             except ValueError:
                 print(f"Error: Invalid year '{parts[1]}'")
                 return
@@ -599,11 +636,11 @@ Type 'exit' or 'quit' to exit.
                         if range_parts[0]:
                             start_year = int(range_parts[0])
                         else:
-                            start_year = self.plan_data.first_year
+                            start_year = target_plan.first_year
                         if len(range_parts) > 1 and range_parts[1]:
                             end_year = int(range_parts[1])
                         else:
-                            end_year = self.plan_data.last_planning_year
+                            end_year = target_plan.last_planning_year
                     else:
                         # Single year - show just that year
                         single_year = int(year_arg)
@@ -611,8 +648,8 @@ Type 'exit' or 'quit' to exit.
                         end_year = single_year
                     
                     # Validate year range
-                    if start_year < self.plan_data.first_year or end_year > self.plan_data.last_planning_year:
-                        print(f"Warning: Year range extends beyond plan data ({self.plan_data.first_year}-{self.plan_data.last_planning_year})")
+                    if start_year < target_plan.first_year or end_year > target_plan.last_planning_year:
+                        print(f"Warning: Year range extends beyond plan data ({target_plan.first_year}-{target_plan.last_planning_year})")
                     if start_year > end_year:
                         print(f"Error: Start year ({start_year}) cannot be greater than end year ({end_year})")
                         return
@@ -620,25 +657,55 @@ Type 'exit' or 'quit' to exit.
                     print(f"Error: Invalid year or range '{year_arg}'")
                     return
             
-            renderer = renderer_class(start_year=start_year, end_year=end_year)
+            renderer = renderer_class(start_year=start_year, end_year=end_year, program_name=target_program)
         
         # Render the output
         print()
-        output = renderer.render(self.plan_data)
+        output = renderer.render(target_plan)
         print(output)
     
     def complete_render(self, text, line, begidx, endidx):
         """Tab completion for the render command.
         
-        Matches render mode names containing the text anywhere (case-insensitive substring match).
+        First position completes program names (from loaded programs) or render modes.
+        Second position completes render modes if first was a program name.
         """
         parts = line.split()
-        if len(parts) <= 2:
-            # Complete render mode names - case-insensitive substring match
+        
+        # Get loaded program names
+        program_names = list(self.loaded_programs.keys())
+        mode_names = list(RENDERER_REGISTRY.keys())
+        
+        if len(parts) == 1:
+            # Just 'render', complete with programs and modes
+            completions = program_names + mode_names
             if not text:
-                return list(RENDERER_REGISTRY.keys())
+                return completions
             text_lower = text.lower()
-            return [mode for mode in RENDERER_REGISTRY.keys() if text_lower in mode.lower()]
+            return [c for c in completions if text_lower in c.lower()]
+        elif len(parts) == 2:
+            # Could be completing first arg (program or mode) or second arg (mode after program)
+            first_arg = parts[1]
+            if first_arg in program_names:
+                # First arg is a program, complete modes
+                if not text:
+                    return mode_names
+                text_lower = text.lower()
+                return [m for m in mode_names if text_lower in m.lower()]
+            elif text:
+                # Still completing first arg - match programs and modes
+                text_lower = text.lower()
+                completions = program_names + mode_names
+                return [c for c in completions if text_lower in c.lower()]
+            else:
+                # Space after first arg which is a mode - no more completions needed
+                return []
+        elif len(parts) == 3 and parts[1] in program_names:
+            # First arg is program, complete second arg as mode
+            if not text:
+                return mode_names
+            text_lower = text.lower()
+            return [m for m in mode_names if text_lower in m.lower()]
         return []
     
     def do_compare(self, arg: str):
@@ -1247,19 +1314,24 @@ Available Commands:
   summary
       Show lifetime summary totals.
 
-  render [mode] [year_or_range]
+  render [program] [mode] [year_or_range]
       Render financial data using different output formats.
       Modes: TaxDetails, Balances, AnnualSummary, Contributions,
              MoneyMovement, CashFlow, plus any custom renderers.
+      
+      If program is specified, renders data from that loaded program.
+      Otherwise renders from the active program.
+      
       Note: TaxDetails requires a single year argument.
             Other modes accept year ranges like 2026-2030
       
       Examples:
         render                       - List available modes
-        render Balances              - Show all account balances
+        render Balances              - Show all account balances (active)
+        render myplan Balances       - Show balances from 'myplan'
         render Balances 2026-2030    - Show balances for 2026-2030
         render AnnualSummary 2028-   - Show summary from 2028 to end
-        render TaxDetails 2026       - Show tax details for 2026
+        render myplan TaxDetails 2026 - Show tax details from 'myplan'
 
   compare <program1> <program2> <fields> [year_or_range]
       Compare fields from two programs side by side.

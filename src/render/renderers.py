@@ -70,6 +70,28 @@ def format_multiline_headers(columns: List[tuple], year_width: int = 6) -> tuple
 class BaseRenderer(ABC):
     """Abstract base class for all renderers."""
     
+    def __init__(self, program_name: str = None):
+        """Initialize base renderer with optional program name.
+        
+        Args:
+            program_name: The name of the program being rendered (for headers)
+        """
+        self.program_name = program_name
+    
+    def _format_header(self, title: str, width: int) -> str:
+        """Format a header line with optional program name.
+        
+        Args:
+            title: The report title
+            width: The total width of the header
+            
+        Returns:
+            Formatted header string
+        """
+        if self.program_name:
+            return f"{title} - {self.program_name}"
+        return title
+    
     @abstractmethod
     def render(self, data: PlanData) -> None:
         """Render the data to output.
@@ -83,12 +105,14 @@ class BaseRenderer(ABC):
 class TaxDetailsRenderer(BaseRenderer):
     """Renderer for detailed tax breakdown display."""
     
-    def __init__(self, tax_year: int):
+    def __init__(self, tax_year: int, program_name: str = None):
         """Initialize with the tax year to display.
         
         Args:
             tax_year: The tax year for the results being rendered
+            program_name: The name of the program being rendered (for headers)
         """
+        super().__init__(program_name)
         self.tax_year = tax_year
     
     def render(self, data: PlanData) -> None:
@@ -104,7 +128,8 @@ class TaxDetailsRenderer(BaseRenderer):
 
         print()
         print("=" * 60)
-        print(f"{'TAX SUMMARY FOR ' + str(self.tax_year):^60}")
+        header = self._format_header(f'TAX SUMMARY FOR {self.tax_year}', 60)
+        print(f"{header:^60}")
         print("=" * 60)
         
         print()
@@ -235,13 +260,15 @@ def parse_year_range(year_range: str, data: PlanData) -> tuple:
 class BalancesRenderer(BaseRenderer):
     """Renderer for accumulated balance display."""
     
-    def __init__(self, start_year: int = None, end_year: int = None):
+    def __init__(self, start_year: int = None, end_year: int = None, program_name: str = None):
         """Initialize with optional year range.
         
         Args:
             start_year: First year to display (defaults to plan's first year)
             end_year: Last year to display (defaults to plan's last planning year)
+            program_name: The name of the program being rendered (for headers)
         """
+        super().__init__(program_name)
         self.start_year = start_year
         self.end_year = end_year
     
@@ -253,7 +280,8 @@ class BalancesRenderer(BaseRenderer):
         """
         print()
         print("=" * 150)
-        print(f"{'ACCUMULATED BALANCES':^150}")
+        header = self._format_header('ACCUMULATED BALANCES', 150)
+        print(f"{header:^150}")
         print("=" * 150)
         print()
         
@@ -299,13 +327,15 @@ class BalancesRenderer(BaseRenderer):
 class AnnualSummaryRenderer(BaseRenderer):
     """Renderer for annual income and tax burden summary table."""
     
-    def __init__(self, start_year: int = None, end_year: int = None):
+    def __init__(self, start_year: int = None, end_year: int = None, program_name: str = None):
         """Initialize with optional year range.
         
         Args:
             start_year: First year to display (defaults to plan's first year)
             end_year: Last year to display (defaults to plan's last planning year)
+            program_name: The name of the program being rendered (for headers)
         """
+        super().__init__(program_name)
         self.start_year = start_year
         self.end_year = end_year
     
@@ -317,7 +347,8 @@ class AnnualSummaryRenderer(BaseRenderer):
         """
         print()
         print("=" * 118)
-        print(f"{'ANNUAL INCOME AND TAX SUMMARY':^118}")
+        header = self._format_header('ANNUAL INCOME AND TAX SUMMARY', 118)
+        print(f"{header:^118}")
         print("=" * 118)
         print()
         
@@ -374,13 +405,15 @@ class AnnualSummaryRenderer(BaseRenderer):
 class ContributionsRenderer(BaseRenderer):
     """Renderer for yearly contributions to investment accounts."""
     
-    def __init__(self, start_year: int = None, end_year: int = None):
+    def __init__(self, start_year: int = None, end_year: int = None, program_name: str = None):
         """Initialize with optional year range.
         
         Args:
             start_year: First year to display (defaults to plan's first year)
             end_year: Last year to display (defaults to plan's last planning year)
+            program_name: The name of the program being rendered (for headers)
         """
+        super().__init__(program_name)
         self.start_year = start_year
         self.end_year = end_year
     
@@ -392,7 +425,8 @@ class ContributionsRenderer(BaseRenderer):
         """
         print()
         print("=" * 136)
-        print(f"{'YEARLY CONTRIBUTIONS':^136}")
+        header = self._format_header('YEARLY CONTRIBUTIONS', 136)
+        print(f"{header:^136}")
         print("=" * 136)
         print()
         
@@ -456,13 +490,15 @@ class ContributionsRenderer(BaseRenderer):
 class MoneyMovementRenderer(BaseRenderer):
     """Renderer for yearly expenses vs income and money movement to/from taxable account."""
     
-    def __init__(self, start_year: int = None, end_year: int = None):
+    def __init__(self, start_year: int = None, end_year: int = None, program_name: str = None):
         """Initialize with optional year range.
         
         Args:
             start_year: First year to display (defaults to plan's first year)
             end_year: Last year to display (defaults to plan's last planning year)
+            program_name: The name of the program being rendered (for headers)
         """
+        super().__init__(program_name)
         self.start_year = start_year
         self.end_year = end_year
     
@@ -478,7 +514,8 @@ class MoneyMovementRenderer(BaseRenderer):
         """
         print()
         print("=" * 152)
-        print(f"{'MONEY MOVEMENT - INCOME VS EXPENSES':^152}")
+        header = self._format_header('MONEY MOVEMENT - INCOME VS EXPENSES', 152)
+        print(f"{header:^152}")
         print("=" * 152)
         print()
         
@@ -540,13 +577,15 @@ class MoneyMovementRenderer(BaseRenderer):
 class CashFlowRenderer(BaseRenderer):
     """Renderer for cash flow showing expenses and funding sources breakdown."""
     
-    def __init__(self, start_year: int = None, end_year: int = None):
+    def __init__(self, start_year: int = None, end_year: int = None, program_name: str = None):
         """Initialize with optional year range.
         
         Args:
             start_year: First year to display (defaults to plan's first year)
             end_year: Last year to display (defaults to plan's last planning year)
+            program_name: The name of the program being rendered (for headers)
         """
+        super().__init__(program_name)
         self.start_year = start_year
         self.end_year = end_year
     
@@ -564,7 +603,8 @@ class CashFlowRenderer(BaseRenderer):
         report_width = 152
         print()
         print("=" * report_width)
-        print(f"{'CASH FLOW - EXPENSE FUNDING BY SOURCE':^{report_width}}")
+        header = self._format_header('CASH FLOW - EXPENSE FUNDING BY SOURCE', report_width)
+        print(f"{header:^{report_width}}")
         print("=" * report_width)
         print()
         
@@ -808,7 +848,7 @@ class CustomRenderer(BaseRenderer):
     # Maximum width for a column header before wrapping
     MAX_HEADER_WIDTH = 14
     
-    def __init__(self, title: str, fields: List[str], start_year: int = None, end_year: int = None, show_totals: bool = True):
+    def __init__(self, title: str, fields: List[str], start_year: int = None, end_year: int = None, show_totals: bool = True, program_name: str = None):
         """Initialize with a title and list of fields to display.
         
         Args:
@@ -817,7 +857,9 @@ class CustomRenderer(BaseRenderer):
             start_year: First year to display (defaults to plan's first year)
             end_year: Last year to display (defaults to plan's last planning year)
             show_totals: Whether to show a totals row at the bottom (default True)
+            program_name: The name of the program being rendered (for headers)
         """
+        super().__init__(program_name)
         self.title = title
         self.fields = fields
         self.start_year = start_year
@@ -884,12 +926,13 @@ class CustomRenderer(BaseRenderer):
         # Calculate total table width
         year_width = 6
         total_width = year_width + 2 + sum(col_widths.values()) + len(self.fields) * 2
-        total_width = max(total_width, len(self.title) + 10)
+        header_text = self._format_header(self.title.upper(), total_width)
+        total_width = max(total_width, len(header_text) + 10)
         
         # Print header
         print()
         print("=" * total_width)
-        print(f"{self.title.upper():^{total_width}}")
+        print(f"{header_text:^{total_width}}")
         print("=" * total_width)
         print()
         
@@ -973,7 +1016,7 @@ class CustomRenderer(BaseRenderer):
         print()
 
 
-def create_custom_renderer(title: str, fields: List[str], start_year: int = None, end_year: int = None, show_totals: bool = True) -> CustomRenderer:
+def create_custom_renderer(title: str, fields: List[str], start_year: int = None, end_year: int = None, show_totals: bool = True, program_name: str = None) -> CustomRenderer:
     """Factory function to create a CustomRenderer.
     
     Args:
@@ -982,11 +1025,12 @@ def create_custom_renderer(title: str, fields: List[str], start_year: int = None
         start_year: First year to display (defaults to plan's first year)
         end_year: Last year to display (defaults to plan's last planning year)
         show_totals: Whether to show a totals row at the bottom (default True)
+        program_name: The name of the program being rendered (for headers)
         
     Returns:
         A configured CustomRenderer instance
     """
-    return CustomRenderer(title, fields, start_year, end_year, show_totals)
+    return CustomRenderer(title, fields, start_year, end_year, show_totals, program_name)
 
 
 def load_custom_renderers() -> Dict[str, dict]:
@@ -1201,7 +1245,7 @@ def reload_renderer_registry() -> None:
         RENDERER_REGISTRY[name] = get_custom_renderer_factory(name, config)
 
 
-def create_custom_renderer_from_config(name: str, config: dict, start_year: int = None, end_year: int = None) -> CustomRenderer:
+def create_custom_renderer_from_config(name: str, config: dict, start_year: int = None, end_year: int = None, program_name: str = None) -> CustomRenderer:
     """Create a CustomRenderer from a configuration dictionary.
     
     Args:
@@ -1209,6 +1253,7 @@ def create_custom_renderer_from_config(name: str, config: dict, start_year: int 
         config: Configuration dict with 'title', 'fields', and optionally 'show_totals'
         start_year: First year to display (defaults to plan's first year)
         end_year: Last year to display (defaults to plan's last planning year)
+        program_name: The name of the program being rendered (for headers)
         
     Returns:
         A configured CustomRenderer instance
@@ -1217,7 +1262,7 @@ def create_custom_renderer_from_config(name: str, config: dict, start_year: int 
     fields = config.get('fields', [])
     show_totals = config.get('show_totals', True)
     
-    return CustomRenderer(title, fields, start_year, end_year, show_totals)
+    return CustomRenderer(title, fields, start_year, end_year, show_totals, program_name)
 
 
 def get_custom_renderer_factory(name: str, config: dict):
@@ -1232,8 +1277,8 @@ def get_custom_renderer_factory(name: str, config: dict):
     Returns:
         A factory function that creates CustomRenderer instances with optional year range
     """
-    def factory(start_year: int = None, end_year: int = None) -> CustomRenderer:
-        return create_custom_renderer_from_config(name, config, start_year, end_year)
+    def factory(start_year: int = None, end_year: int = None, program_name: str = None) -> CustomRenderer:
+        return create_custom_renderer_from_config(name, config, start_year, end_year, program_name)
     return factory
 
 

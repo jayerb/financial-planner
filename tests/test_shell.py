@@ -464,6 +464,125 @@ class TestRenderCommand:
         
         assert 'TaxDetails' in completions
         assert 'Balances' not in completions
+    
+    def test_render_with_program_argument(self, shell_with_plan):
+        """Test that render accepts a program name as first argument."""
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            # Use the loaded program name
+            shell_with_plan.do_render('testprogram Balances')
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        # Should contain year data from the program
+        assert str(shell_with_plan.plan_data.first_year) in result
+        # Should show indication of which program is being rendered
+        assert "Unknown render mode" not in result
+    
+    def test_render_with_program_and_year_range(self, shell_with_plan):
+        """Test that render accepts program, mode, and year range."""
+        first_year = shell_with_plan.plan_data.first_year
+        
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            shell_with_plan.do_render(f'testprogram Balances {first_year}-{first_year+2}')
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        assert str(first_year) in result
+        assert "Unknown render mode" not in result
+    
+    def test_render_with_program_taxdetails(self, shell_with_plan):
+        """Test that render accepts program name for TaxDetails mode."""
+        first_year = shell_with_plan.plan_data.first_year
+        
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            shell_with_plan.do_render(f'testprogram TaxDetails {first_year}')
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        assert str(first_year) in result
+        assert "Unknown render mode" not in result
+    
+    def test_render_program_only_lists_modes(self, shell_with_plan):
+        """Test that render with only program name lists available modes."""
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            shell_with_plan.do_render('testprogram')
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        assert "Available render modes" in result
+        assert "testprogram" in result
+    
+    def test_complete_render_includes_programs(self, shell_with_plan):
+        """Test that tab completion includes loaded program names."""
+        completions = shell_with_plan.complete_render('', 'render ', 7, 7)
+        
+        # Should include the loaded program
+        assert 'testprogram' in completions
+        # Should also include render modes
+        for mode in RENDERER_REGISTRY.keys():
+            assert mode in completions
+    
+    def test_complete_render_after_program_returns_modes(self, shell_with_plan):
+        """Test that tab completion after program name returns render modes."""
+        completions = shell_with_plan.complete_render('', 'render testprogram ', 19, 19)
+        
+        # After a program name, should complete with modes only
+        for mode in RENDERER_REGISTRY.keys():
+            assert mode in completions
+    
+    def test_render_header_includes_program_name(self, shell_with_plan):
+        """Test that rendered report header includes the program name."""
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            shell_with_plan.do_render('Balances')
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        # Header should include program name
+        assert 'testprogram' in result
+        assert 'ACCUMULATED BALANCES - testprogram' in result
+    
+    def test_render_taxdetails_header_includes_program_name(self, shell_with_plan):
+        """Test that TaxDetails header includes the program name."""
+        first_year = shell_with_plan.plan_data.first_year
+        
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            shell_with_plan.do_render(f'TaxDetails {first_year}')
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        # Header should include program name
+        assert 'testprogram' in result
+        assert f'TAX SUMMARY FOR {first_year} - testprogram' in result
 
 
 class TestTabCompletion:
@@ -760,10 +879,15 @@ class TestCaseInsensitiveRendererSearch:
         assert 'AnnualSummary' in completions
     
     def test_complete_render_empty_returns_all_modes(self, shell_with_plan):
-        """Test that empty text returns all render modes."""
+        """Test that empty text returns all render modes and loaded programs."""
         completions = shell_with_plan.complete_render('', 'render ', 7, 7)
         
-        assert len(completions) == len(RENDERER_REGISTRY)
+        # Should include all render modes plus loaded programs
+        for mode in RENDERER_REGISTRY:
+            assert mode in completions
+        # Should also include loaded programs
+        for program in shell_with_plan.loaded_programs:
+            assert program in completions
 
 
 class TestCompareCommand:
