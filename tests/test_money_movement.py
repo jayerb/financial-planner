@@ -484,3 +484,164 @@ class TestIRAWithdrawals:
                 expected_gross = base_income + y.ira_withdrawal
                 assert abs(y.gross_income - expected_gross) < 0.01, \
                     f"Gross income {y.gross_income} should equal base {base_income} + IRA {y.ira_withdrawal} = {expected_gross}"
+
+
+class TestIRAWithdrawalAnnuity:
+    """Test IRA withdrawal annuity behavior - withdrawals to deplete IRA by end of plan."""
+    
+    @pytest.fixture
+    def calculator(self):
+        return PlanCalculator(
+            federal=create_mock_federal(),
+            state=create_mock_state(),
+            espp=create_mock_espp(),
+            social_security=create_mock_social_security(),
+            medicare=create_mock_medicare(),
+            rsu_calculator=create_mock_rsu_calculator()
+        )
+    
+    def test_ira_balance_near_zero_at_end_of_plan(self, calculator):
+        """Test that IRA balance is depleted (near zero) at the end of planning horizon."""
+        spec = create_spec_with_expenses()
+        spec['investments']['taxDeferredBalance'] = 500000
+        spec['expenses']['annualAmount'] = 50000  # Moderate expenses
+        result = calculator.calculate(spec)
+        
+        final_year = spec['lastPlanningYear']
+        y = result.yearly_data[final_year]
+        
+        # IRA balance should be very close to zero at end (may have small rounding)
+        assert y.balance_ira < 1.0, \
+            f"IRA balance at end of plan should be ~0, got {y.balance_ira:,.2f}"
+    
+    def test_ira_withdrawal_uses_annuity_when_no_shortfall(self, calculator):
+        """Test that IRA withdraws at least annuity amount even when no expense shortfall."""
+        spec = create_spec_with_expenses()
+        spec['investments']['taxDeferredBalance'] = 500000
+        spec['investments']['taxableBalance'] = 1000000  # High taxable to avoid shortfall
+        spec['expenses']['annualAmount'] = 10000  # Very low expenses
+        result = calculator.calculate(spec)
+        
+        disbursement_years = spec['deferredCompensationPlan']['disbursementYears']
+        first_retirement = spec['lastWorkingYear'] + 1
+        post_deferred_start = first_retirement + disbursement_years
+        
+        if post_deferred_start <= spec['lastPlanningYear']:
+            y = result.yearly_data[post_deferred_start]
+            # Should still have IRA withdrawal even with low expenses (to drain IRA)
+            assert y.ira_withdrawal > 0, \
+                "IRA withdrawal should occur even when expenses are low to drain IRA over time"
+    
+    def test_ira_annuity_approximates_balance_divided_by_years(self, calculator):
+        """Test that IRA withdrawal roughly equals balance / remaining years."""
+        spec = create_spec_with_expenses()
+        spec['investments']['taxDeferredBalance'] = 500000
+        spec['investments']['taxableBalance'] = 1000000  # High taxable
+        spec['expenses']['annualAmount'] = 10000  # Very low expenses (no shortfall)
+        result = calculator.calculate(spec)
+        
+        disbursement_years = spec['deferredCompensationPlan']['disbursementYears']
+        first_retirement = spec['lastWorkingYear'] + 1
+        post_deferred_start = first_retirement + disbursement_years
+        
+        if post_deferred_start <= spec['lastPlanningYear']:
+            y = result.yearly_data[post_deferred_start]
+            remaining_years = spec['lastPlanningYear'] - post_deferred_start + 1
+            
+            # Calculate approximate expected annuity (balance at start of withdrawal period / remaining years)
+            # Balance before withdrawal = balance after + withdrawal
+            balance_before = y.balance_ira + y.ira_withdrawal
+            expected_annuity = balance_before / remaining_years
+            
+            # Withdrawal should be close to annuity (within 20% tolerance for tax effects)
+            assert abs(y.ira_withdrawal - expected_annuity) / expected_annuity < 0.20, \
+                f"IRA withdrawal {y.ira_withdrawal:,.0f} should approximate annuity {expected_annuity:,.0f}"
+    
+    def test_ira_withdrawal_increases_for_expense_shortfall(self, calculator):
+        """Test that IRA withdrawal exceeds annuity when needed to cover expense shortfall."""
+        spec = create_spec_with_expenses()
+        spec['investments']['taxDeferredBalance'] = 2000000  # Large IRA
+        spec['investments']['taxableBalance'] = 10000  # Low taxable
+        spec['expenses']['annualAmount'] = 150000  # High expenses
+        result = calculator.calculate(spec)
+        
+        disbursement_years = spec['deferredCompensationPlan']['disbursementYears']
+        first_retirement = spec['lastWorkingYear'] + 1
+        post_deferred_start = first_retirement + disbursement_years
+        
+        if post_deferred_start <= spec['lastPlanningYear']:
+            y = result.yearly_data[post_deferred_start]
+            remaining_years = spec['lastPlanningYear'] - post_deferred_start + 1
+            
+            # With large IRA and high expenses, withdrawal should exceed basic annuity
+            balance_before = y.balance_ira + y.ira_withdrawal
+            basic_annuity = balance_before / remaining_years
+            
+            # Total cash needs (expenses + HSA contribution)
+            total_cash_needs = y.total_expenses + y.hsa_contribution
+            base_income = y.short_term_capital_gains + y.long_term_capital_gains
+            
+            # If expenses significantly exceed base income, withdrawal should be larger than annuity
+            if total_cash_needs > base_income * 2:  # If expenses are much larger than cap gains
+                assert y.ira_withdrawal >= basic_annuity, \
+                    f"IRA withdrawal {y.ira_withdrawal:,.0f} should be >= annuity {basic_annuity:,.0f} to cover expenses"
+    
+    def test_ira_depletion_over_multiple_years(self, calculator):
+        """Test that IRA balance decreases progressively over post-disbursement years."""
+        spec = create_spec_with_expenses()
+        spec['investments']['taxDeferredBalance'] = 500000
+        spec['expenses']['annualAmount'] = 50000
+        result = calculator.calculate(spec)
+        
+        disbursement_years = spec['deferredCompensationPlan']['disbursementYears']
+        first_retirement = spec['lastWorkingYear'] + 1
+        post_deferred_start = first_retirement + disbursement_years
+        
+        # Track IRA balances over post-disbursement years
+        balances = []
+        for year in range(post_deferred_start, spec['lastPlanningYear'] + 1):
+            if year in result.yearly_data:
+                balances.append(result.yearly_data[year].balance_ira)
+        
+        # Should have multiple years of data
+        assert len(balances) > 1, "Should have multiple post-disbursement years"
+        
+        # Final balance should be near zero
+        assert balances[-1] < 1.0, f"Final IRA balance should be ~0, got {balances[-1]:,.2f}"
+    
+    def test_all_post_disbursement_years_have_ira_withdrawal(self, calculator):
+        """Test that every post-disbursement year has some IRA withdrawal."""
+        spec = create_spec_with_expenses()
+        spec['investments']['taxDeferredBalance'] = 500000
+        spec['expenses']['annualAmount'] = 50000
+        result = calculator.calculate(spec)
+        
+        disbursement_years = spec['deferredCompensationPlan']['disbursementYears']
+        first_retirement = spec['lastWorkingYear'] + 1
+        post_deferred_start = first_retirement + disbursement_years
+        
+        for year in range(post_deferred_start, spec['lastPlanningYear'] + 1):
+            if year in result.yearly_data:
+                y = result.yearly_data[year]
+                # Every year should have a withdrawal (except maybe the very last if balance is tiny)
+                if year < spec['lastPlanningYear']:
+                    assert y.ira_withdrawal > 0, \
+                        f"Year {year} should have IRA withdrawal > 0, got {y.ira_withdrawal}"
+    
+    def test_final_year_withdrawal_equals_remaining_balance(self, calculator):
+        """Test that final year withdrawal depletes remaining IRA balance."""
+        spec = create_spec_with_expenses()
+        spec['investments']['taxDeferredBalance'] = 500000
+        spec['expenses']['annualAmount'] = 50000
+        result = calculator.calculate(spec)
+        
+        final_year = spec['lastPlanningYear']
+        y = result.yearly_data[final_year]
+        
+        # Final balance should be zero (all withdrawn)
+        assert y.balance_ira < 1.0, \
+            f"Final IRA balance should be ~0, got {y.balance_ira:,.2f}"
+        
+        # The final withdrawal should drain whatever was left
+        assert y.ira_withdrawal > 0, \
+            f"Final year should have IRA withdrawal, got {y.ira_withdrawal}"

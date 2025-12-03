@@ -515,49 +515,49 @@ class PlanCalculator:
             yd.total_deductions = yd.standard_deduction + yd.employee_hsa
             
             # Calculate IRA annuity: balance divided by remaining years in plan
-            # This is the minimum withdrawal to spread IRA evenly, but we may withdraw more if needed
+            # This is the minimum withdrawal to spread IRA evenly over remaining years
+            # The goal is to deplete the IRA by the end of the plan
             remaining_years = last_planning_year - year + 1
-            ira_annuity = balance_401k / remaining_years if remaining_years > 0 else 0
+            ira_annuity = balance_401k / remaining_years if remaining_years > 0 else balance_401k
             
-            # Iteratively calculate IRA withdrawal needed to cover expenses after taxes
-            # Start with capital gains income only, then add IRA withdrawal if needed
+            # Base income from capital gains (before any IRA withdrawal)
             base_income = yd.short_term_capital_gains + yd.long_term_capital_gains
             
-            # First pass: calculate taxes assuming no IRA withdrawal
-            yd.gross_income = base_income
+            # First pass: calculate taxes assuming IRA annuity withdrawal
+            # We always withdraw at least the annuity amount to draw down the IRA
+            yd.gross_income = base_income + ira_annuity
             yd.adjusted_gross_income = max(0, yd.gross_income - yd.total_deductions)
             
             federal_result = self.federal.taxBurden(yd.adjusted_gross_income, year)
-            base_federal_tax = federal_result.totalFederalTax
-            base_ltcg_tax = self.federal.longTermCapitalGainsTax(
+            annuity_federal_tax = federal_result.totalFederalTax
+            annuity_ltcg_tax = self.federal.longTermCapitalGainsTax(
                 yd.adjusted_gross_income, yd.long_term_capital_gains, year)
             
             state_taxable = yd.gross_income
-            base_state_tax = self.state.taxBurden(state_taxable, 0, year=year, employer_hsa_contribution=0)
-            base_state_stcg_tax = self.state.shortTermCapitalGainsTax(yd.short_term_capital_gains)
+            annuity_state_tax = self.state.taxBurden(state_taxable, 0, year=year, employer_hsa_contribution=0)
+            annuity_state_stcg_tax = self.state.shortTermCapitalGainsTax(yd.short_term_capital_gains)
             
-            base_total_taxes = base_federal_tax + base_ltcg_tax + base_state_tax + base_state_stcg_tax
-            base_take_home = base_income - base_total_taxes
+            annuity_total_taxes = annuity_federal_tax + annuity_ltcg_tax + annuity_state_tax + annuity_state_stcg_tax
+            annuity_take_home = yd.gross_income - annuity_total_taxes
             
             # Calculate expense shortfall (includes HSA contribution as a cash outflow)
             total_cash_needs = yd.total_expenses + yd.hsa_contribution
-            expense_shortfall = max(0, total_cash_needs - base_take_home)
+            expense_shortfall = max(0, total_cash_needs - annuity_take_home)
             
-            # If there's a shortfall and we have IRA balance, calculate withdrawal needed
-            # Use iterative approach to find the right withdrawal amount that covers
-            # both the expense shortfall AND the taxes on the withdrawal itself
-            if expense_shortfall > 0 and balance_401k > 0:
-                # Iteratively solve for the withdrawal amount
-                # We need: withdrawal - taxes_on_withdrawal >= expense_shortfall
+            # Start with the IRA annuity as the minimum withdrawal
+            # If there's still a shortfall after the annuity, we need more
+            if expense_shortfall > 0 and balance_401k > ira_annuity:
+                # Iteratively solve for the additional withdrawal amount needed
                 # Start with a gross-up estimate and refine
                 
                 # Initial estimate using marginal rate
                 marginal_rate = federal_result.marginalBracket + 0.05  # Add ~5% for state
                 if marginal_rate < 1:
-                    withdrawal_estimate = expense_shortfall / (1 - marginal_rate)
+                    additional_withdrawal = expense_shortfall / (1 - marginal_rate)
                 else:
-                    withdrawal_estimate = expense_shortfall
+                    additional_withdrawal = expense_shortfall
                 
+                withdrawal_estimate = ira_annuity + additional_withdrawal
                 # Cap at available balance
                 withdrawal_estimate = min(withdrawal_estimate, balance_401k)
                 
@@ -587,7 +587,11 @@ class PlanCalculator:
                     withdrawal_estimate = min(withdrawal_estimate + additional_needed, balance_401k)
                 
                 yd.ira_withdrawal = withdrawal_estimate
-                balance_401k -= yd.ira_withdrawal
+            else:
+                # Just use the annuity withdrawal (to draw down IRA over time)
+                yd.ira_withdrawal = min(ira_annuity, balance_401k)
+            
+            balance_401k -= yd.ira_withdrawal
             
             # Now recalculate everything with the IRA withdrawal included in income
             # IRA withdrawals are taxable as ordinary income
