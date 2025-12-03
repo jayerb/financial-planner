@@ -387,10 +387,11 @@ class PlanCalculator:
             # Gross income from disbursement and realized capital gains
             yd.gross_income = yd.deferred_comp_disbursement + yd.short_term_capital_gains + yd.long_term_capital_gains
             
-            # Federal deductions (only standard deduction in retirement)
+            # Federal deductions (standard deduction + HSA if before Medicare)
             deductions = self.federal.totalDeductions(year, 0, 0, yd.local_tax)
             yd.standard_deduction = deductions['standardDeduction']
-            yd.total_deductions = yd.standard_deduction
+            # Include HSA contribution in total deductions if before Medicare eligibility
+            yd.total_deductions = yd.standard_deduction + yd.employee_hsa
             
             # Adjusted gross income
             yd.adjusted_gross_income = yd.gross_income - yd.total_deductions
@@ -507,10 +508,11 @@ class PlanCalculator:
             yd.medical_premium_expense = yd.medical_premium  # Use appropriate premium based on Medicare eligibility
             yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.travel_expenses + yd.medical_premium_expense
             
-            # Federal deductions (standard deduction only)
+            # Federal deductions (standard deduction + HSA if before Medicare)
             deductions = self.federal.totalDeductions(year, 0, 0, yd.local_tax)
             yd.standard_deduction = deductions['standardDeduction']
-            yd.total_deductions = yd.standard_deduction
+            # Include HSA contribution in total deductions if before Medicare eligibility
+            yd.total_deductions = yd.standard_deduction + yd.employee_hsa
             
             # Calculate IRA annuity: balance divided by remaining years in plan
             # This is the minimum withdrawal to spread IRA evenly, but we may withdraw more if needed

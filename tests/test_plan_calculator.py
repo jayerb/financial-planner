@@ -1210,6 +1210,153 @@ class TestHSAWithdrawalDoubleAtMedicare:
         assert abs(y2037.hsa_withdrawal - expected_2037) < 0.01
 
 
+class TestHSAInTotalDeductionsDuringRetirement:
+    """Tests for HSA contributions being included in total_deductions during retirement before Medicare."""
+    
+    @pytest.fixture
+    def calculator(self):
+        """Create a PlanCalculator with mock dependencies."""
+        return PlanCalculator(
+            federal=create_mock_federal(),
+            state=create_mock_state(),
+            espp=create_mock_espp(),
+            social_security=create_mock_social_security(),
+            medicare=create_mock_medicare(),
+            rsu_calculator=create_mock_rsu_calculator()
+        )
+    
+    def test_total_deductions_includes_hsa_in_disbursement_years(self, calculator):
+        """Test that total_deductions includes HSA contribution during disbursement years before Medicare."""
+        spec = create_basic_spec()
+        spec['birthYear'] = 1970  # Medicare eligibility at 2035 (1970 + 65)
+        spec['lastWorkingYear'] = 2030
+        spec['lastPlanningYear'] = 2040
+        spec['deferredCompensationPlan'] = {
+            'annualGrowthFraction': 0.05,
+            'disbursementYears': 5  # Disbursements from 2031-2035
+        }
+        spec['investments'] = {
+            'hsaBalance': 50000.0,
+            'hsaAppreciationRate': 0.07,
+            'hsaEmployerContribution': 1500.0
+        }
+        
+        result = calculator.calculate(spec)
+        
+        # Disbursement years before Medicare (2031-2034) should have HSA in total_deductions
+        for year in [2031, 2032, 2033, 2034]:
+            yd = result.yearly_data[year]
+            # Total deductions should equal standard deduction + employee HSA
+            expected_total = yd.standard_deduction + yd.employee_hsa
+            assert abs(yd.total_deductions - expected_total) < 0.01, \
+                f"Year {year}: total_deductions ({yd.total_deductions}) should equal " \
+                f"standard_deduction ({yd.standard_deduction}) + employee_hsa ({yd.employee_hsa})"
+    
+    def test_total_deductions_includes_hsa_in_post_disbursement_years(self, calculator):
+        """Test that total_deductions includes HSA contribution in post-disbursement years before Medicare."""
+        spec = create_basic_spec()
+        spec['birthYear'] = 1975  # Medicare eligibility at 2040 (1975 + 65)
+        spec['lastWorkingYear'] = 2028
+        spec['lastPlanningYear'] = 2045
+        spec['deferredCompensationPlan'] = {
+            'annualGrowthFraction': 0.05,
+            'disbursementYears': 5  # Disbursements from 2029-2033
+        }
+        spec['investments'] = {
+            'hsaBalance': 50000.0,
+            'hsaAppreciationRate': 0.07,
+            'hsaEmployerContribution': 1500.0
+        }
+        
+        result = calculator.calculate(spec)
+        
+        # Post-disbursement years before Medicare (2034-2039) should have HSA in total_deductions
+        for year in [2034, 2035, 2036, 2037, 2038, 2039]:
+            yd = result.yearly_data[year]
+            # Verify HSA contribution is happening
+            assert yd.employee_hsa > 0, f"Year {year} should have HSA contribution before Medicare"
+            # Total deductions should equal standard deduction + employee HSA
+            expected_total = yd.standard_deduction + yd.employee_hsa
+            assert abs(yd.total_deductions - expected_total) < 0.01, \
+                f"Year {year}: total_deductions ({yd.total_deductions}) should equal " \
+                f"standard_deduction ({yd.standard_deduction}) + employee_hsa ({yd.employee_hsa})"
+    
+    def test_total_deductions_excludes_hsa_at_medicare(self, calculator):
+        """Test that total_deductions excludes HSA contribution at and after Medicare eligibility."""
+        spec = create_basic_spec()
+        spec['birthYear'] = 1970  # Medicare eligibility at 2035 (1970 + 65)
+        spec['lastWorkingYear'] = 2030
+        spec['lastPlanningYear'] = 2040
+        spec['investments'] = {
+            'hsaBalance': 50000.0,
+            'hsaAppreciationRate': 0.07,
+            'hsaEmployerContribution': 1500.0
+        }
+        
+        result = calculator.calculate(spec)
+        
+        # At and after Medicare (2035+), HSA contribution should be zero
+        for year in [2035, 2036, 2037, 2038, 2039, 2040]:
+            yd = result.yearly_data[year]
+            assert yd.employee_hsa == 0, f"Year {year} should have no HSA contribution at/after Medicare"
+            assert yd.hsa_contribution == 0, f"Year {year} should have no HSA contribution at/after Medicare"
+            # Total deductions should just be standard deduction
+            assert abs(yd.total_deductions - yd.standard_deduction) < 0.01, \
+                f"Year {year}: total_deductions should equal standard_deduction when no HSA"
+    
+    def test_adjusted_gross_income_reflects_hsa_deduction(self, calculator):
+        """Test that AGI is correctly reduced by HSA contribution in retirement."""
+        spec = create_basic_spec()
+        spec['birthYear'] = 1970  # Medicare eligibility at 2035
+        spec['lastWorkingYear'] = 2030
+        spec['lastPlanningYear'] = 2040
+        spec['deferredCompensationPlan'] = {
+            'annualGrowthFraction': 0.05,
+            'disbursementYears': 5
+        }
+        spec['investments'] = {
+            'hsaBalance': 50000.0,
+            'hsaAppreciationRate': 0.07,
+            'hsaEmployerContribution': 1500.0
+        }
+        
+        result = calculator.calculate(spec)
+        
+        # In disbursement years before Medicare, AGI should be gross - total_deductions
+        for year in [2031, 2032, 2033, 2034]:
+            yd = result.yearly_data[year]
+            expected_agi = max(0, yd.gross_income - yd.total_deductions)
+            assert abs(yd.adjusted_gross_income - expected_agi) < 0.01, \
+                f"Year {year}: AGI ({yd.adjusted_gross_income}) should equal " \
+                f"gross_income ({yd.gross_income}) - total_deductions ({yd.total_deductions})"
+    
+    def test_hsa_deduction_reduces_tax_liability(self, calculator):
+        """Test that including HSA in deductions results in lower taxable income."""
+        spec = create_basic_spec()
+        spec['birthYear'] = 1970  # Medicare eligibility at 2035
+        spec['lastWorkingYear'] = 2030
+        spec['lastPlanningYear'] = 2036
+        spec['deferredCompensationPlan'] = {
+            'annualGrowthFraction': 0.05,
+            'disbursementYears': 3
+        }
+        spec['investments'] = {
+            'hsaBalance': 50000.0,
+            'hsaAppreciationRate': 0.07,
+            'hsaEmployerContribution': 1500.0
+        }
+        
+        result = calculator.calculate(spec)
+        
+        # Year 2031 (disbursement, before Medicare) - HSA should reduce AGI
+        y2031 = result.yearly_data[2031]
+        assert y2031.employee_hsa > 0, "2031 should have HSA contribution"
+        
+        # AGI should be gross_income - standard_deduction - employee_hsa
+        expected_agi = max(0, y2031.gross_income - y2031.standard_deduction - y2031.employee_hsa)
+        assert abs(y2031.adjusted_gross_income - expected_agi) < 0.01
+
+
 class TestMedicarePremiumSwitch:
     """Tests for switching from full insurance to Medicare premium at age 65."""
     
