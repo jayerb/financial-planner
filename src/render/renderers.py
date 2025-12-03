@@ -683,11 +683,11 @@ class CashFlowRenderer(BaseRenderer):
         end = self.end_year if self.end_year is not None else data.last_planning_year
         
         total_expenses = 0
-        total_take_home_used = 0
+        total_take_home = 0
         total_capital_gains = 0
-        total_deferred_comp_used = 0
-        total_ira_used = 0
-        total_taxable_used = 0
+        total_deferred_comp = 0
+        total_ira = 0
+        total_taxable_withdrawal = 0
         total_surplus = 0
         
         for year in sorted(data.yearly_data.keys()):
@@ -695,88 +695,28 @@ class CashFlowRenderer(BaseRenderer):
                 continue
             yd = data.yearly_data[year]
             
-            # Calculate how expenses are funded
-            expenses = yd.total_expenses
+            # The "Take Home" column shows the full take_home_pay value
+            # This is the after-tax income available to fund expenses
+            # It includes income from all sources: salary, bonus, RSUs, capital gains,
+            # deferred comp disbursements, and IRA withdrawals (all after taxes)
             
-            # Available income sources (in order of priority)
-            # 1. Take-home pay (after-tax income from work or capital gains)
-            # 2. Deferred comp disbursements (already included in take_home_pay for retirement)
-            # 3. IRA/401k withdrawals
-            # 4. Taxable account withdrawals (if needed)
+            take_home = yd.take_home_pay
             
-            # For working years: take_home_pay covers expenses, excess goes to taxable
-            # For retirement: take_home_pay includes deferred comp disbursement income
+            # Show gross amounts for reference (these are included in take_home after taxes)
+            capital_gains = yd.short_term_capital_gains + yd.long_term_capital_gains
+            deferred_comp_disbursement = yd.deferred_comp_disbursement
+            ira_withdrawal = yd.ira_withdrawal
             
-            remaining_expenses = expenses
-            
-            # Take-home pay (net of deferred comp for clearer breakdown)
-            if yd.is_working_year:
-                take_home_available = yd.take_home_pay
-                deferred_comp_income = 0
-            else:
-                # In retirement, take_home_pay includes the after-tax value of deferred comp
-                # We want to show deferred comp separately
-                deferred_comp_income = yd.deferred_comp_disbursement - (
-                    yd.federal_tax + yd.state_tax) if yd.deferred_comp_disbursement > 0 else 0
-                # Approximate: take_home is from capital gains and deferred comp
-                # We'll attribute take_home proportionally
-                if yd.gross_income > 0:
-                    deferred_comp_fraction = yd.deferred_comp_disbursement / yd.gross_income
-                    deferred_comp_income = yd.take_home_pay * deferred_comp_fraction
-                    take_home_available = yd.take_home_pay - deferred_comp_income
-                else:
-                    deferred_comp_income = 0
-                    take_home_available = yd.take_home_pay
-            
-            # IRA/401k withdrawal - use actual value from data (already included in gross income and take_home_pay)
-            ira_used = yd.ira_withdrawal
-            
-            # Fund from take-home pay first (excludes IRA withdrawal which is shown separately)
-            # Note: take_home_pay includes after-tax proceeds from IRA withdrawal, so we subtract it for clearer breakdown
-            if ira_used > 0:
-                # Estimate after-tax value of IRA withdrawal (taxes are part of total taxes)
-                # IRA withdrawals are taxed as ordinary income
-                if yd.gross_income > 0:
-                    ira_tax_fraction = (yd.federal_tax + yd.state_tax) / yd.gross_income
-                    ira_after_tax = ira_used * (1 - ira_tax_fraction)
-                else:
-                    ira_after_tax = ira_used
-                take_home_available = max(0, take_home_available - ira_after_tax)
-            
-            take_home_used = min(take_home_available, remaining_expenses)
-            remaining_expenses -= take_home_used
-            
-            # Fund from deferred comp (retirement years)
-            deferred_comp_used = min(deferred_comp_income, remaining_expenses)
-            remaining_expenses -= deferred_comp_used
-            
-            # IRA contribution to funding - estimate after-tax value
-            if ira_used > 0:
-                if yd.gross_income > 0:
-                    ira_tax_fraction = (yd.federal_tax + yd.state_tax) / yd.gross_income
-                    ira_funding = ira_used * (1 - ira_tax_fraction)
-                else:
-                    ira_funding = ira_used
-                ira_funding = min(ira_funding, remaining_expenses)
-                remaining_expenses -= ira_funding
-            
-            # Fund from taxable account (negative adjustment means withdrawal)
+            # Taxable account adjustment: positive = surplus added, negative = withdrawal needed
             taxable_withdrawal = -yd.taxable_account_adjustment if yd.taxable_account_adjustment < 0 else 0
-            taxable_used = min(taxable_withdrawal, remaining_expenses)
-            remaining_expenses -= taxable_used
-            
-            # Calculate surplus (positive taxable adjustment or excess income)
             surplus = yd.taxable_account_adjustment if yd.taxable_account_adjustment > 0 else 0
             
-            # Calculate total capital gains for the year
-            capital_gains = yd.short_term_capital_gains + yd.long_term_capital_gains
-            
             # Format output (12-char columns)
-            take_home_str = f"${take_home_used:>10,.0f}" if take_home_used > 0 else f"{'':>12}"
+            take_home_str = f"${take_home:>10,.0f}" if take_home > 0 else f"{'':>12}"
             cap_gains_str = f"${capital_gains:>10,.0f}" if capital_gains > 0 else f"{'':>12}"
-            deferred_str = f"${deferred_comp_used:>10,.0f}" if deferred_comp_used > 0 else f"{'':>12}"
-            ira_str = f"${ira_used:>10,.0f}" if ira_used > 0 else f"{'':>12}"
-            taxable_str = f"${taxable_used:>10,.0f}" if taxable_used > 0 else f"{'':>12}"
+            deferred_str = f"${deferred_comp_disbursement:>10,.0f}" if deferred_comp_disbursement > 0 else f"{'':>12}"
+            ira_str = f"${ira_withdrawal:>10,.0f}" if ira_withdrawal > 0 else f"{'':>12}"
+            taxable_str = f"${taxable_withdrawal:>10,.0f}" if taxable_withdrawal > 0 else f"{'':>12}"
             surplus_str = f"+${surplus:>9,.0f}" if surplus > 0 else f"{'':>12}"
             # Balance columns - format as exactly 12-char strings ($ at position 1 to align with leftmost dash)
             def_bal_str = f"${yd.balance_deferred_comp:>11,.0f}"
@@ -787,11 +727,11 @@ class CashFlowRenderer(BaseRenderer):
             
             # Accumulate totals
             total_expenses += yd.total_expenses
-            total_take_home_used += take_home_used
+            total_take_home += take_home
             total_capital_gains += capital_gains
-            total_deferred_comp_used += deferred_comp_used
-            total_ira_used += ira_used
-            total_taxable_used += taxable_used
+            total_deferred_comp += deferred_comp_disbursement
+            total_ira += ira_withdrawal
+            total_taxable_withdrawal += taxable_withdrawal
             total_surplus += surplus
         
         print(f"  {'-' * 6} {'-' * 12} {'-':^3} {'-' * 12} {'-' * 12} {'-' * 12} {'-' * 12} {'-' * 12} {'-':^3} {'-' * 12} {'-':^3} {'-' * 12} {'-' * 12} {'-' * 12}")
@@ -809,20 +749,23 @@ class CashFlowRenderer(BaseRenderer):
         ira_bal_total_str = f"${final_yd.balance_ira:>11,.0f}"
         tax_bal_total_str = f"${final_yd.balance_taxable:>11,.0f}"
         
-        print(f"  {'TOTAL':<6} ${total_expenses:>10,.0f} {'|':^3} ${total_take_home_used:>10,.0f} {cap_gains_total_str:>12} ${total_deferred_comp_used:>10,.0f} ${total_ira_used:>10,.0f} ${total_taxable_used:>10,.0f} {'|':^3} {surplus_total_str:>12} {'|':^3} {def_bal_total_str} {ira_bal_total_str} {tax_bal_total_str}")
+        print(f"  {'TOTAL':<6} ${total_expenses:>10,.0f} {'|':^3} ${total_take_home:>10,.0f} {cap_gains_total_str:>12} ${total_deferred_comp:>10,.0f} ${total_ira:>10,.0f} ${total_taxable_withdrawal:>10,.0f} {'|':^3} {surplus_total_str:>12} {'|':^3} {def_bal_total_str} {ira_bal_total_str} {tax_bal_total_str}")
         print()
         
         # Summary section
-        total_funded = total_take_home_used + total_deferred_comp_used + total_ira_used + total_taxable_used
-        print(f"  {'Funding Sources Summary:':40}")
-        print(f"    {'Take-Home Pay:':<36} ${total_take_home_used:>14,.0f} ({100*total_take_home_used/total_funded if total_funded > 0 else 0:>5.1f}%)")
-        print(f"    {'Capital Gains (included in Take-Home):':<36} ${total_capital_gains:>14,.0f}")
-        print(f"    {'Deferred Compensation:':<36} ${total_deferred_comp_used:>14,.0f} ({100*total_deferred_comp_used/total_funded if total_funded > 0 else 0:>5.1f}%)")
-        print(f"    {'IRA/401k Withdrawals:':<36} ${total_ira_used:>14,.0f} ({100*total_ira_used/total_funded if total_funded > 0 else 0:>5.1f}%)")
-        print(f"    {'Taxable Account Withdrawals:':<36} ${total_taxable_used:>14,.0f} ({100*total_taxable_used/total_funded if total_funded > 0 else 0:>5.1f}%)")
-        print(f"    {'-' * 52}")
-        print(f"    {'Total Expenses Funded:':<36} ${total_funded:>14,.0f}")
-        print(f"    {'Total Surplus to Taxable:':<36} ${total_surplus:>14,.0f}")
+        # Note: Take-home pay already includes after-tax proceeds from deferred comp and IRA withdrawals,
+        # so we don't add them together for "total funded" - that would be double counting.
+        # The breakdown columns show gross withdrawals for reference.
+        print(f"  {'Income & Withdrawal Summary:':40}")
+        print(f"    {'Total Take-Home Pay:':<40} ${total_take_home:>14,.0f}")
+        print(f"    {'  (includes after-tax income from all sources)':<40}")
+        print(f"    {'Capital Gains (gross, incl. in take-home):':<40} ${total_capital_gains:>14,.0f}")
+        print(f"    {'Deferred Comp Disbursements (gross):':<40} ${total_deferred_comp:>14,.0f}")
+        print(f"    {'IRA/401k Withdrawals (gross):':<40} ${total_ira:>14,.0f}")
+        print(f"    {'Taxable Account Withdrawals:':<40} ${total_taxable_withdrawal:>14,.0f}")
+        print(f"    {'-' * 56}")
+        print(f"    {'Total Expenses:':<40} ${total_expenses:>14,.0f}")
+        print(f"    {'Total Surplus to Taxable:':<40} ${total_surplus:>14,.0f}")
         print()
         
         # Final balances summary
