@@ -575,3 +575,349 @@ class TestPaycheckRendererNoPretaxDeductions:
         
         result = output.getvalue()
         assert 'PAYCHECK CHANGES DURING YEAR' not in result
+
+
+class TestBonusPaycheckRendering:
+    """Test bonus paycheck section rendering."""
+    
+    @pytest.fixture
+    def mock_plan_with_bonus(self):
+        """Create a mock plan with bonus paycheck data."""
+        plan = PlanData(
+            first_year=2026,
+            last_working_year=2030,
+            last_planning_year=2050
+        )
+        
+        yd = YearlyData(year=2026, is_working_year=True)
+        yd.base_salary = 260000
+        yd.bonus = 52000
+        yd.gross_income = 312000
+        yd.earned_income_for_fica = 312000
+        
+        # Regular paycheck data
+        yd.paycheck_gross = 10000.00
+        yd.paycheck_federal_tax = 2500.00
+        yd.paycheck_state_tax = 500.00
+        yd.paycheck_social_security = 620.00
+        yd.paycheck_medicare = 145.00
+        yd.paycheck_401k = 750.00
+        yd.paycheck_hsa = 150.00
+        yd.paycheck_deferred_comp = 0
+        yd.paycheck_medical_dental = 200.00
+        yd.paycheck_net = 5235.00
+        
+        # Bonus paycheck data
+        yd.bonus_paycheck_gross = 52000.00
+        yd.bonus_paycheck_federal_tax = 11440.00  # 22% supplemental rate
+        yd.bonus_paycheck_state_tax = 2600.00
+        yd.bonus_paycheck_social_security = 3224.00
+        yd.bonus_paycheck_medicare = 754.00
+        yd.bonus_paycheck_deferred_comp = 0
+        yd.bonus_paycheck_net = 33982.00
+        
+        plan.yearly_data[2026] = yd
+        return plan
+    
+    @pytest.fixture
+    def mock_plan_with_bonus_deferral(self):
+        """Create a mock plan with bonus and deferred compensation."""
+        plan = PlanData(
+            first_year=2026,
+            last_working_year=2030,
+            last_planning_year=2050
+        )
+        
+        yd = YearlyData(year=2026, is_working_year=True)
+        yd.base_salary = 260000
+        yd.bonus = 52000
+        yd.gross_income = 312000
+        yd.earned_income_for_fica = 312000
+        
+        # Regular paycheck data
+        yd.paycheck_gross = 10000.00
+        yd.paycheck_federal_tax = 2500.00
+        yd.paycheck_state_tax = 500.00
+        yd.paycheck_social_security = 620.00
+        yd.paycheck_medicare = 145.00
+        yd.paycheck_401k = 750.00
+        yd.paycheck_hsa = 150.00
+        yd.paycheck_deferred_comp = 2000.00
+        yd.paycheck_medical_dental = 200.00
+        yd.paycheck_net = 3235.00
+        
+        # Bonus paycheck data with deferral
+        yd.bonus_paycheck_gross = 52000.00
+        yd.bonus_paycheck_federal_tax = 11440.00
+        yd.bonus_paycheck_state_tax = 2600.00
+        yd.bonus_paycheck_social_security = 3224.00
+        yd.bonus_paycheck_medicare = 754.00
+        yd.bonus_paycheck_deferred_comp = 39000.00  # 75% deferred
+        yd.bonus_paycheck_net = -5018.00  # Negative due to high deferral
+        
+        plan.yearly_data[2026] = yd
+        return plan
+    
+    @pytest.fixture
+    def mock_plan_no_bonus(self):
+        """Create a mock plan without bonus."""
+        plan = PlanData(
+            first_year=2026,
+            last_working_year=2030,
+            last_planning_year=2050
+        )
+        
+        yd = YearlyData(year=2026, is_working_year=True)
+        yd.base_salary = 260000
+        yd.bonus = 0
+        yd.gross_income = 260000
+        yd.earned_income_for_fica = 260000
+        
+        # Regular paycheck data
+        yd.paycheck_gross = 10000.00
+        yd.paycheck_federal_tax = 2500.00
+        yd.paycheck_state_tax = 500.00
+        yd.paycheck_social_security = 620.00
+        yd.paycheck_medicare = 145.00
+        yd.paycheck_401k = 750.00
+        yd.paycheck_hsa = 150.00
+        yd.paycheck_deferred_comp = 0
+        yd.paycheck_medical_dental = 200.00
+        yd.paycheck_net = 5235.00
+        
+        # No bonus paycheck data
+        yd.bonus_paycheck_gross = 0
+        yd.bonus_paycheck_federal_tax = 0
+        yd.bonus_paycheck_state_tax = 0
+        yd.bonus_paycheck_social_security = 0
+        yd.bonus_paycheck_medicare = 0
+        yd.bonus_paycheck_deferred_comp = 0
+        yd.bonus_paycheck_net = 0
+        
+        plan.yearly_data[2026] = yd
+        return plan
+    
+    def test_renderer_shows_bonus_paycheck_section(self, mock_plan_with_bonus):
+        """Test that renderer shows bonus paycheck section when bonus > 0."""
+        renderer = PaycheckRenderer(start_year=2026)
+        
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            renderer.render(mock_plan_with_bonus)
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        assert 'BONUS PAYCHECK' in result
+    
+    def test_renderer_shows_bonus_gross(self, mock_plan_with_bonus):
+        """Test that renderer shows gross bonus amount."""
+        renderer = PaycheckRenderer(start_year=2026)
+        
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            renderer.render(mock_plan_with_bonus)
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        assert 'Gross Bonus:' in result
+        assert '52,000.00' in result
+    
+    def test_renderer_shows_bonus_federal_tax(self, mock_plan_with_bonus):
+        """Test that renderer shows federal tax on bonus with supplemental rate."""
+        renderer = PaycheckRenderer(start_year=2026)
+        
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            renderer.render(mock_plan_with_bonus)
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        assert 'Federal (22% supplemental rate):' in result
+        assert '11,440.00' in result
+    
+    def test_renderer_shows_bonus_state_tax(self, mock_plan_with_bonus):
+        """Test that renderer shows state tax on bonus."""
+        renderer = PaycheckRenderer(start_year=2026)
+        
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            renderer.render(mock_plan_with_bonus)
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        assert 'State Income Tax:' in result
+    
+    def test_renderer_shows_bonus_fica_taxes(self, mock_plan_with_bonus):
+        """Test that renderer shows FICA taxes on bonus."""
+        renderer = PaycheckRenderer(start_year=2026)
+        
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            renderer.render(mock_plan_with_bonus)
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        # Check for bonus-specific FICA taxes (appears under Tax Withholdings in bonus section)
+        assert '3,224.00' in result  # Social Security
+        assert '754.00' in result    # Medicare
+    
+    def test_renderer_shows_bonus_net(self, mock_plan_with_bonus):
+        """Test that renderer shows net bonus amount."""
+        renderer = PaycheckRenderer(start_year=2026)
+        
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            renderer.render(mock_plan_with_bonus)
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        assert 'Net Bonus (Take-Home):' in result
+        assert '33,982.00' in result
+    
+    def test_renderer_shows_bonus_deferred_comp(self, mock_plan_with_bonus_deferral):
+        """Test that renderer shows deferred compensation on bonus."""
+        renderer = PaycheckRenderer(start_year=2026)
+        
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            renderer.render(mock_plan_with_bonus_deferral)
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        assert 'Deferred Compensation:' in result
+        assert '39,000.00' in result
+    
+    def test_renderer_handles_negative_bonus_net(self, mock_plan_with_bonus_deferral):
+        """Test that renderer handles negative net bonus (when deferral > net)."""
+        renderer = PaycheckRenderer(start_year=2026)
+        
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            renderer.render(mock_plan_with_bonus_deferral)
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        assert 'Net Bonus (Take-Home):' in result
+        # Should show negative amount
+        assert '-5,018.00' in result or '-$5,018.00' in result or '($5,018.00)' in result or '$     -5,018.00' in result
+    
+    def test_renderer_hides_bonus_section_when_no_bonus(self, mock_plan_no_bonus):
+        """Test that renderer hides bonus section when bonus is 0."""
+        renderer = PaycheckRenderer(start_year=2026)
+        
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            renderer.render(mock_plan_no_bonus)
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        assert 'BONUS PAYCHECK' not in result
+    
+    def test_renderer_hides_bonus_deferred_when_zero(self, mock_plan_with_bonus):
+        """Test that renderer hides deferred comp line when bonus deferral is 0."""
+        renderer = PaycheckRenderer(start_year=2026)
+        
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            renderer.render(mock_plan_with_bonus)
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        # The bonus paycheck should appear
+        assert 'BONUS PAYCHECK' in result
+        # But Pre-Tax Deductions section for bonus should not appear when deferral is 0
+        # Count occurrences of "Pre-Tax Deductions" - should only appear once (for regular paycheck)
+        lines = result.split('\n')
+        bonus_section_start = None
+        for i, line in enumerate(lines):
+            if 'BONUS PAYCHECK' in line:
+                bonus_section_start = i
+                break
+        
+        if bonus_section_start:
+            bonus_section = '\n'.join(lines[bonus_section_start:])
+            # Should not have "Pre-Tax Deductions:" in bonus section since deferral is 0
+            assert 'Pre-Tax Deductions:' not in bonus_section
+
+
+class TestBonusPaycheckCalculation:
+    """Test bonus paycheck calculation in plan_calculator."""
+    
+    def test_bonus_paycheck_calculated_in_plan(self, plan_data):
+        """Test that bonus paycheck fields are calculated in the plan."""
+        yd = plan_data.get_year(plan_data.first_year)
+        
+        # If there's a bonus, bonus paycheck should be calculated
+        if yd.bonus > 0:
+            assert yd.bonus_paycheck_gross > 0
+            assert yd.bonus_paycheck_gross == yd.bonus
+    
+    def test_bonus_federal_at_supplemental_rate(self, plan_data):
+        """Test that bonus federal tax uses 22% supplemental rate."""
+        yd = plan_data.get_year(plan_data.first_year)
+        
+        if yd.bonus > 0:
+            # Federal tax should be 22% of gross bonus
+            expected_federal = yd.bonus * 0.22
+            assert abs(yd.bonus_paycheck_federal_tax - expected_federal) < 0.01
+    
+    def test_bonus_net_calculation(self, plan_data):
+        """Test that bonus net is calculated correctly."""
+        yd = plan_data.get_year(plan_data.first_year)
+        
+        if yd.bonus > 0:
+            expected_net = (yd.bonus_paycheck_gross - 
+                           yd.bonus_paycheck_federal_tax -
+                           yd.bonus_paycheck_state_tax -
+                           yd.bonus_paycheck_social_security -
+                           yd.bonus_paycheck_medicare -
+                           yd.bonus_paycheck_deferred_comp)
+            assert abs(yd.bonus_paycheck_net - expected_net) < 0.01
+    
+    def test_bonus_deferred_comp_equals_bonus_deferral(self, plan_data):
+        """Test that bonus deferred comp equals bonus_deferral field."""
+        yd = plan_data.get_year(plan_data.first_year)
+        
+        if yd.bonus > 0:
+            assert yd.bonus_paycheck_deferred_comp == yd.bonus_deferral
+
