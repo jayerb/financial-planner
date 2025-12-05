@@ -1,4 +1,4 @@
-"""Tests for InitialPaycheckRenderer."""
+"""Tests for PaycheckRenderer."""
 
 import pytest
 import sys
@@ -11,7 +11,7 @@ from io import StringIO
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from render.renderers import (
-    InitialPaycheckRenderer,
+    PaycheckRenderer,
     RENDERER_REGISTRY,
 )
 from model.PlanData import PlanData, YearlyData
@@ -115,50 +115,50 @@ def plan_data(test_base_path):
     return load_test_plan(test_base_path, 'testprogram')
 
 
-class TestInitialPaycheckRendererRegistry:
-    """Test that InitialPaycheckRenderer is properly registered."""
+class TestPaycheckRendererRegistry:
+    """Test that PaycheckRenderer is properly registered."""
     
     def test_renderer_in_registry(self):
-        """Test that InitialPaycheckRenderer is in the RENDERER_REGISTRY."""
-        assert 'InitialPaycheck' in RENDERER_REGISTRY
+        """Test that PaycheckRenderer is in the RENDERER_REGISTRY."""
+        assert 'Paycheck' in RENDERER_REGISTRY
     
     def test_registry_returns_correct_class(self):
-        """Test that the registry returns the InitialPaycheckRenderer class."""
-        assert RENDERER_REGISTRY['InitialPaycheck'] == InitialPaycheckRenderer
+        """Test that the registry returns the PaycheckRenderer class."""
+        assert RENDERER_REGISTRY['Paycheck'] == PaycheckRenderer
 
 
-class TestInitialPaycheckRendererBasic:
-    """Test basic InitialPaycheckRenderer functionality."""
+class TestPaycheckRendererBasic:
+    """Test basic PaycheckRenderer functionality."""
     
     def test_renderer_initializes_with_defaults(self):
         """Test that renderer initializes with default values."""
-        renderer = InitialPaycheckRenderer()
+        renderer = PaycheckRenderer()
         assert renderer.tax_year is None
         assert renderer.program_name is None
     
     def test_renderer_initializes_with_start_year(self):
         """Test that renderer accepts start_year parameter."""
-        renderer = InitialPaycheckRenderer(start_year=2028)
+        renderer = PaycheckRenderer(start_year=2028)
         assert renderer.tax_year == 2028
     
     def test_renderer_initializes_with_program_name(self):
         """Test that renderer accepts program_name parameter."""
-        renderer = InitialPaycheckRenderer(program_name='myprogram')
+        renderer = PaycheckRenderer(program_name='myprogram')
         assert renderer.program_name == 'myprogram'
     
     def test_renderer_ignores_end_year(self):
         """Test that renderer accepts but ignores end_year parameter."""
-        renderer = InitialPaycheckRenderer(start_year=2028, end_year=2035)
+        renderer = PaycheckRenderer(start_year=2028, end_year=2035)
         # Should only use start_year
         assert renderer.tax_year == 2028
 
 
-class TestInitialPaycheckRendererOutput:
-    """Test InitialPaycheckRenderer output formatting."""
+class TestPaycheckRendererOutput:
+    """Test PaycheckRenderer output formatting."""
     
     def test_renderer_produces_output(self, plan_data):
         """Test that renderer produces output for a valid year."""
-        renderer = InitialPaycheckRenderer(start_year=plan_data.first_year)
+        renderer = PaycheckRenderer(start_year=plan_data.first_year)
         
         output = StringIO()
         old_stdout = sys.stdout
@@ -175,7 +175,7 @@ class TestInitialPaycheckRendererOutput:
     def test_renderer_shows_year_in_header(self, plan_data):
         """Test that renderer shows the year in the header."""
         year = plan_data.first_year
-        renderer = InitialPaycheckRenderer(start_year=year)
+        renderer = PaycheckRenderer(start_year=year)
         
         output = StringIO()
         old_stdout = sys.stdout
@@ -187,11 +187,11 @@ class TestInitialPaycheckRendererOutput:
             sys.stdout = old_stdout
         
         result = output.getvalue()
-        assert f'INITIAL PAYCHECK - {year}' in result
+        assert f'PAYCHECK - {year}' in result
     
     def test_renderer_shows_program_name(self, plan_data):
         """Test that renderer shows program name when provided."""
-        renderer = InitialPaycheckRenderer(start_year=plan_data.first_year, program_name='testprogram')
+        renderer = PaycheckRenderer(start_year=plan_data.first_year, program_name='testprogram')
         
         output = StringIO()
         old_stdout = sys.stdout
@@ -207,7 +207,7 @@ class TestInitialPaycheckRendererOutput:
     
     def test_renderer_shows_gross_pay_section(self, plan_data):
         """Test that renderer shows gross pay section."""
-        renderer = InitialPaycheckRenderer(start_year=plan_data.first_year)
+        renderer = PaycheckRenderer(start_year=plan_data.first_year)
         
         output = StringIO()
         old_stdout = sys.stdout
@@ -224,7 +224,7 @@ class TestInitialPaycheckRendererOutput:
     
     def test_renderer_shows_tax_withholdings_section(self, plan_data):
         """Test that renderer shows tax withholdings section."""
-        renderer = InitialPaycheckRenderer(start_year=plan_data.first_year)
+        renderer = PaycheckRenderer(start_year=plan_data.first_year)
         
         output = StringIO()
         old_stdout = sys.stdout
@@ -245,7 +245,7 @@ class TestInitialPaycheckRendererOutput:
     
     def test_renderer_shows_pretax_deductions_section(self, plan_data):
         """Test that renderer shows pre-tax deductions section."""
-        renderer = InitialPaycheckRenderer(start_year=plan_data.first_year)
+        renderer = PaycheckRenderer(start_year=plan_data.first_year)
         
         output = StringIO()
         old_stdout = sys.stdout
@@ -261,7 +261,7 @@ class TestInitialPaycheckRendererOutput:
     
     def test_renderer_shows_net_pay_section(self, plan_data):
         """Test that renderer shows net pay section."""
-        renderer = InitialPaycheckRenderer(start_year=plan_data.first_year)
+        renderer = PaycheckRenderer(start_year=plan_data.first_year)
         
         output = StringIO()
         old_stdout = sys.stdout
@@ -278,7 +278,7 @@ class TestInitialPaycheckRendererOutput:
     
     def test_renderer_shows_annual_projections(self, plan_data):
         """Test that renderer shows annual projections section."""
-        renderer = InitialPaycheckRenderer(start_year=plan_data.first_year)
+        renderer = PaycheckRenderer(start_year=plan_data.first_year)
         
         output = StringIO()
         old_stdout = sys.stdout
@@ -296,12 +296,12 @@ class TestInitialPaycheckRendererOutput:
         assert 'Annual Net Pay:' in result
 
 
-class TestInitialPaycheckRendererDefaultYear:
-    """Test InitialPaycheckRenderer default year behavior."""
+class TestPaycheckRendererDefaultYear:
+    """Test PaycheckRenderer default year behavior."""
     
     def test_renderer_defaults_to_first_year(self, plan_data):
         """Test that renderer defaults to plan's first year when no year specified."""
-        renderer = InitialPaycheckRenderer()
+        renderer = PaycheckRenderer()
         
         output = StringIO()
         old_stdout = sys.stdout
@@ -313,17 +313,17 @@ class TestInitialPaycheckRendererDefaultYear:
             sys.stdout = old_stdout
         
         result = output.getvalue()
-        assert f'INITIAL PAYCHECK - {plan_data.first_year}' in result
+        assert f'PAYCHECK - {plan_data.first_year}' in result
 
 
-class TestInitialPaycheckRendererNonWorkingYear:
-    """Test InitialPaycheckRenderer behavior for non-working years."""
+class TestPaycheckRendererNonWorkingYear:
+    """Test PaycheckRenderer behavior for non-working years."""
     
     def test_renderer_handles_non_working_year(self, plan_data):
         """Test that renderer shows appropriate message for non-working year."""
         # Use a year after the last working year
         non_working_year = plan_data.last_working_year + 5
-        renderer = InitialPaycheckRenderer(start_year=non_working_year)
+        renderer = PaycheckRenderer(start_year=non_working_year)
         
         output = StringIO()
         old_stdout = sys.stdout
@@ -338,14 +338,14 @@ class TestInitialPaycheckRendererNonWorkingYear:
         assert 'not a working year' in result
 
 
-class TestInitialPaycheckRendererInvalidYear:
-    """Test InitialPaycheckRenderer behavior for invalid years."""
+class TestPaycheckRendererInvalidYear:
+    """Test PaycheckRenderer behavior for invalid years."""
     
     def test_renderer_handles_year_not_in_plan(self, plan_data):
         """Test that renderer handles year not in plan data."""
         # Use a year way before the plan starts
         invalid_year = plan_data.first_year - 100
-        renderer = InitialPaycheckRenderer(start_year=invalid_year)
+        renderer = PaycheckRenderer(start_year=invalid_year)
         
         output = StringIO()
         old_stdout = sys.stdout
@@ -360,8 +360,8 @@ class TestInitialPaycheckRendererInvalidYear:
         assert 'No data available' in result
 
 
-class TestInitialPaycheckRendererMockData:
-    """Test InitialPaycheckRenderer with mock data for precise value testing."""
+class TestPaycheckRendererMockData:
+    """Test PaycheckRenderer with mock data for precise value testing."""
     
     @pytest.fixture
     def mock_plan_data(self):
@@ -395,7 +395,7 @@ class TestInitialPaycheckRendererMockData:
     
     def test_renderer_shows_correct_gross_pay(self, mock_plan_data):
         """Test that renderer shows correct gross pay value."""
-        renderer = InitialPaycheckRenderer(start_year=2026)
+        renderer = PaycheckRenderer(start_year=2026)
         
         output = StringIO()
         old_stdout = sys.stdout
@@ -411,7 +411,7 @@ class TestInitialPaycheckRendererMockData:
     
     def test_renderer_shows_correct_net_pay(self, mock_plan_data):
         """Test that renderer shows correct net pay value."""
-        renderer = InitialPaycheckRenderer(start_year=2026)
+        renderer = PaycheckRenderer(start_year=2026)
         
         output = StringIO()
         old_stdout = sys.stdout
@@ -427,7 +427,7 @@ class TestInitialPaycheckRendererMockData:
     
     def test_renderer_shows_ss_limit_reached_period(self, mock_plan_data):
         """Test that renderer shows when SS limit is reached."""
-        renderer = InitialPaycheckRenderer(start_year=2026)
+        renderer = PaycheckRenderer(start_year=2026)
         
         output = StringIO()
         old_stdout = sys.stdout
@@ -444,7 +444,7 @@ class TestInitialPaycheckRendererMockData:
     
     def test_renderer_shows_medicare_surcharge_period(self, mock_plan_data):
         """Test that renderer shows when Medicare surcharge starts."""
-        renderer = InitialPaycheckRenderer(start_year=2026)
+        renderer = PaycheckRenderer(start_year=2026)
         
         output = StringIO()
         old_stdout = sys.stdout
@@ -461,7 +461,7 @@ class TestInitialPaycheckRendererMockData:
     
     def test_renderer_shows_401k_contribution(self, mock_plan_data):
         """Test that renderer shows 401(k) contribution."""
-        renderer = InitialPaycheckRenderer(start_year=2026)
+        renderer = PaycheckRenderer(start_year=2026)
         
         output = StringIO()
         old_stdout = sys.stdout
@@ -478,7 +478,7 @@ class TestInitialPaycheckRendererMockData:
     
     def test_renderer_shows_hsa_contribution(self, mock_plan_data):
         """Test that renderer shows HSA contribution."""
-        renderer = InitialPaycheckRenderer(start_year=2026)
+        renderer = PaycheckRenderer(start_year=2026)
         
         output = StringIO()
         old_stdout = sys.stdout
@@ -495,7 +495,7 @@ class TestInitialPaycheckRendererMockData:
     
     def test_renderer_shows_deferred_comp(self, mock_plan_data):
         """Test that renderer shows deferred compensation."""
-        renderer = InitialPaycheckRenderer(start_year=2026)
+        renderer = PaycheckRenderer(start_year=2026)
         
         output = StringIO()
         old_stdout = sys.stdout
@@ -511,8 +511,8 @@ class TestInitialPaycheckRendererMockData:
         assert '1,000.00' in result
 
 
-class TestInitialPaycheckRendererNoPretaxDeductions:
-    """Test InitialPaycheckRenderer when there are no pre-tax deductions."""
+class TestPaycheckRendererNoPretaxDeductions:
+    """Test PaycheckRenderer when there are no pre-tax deductions."""
     
     @pytest.fixture
     def mock_plan_no_deductions(self):
@@ -546,7 +546,7 @@ class TestInitialPaycheckRendererNoPretaxDeductions:
     
     def test_renderer_shows_none_for_no_deductions(self, mock_plan_no_deductions):
         """Test that renderer shows (None) when no pre-tax deductions."""
-        renderer = InitialPaycheckRenderer(start_year=2026)
+        renderer = PaycheckRenderer(start_year=2026)
         
         output = StringIO()
         old_stdout = sys.stdout
@@ -562,7 +562,7 @@ class TestInitialPaycheckRendererNoPretaxDeductions:
     
     def test_renderer_hides_paycheck_changes_section(self, mock_plan_no_deductions):
         """Test that renderer hides paycheck changes section when no thresholds."""
-        renderer = InitialPaycheckRenderer(start_year=2026)
+        renderer = PaycheckRenderer(start_year=2026)
         
         output = StringIO()
         old_stdout = sys.stdout

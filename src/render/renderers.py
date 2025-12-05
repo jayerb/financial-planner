@@ -781,8 +781,8 @@ class CashFlowRenderer(BaseRenderer):
         print()
 
 
-class InitialPaycheckRenderer(BaseRenderer):
-    """Renderer for displaying initial paycheck details (pay stub view)."""
+class PaycheckRenderer(BaseRenderer):
+    """Renderer for displaying paycheck details (pay stub view)."""
     
     def __init__(self, start_year: int = None, end_year: int = None, program_name: str = None):
         """Initialize with optional year range.
@@ -796,9 +796,9 @@ class InitialPaycheckRenderer(BaseRenderer):
         self.tax_year = start_year  # Use start_year as the target year
     
     def render(self, data: PlanData) -> None:
-        """Render the initial paycheck breakdown (pay stub format).
+        """Render the paycheck breakdown (pay stub format).
         
-        Shows what an initial paycheck looks like, including gross pay,
+        Shows what a paycheck looks like, including gross pay,
         all deductions (taxes, retirement, benefits), and net pay.
         
         Args:
@@ -817,7 +817,7 @@ class InitialPaycheckRenderer(BaseRenderer):
         report_width = 60
         print()
         print("=" * report_width)
-        header = self._format_header(f'INITIAL PAYCHECK - {year}', report_width)
+        header = self._format_header(f'PAYCHECK - {year}', report_width)
         print(f"{header:^{report_width}}")
         print("=" * report_width)
         
@@ -1310,7 +1310,7 @@ def reload_renderer_registry() -> None:
         'Contributions': ContributionsRenderer,
         'MoneyMovement': MoneyMovementRenderer,
         'CashFlow': CashFlowRenderer,
-        'InitialPaycheck': InitialPaycheckRenderer,
+        'Paycheck': PaycheckRenderer,
     })
     
     # Load all custom configs (built-in and user)
@@ -1364,7 +1364,7 @@ RENDERER_REGISTRY = {
     'Contributions': ContributionsRenderer,
     'MoneyMovement': MoneyMovementRenderer,
     'CashFlow': CashFlowRenderer,
-    'InitialPaycheck': InitialPaycheckRenderer,
+    'Paycheck': PaycheckRenderer,
 }
 
 # Load custom renderers from both built-in and user config directories and add to registry
