@@ -292,7 +292,7 @@ class TestInitialPaycheckRendererOutput:
         result = output.getvalue()
         assert 'ANNUAL PROJECTIONS' in result
         assert 'Pay Schedule:' in result
-        assert 'Annual Gross Pay:' in result
+        assert 'Annual Base Salary:' in result
         assert 'Annual Net Pay:' in result
 
 

@@ -686,6 +686,9 @@ class PlanCalculator:
         
         Also calculates which pay period each threshold is crossed.
         
+        The paycheck is based on base salary only (not bonus, RSUs, etc.) since
+        those are typically paid separately or vest at different times.
+        
         Args:
             yd: The YearlyData object to update
             year: The tax year
@@ -705,9 +708,9 @@ class PlanCalculator:
         medicare_surcharge_threshold = self.medicare.surcharge_threshold
         medicare_surcharge_rate = self.medicare.surcharge_rate
         
-        # Calculate per-paycheck gross pay (earned income subject to FICA)
-        # This is base salary + bonus + RSUs + other taxable compensation
-        paycheck_fica_income = yd.earned_income_for_fica / pay_periods_per_year
+        # Calculate per-paycheck gross pay from base salary only
+        # Bonus, RSUs, etc. are paid separately and not included in regular paychecks
+        paycheck_gross = yd.base_salary / pay_periods_per_year
         
         # Per-paycheck deductions for tax calculation (pro-rated annual amounts)
         # Medical/dental/vision is pre-tax for federal/state but not for SS wage calculation
@@ -715,7 +718,7 @@ class PlanCalculator:
         
         # Medicare base includes life premium (taxable benefit)
         paycheck_life_premium = life_premium / pay_periods_per_year
-        paycheck_medicare_base = paycheck_fica_income - paycheck_medical_deduction + paycheck_life_premium
+        paycheck_medicare_base = paycheck_gross - paycheck_medical_deduction + paycheck_life_premium
         
         # Calculate per-paycheck tax rates (federal + state are roughly constant through the year)
         # Use marginal rate as approximation for paycheck withholding
@@ -723,18 +726,19 @@ class PlanCalculator:
         # Estimate state rate from annual values
         paycheck_state_rate = yd.state_tax / yd.gross_income if yd.gross_income > 0 else 0.05
         
-        # Per-paycheck deferred compensation contribution
-        paycheck_deferral = yd.total_deferral / pay_periods_per_year
+        # Per-paycheck deferred compensation contribution (based on base salary deferral only)
+        # Bonus deferrals happen when bonus is paid, not in regular paychecks
+        paycheck_deferral = yd.base_deferral / pay_periods_per_year
         
         # Calculate per-pay-period 401(k) and HSA contributions
         paycheck_401k = yd.employee_401k_contribution / pay_periods_per_year
         paycheck_hsa = yd.employee_hsa / pay_periods_per_year
         
         # Populate pay statement fields (per pay period amounts)
-        yd.paycheck_gross = paycheck_fica_income
-        yd.paycheck_federal_tax = paycheck_fica_income * paycheck_federal_rate
-        yd.paycheck_state_tax = paycheck_fica_income * paycheck_state_rate
-        yd.paycheck_social_security = paycheck_fica_income * ss_rate
+        yd.paycheck_gross = paycheck_gross
+        yd.paycheck_federal_tax = paycheck_gross * paycheck_federal_rate
+        yd.paycheck_state_tax = paycheck_gross * paycheck_state_rate
+        yd.paycheck_social_security = paycheck_gross * ss_rate
         yd.paycheck_medicare = paycheck_medicare_base * medicare_rate
         yd.paycheck_401k = paycheck_401k
         yd.paycheck_hsa = paycheck_hsa
@@ -747,6 +751,8 @@ class PlanCalculator:
                           yd.paycheck_hsa - yd.paycheck_deferred_comp - yd.paycheck_medical_dental)
         
         # 1. Calculate pay period when SS wage base is exceeded
+        # Use total FICA income for threshold calculation since that determines when SS stops
+        paycheck_fica_income = yd.earned_income_for_fica / pay_periods_per_year
         if yd.earned_income_for_fica > ss_wage_base:
             # SS wage base is exceeded at some point in the year
             yd.pay_period_ss_limit_reached = int(ss_wage_base / paycheck_fica_income) + 1
@@ -767,40 +773,40 @@ class PlanCalculator:
         
         # Phase 1: Initial (with SS tax, before surcharge if applicable)
         # Taxes: Federal (marginal) + State + SS + Medicare base
-        paycheck_ss_tax = paycheck_fica_income * ss_rate
+        paycheck_ss_tax = paycheck_gross * ss_rate
         paycheck_medicare_tax = paycheck_medicare_base * medicare_rate
-        paycheck_taxes_phase1 = (paycheck_fica_income * paycheck_federal_rate + 
-                                 paycheck_fica_income * paycheck_state_rate +
+        paycheck_taxes_phase1 = (paycheck_gross * paycheck_federal_rate + 
+                                 paycheck_gross * paycheck_state_rate +
                                  paycheck_ss_tax + paycheck_medicare_tax)
-        yd.paycheck_take_home_initial = paycheck_fica_income - paycheck_taxes_phase1 - paycheck_deferral
+        yd.paycheck_take_home_initial = paycheck_gross - paycheck_taxes_phase1 - paycheck_deferral
         
         # Phase 2: After SS wage base exceeded (no more SS tax)
-        paycheck_taxes_phase2 = (paycheck_fica_income * paycheck_federal_rate +
-                                 paycheck_fica_income * paycheck_state_rate +
+        paycheck_taxes_phase2 = (paycheck_gross * paycheck_federal_rate +
+                                 paycheck_gross * paycheck_state_rate +
                                  paycheck_medicare_tax)
-        yd.paycheck_take_home_after_ss_limit = paycheck_fica_income - paycheck_taxes_phase2 - paycheck_deferral
+        yd.paycheck_take_home_after_ss_limit = paycheck_gross - paycheck_taxes_phase2 - paycheck_deferral
         
         # Phase 3: After Medicare surcharge kicks in
-        paycheck_medicare_surcharge = paycheck_fica_income * medicare_surcharge_rate
-        paycheck_taxes_phase3 = (paycheck_fica_income * paycheck_federal_rate +
-                                 paycheck_fica_income * paycheck_state_rate +
+        paycheck_medicare_surcharge = paycheck_gross * medicare_surcharge_rate
+        paycheck_taxes_phase3 = (paycheck_gross * paycheck_federal_rate +
+                                 paycheck_gross * paycheck_state_rate +
                                  paycheck_medicare_tax + paycheck_medicare_surcharge)
         # Note: By the time surcharge kicks in, SS limit is usually already exceeded
         # So phase 3 typically doesn't have SS tax either
         if yd.pay_period_medicare_surcharge_starts > 0 and yd.pay_period_ss_limit_reached > 0:
             if yd.pay_period_medicare_surcharge_starts >= yd.pay_period_ss_limit_reached:
                 # SS limit reached before surcharge - phase 3 has no SS tax
-                yd.paycheck_take_home_after_medicare_surcharge = (paycheck_fica_income - paycheck_taxes_phase3 - 
+                yd.paycheck_take_home_after_medicare_surcharge = (paycheck_gross - paycheck_taxes_phase3 - 
                                                                    paycheck_deferral)
             else:
                 # Surcharge before SS limit (unusual) - include SS tax
                 paycheck_taxes_phase3_with_ss = paycheck_taxes_phase3 + paycheck_ss_tax
-                yd.paycheck_take_home_after_medicare_surcharge = (paycheck_fica_income - paycheck_taxes_phase3_with_ss - 
+                yd.paycheck_take_home_after_medicare_surcharge = (paycheck_gross - paycheck_taxes_phase3_with_ss - 
                                                                    paycheck_deferral)
         elif yd.pay_period_medicare_surcharge_starts > 0:
             # Surcharge kicks in but SS limit never reached
             paycheck_taxes_phase3_with_ss = paycheck_taxes_phase3 + paycheck_ss_tax
-            yd.paycheck_take_home_after_medicare_surcharge = (paycheck_fica_income - paycheck_taxes_phase3_with_ss - 
+            yd.paycheck_take_home_after_medicare_surcharge = (paycheck_gross - paycheck_taxes_phase3_with_ss - 
                                                                paycheck_deferral)
         else:
             # No surcharge this year

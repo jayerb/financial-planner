@@ -873,10 +873,10 @@ class InitialPaycheckRenderer(BaseRenderer):
         print("-" * report_width)
         
         # Determine pay periods per year from the data
-        # We can estimate from gross pay vs annual salary
+        # We can estimate from gross pay vs base salary
         if yd.paycheck_gross > 0:
-            # Use earned_income_for_fica as annual total, paycheck_gross as per-period
-            estimated_periods = round(yd.earned_income_for_fica / yd.paycheck_gross)
+            # Use base_salary as annual total, paycheck_gross as per-period
+            estimated_periods = round(yd.base_salary / yd.paycheck_gross)
             if estimated_periods in [24, 26]:
                 pay_periods = estimated_periods
                 schedule = "BiMonthly" if pay_periods == 24 else "BiWeekly"
@@ -888,7 +888,7 @@ class InitialPaycheckRenderer(BaseRenderer):
             schedule = "BiWeekly"
         
         print(f"  {'Pay Schedule:':<40} {schedule} ({pay_periods} pay periods)")
-        print(f"  {'Annual Gross Pay:':<40} ${yd.paycheck_gross * pay_periods:>14,.2f}")
+        print(f"  {'Annual Base Salary:':<40} ${yd.base_salary:>14,.2f}")
         print(f"  {'Annual Tax Withholdings:':<40} ${total_taxes * pay_periods:>14,.2f}")
         print(f"  {'Annual Pre-Tax Deductions:':<40} ${total_pretax * pay_periods:>14,.2f}")
         print(f"  {'Annual Net Pay:':<40} ${yd.paycheck_net * pay_periods:>14,.2f}")
