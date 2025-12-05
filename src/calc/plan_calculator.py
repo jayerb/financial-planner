@@ -260,8 +260,8 @@ class PlanCalculator:
             
             # Check if base_salary exceeds the SS wage base
             if yd.base_salary >= ss_wage_base:
-                # Calculate which pay period hits the limit
-                yd.pay_period_ss_limit_reached = int(ss_wage_base / paycheck_gross) if paycheck_gross > 0 else 0
+                # Calculate which pay period hits the limit (int truncates towards zero)
+                yd.pay_period_ss_limit_reached = int(ss_wage_base / paycheck_gross)
             else:
                 # Limit not reached by base salary alone
                 yd.pay_period_ss_limit_reached = 0

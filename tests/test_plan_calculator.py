@@ -1491,7 +1491,7 @@ class TestSocialSecurityLimitCalculation:
         first_year = result.yearly_data[2026]
         # paycheck_gross = 200000 / 26 = 7692.31
         # ss_wage_base = 184500
-        # pay_period_ss_limit_reached = 184500 / 7692.31 = 23.98 = 23 (int)
+        # pay_period_ss_limit_reached = int(184500 / 7692.31) = int(23.98) = 23 (truncates towards zero)
         assert first_year.pay_period_ss_limit_reached == 23
     
     def test_pay_period_ss_limit_not_reached(self, calculator):
@@ -1513,8 +1513,8 @@ class TestSocialSecurityLimitCalculation:
         result = calculator.calculate(spec)
         
         first_year = result.yearly_data[2026]
-        # paycheck_gross = 184500 / 26 = 7096.15
-        # pay_period_ss_limit_reached = 184500 / 7096.15 = 26
+        # paycheck_gross = 184500 / 26 = 7096.15...
+        # pay_period_ss_limit_reached = int(184500 / 7096.15) = int(26.00) = 26
         assert first_year.pay_period_ss_limit_reached == 26
     
     def test_pay_period_ss_limit_high_salary(self, calculator):
