@@ -310,6 +310,13 @@ def generate_spec(existing_spec: Optional[dict] = None) -> dict:
             default=ex_pay_schedule.get('schedule', 'BiWeekly')
         )
         
+        pay_schedule['bonusPayPeriod'] = prompt_int(
+            "Pay period number after which bonus is paid (e.g., 17)",
+            default=ex_pay_schedule.get('bonusPayPeriod', 17),
+            min_val=1,
+            max_val=26
+        )
+        
         spec['paySchedule'] = pay_schedule
 
     # =========================================================================

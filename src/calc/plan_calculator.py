@@ -64,6 +64,7 @@ class PlanCalculator:
         # Pay schedule: BiWeekly = 26 pay periods, BiMonthly = 24 pay periods
         pay_schedule = pay_schedule_spec.get('schedule', 'BiWeekly')
         pay_periods_per_year = 26 if pay_schedule == 'BiWeekly' else 24
+        bonus_pay_period = pay_schedule_spec.get('bonusPayPeriod', 17)
         
         # Initial values from spec
         initial_base_salary = income_spec.get('baseSalary', 0)
@@ -268,7 +269,7 @@ class PlanCalculator:
             
             # Paycheck take-home pay calculations (for working years)
             # These show how take-home changes as SS wage base and Medicare surcharge thresholds are crossed
-            self._calculate_paycheck_take_home(yd, year, life_premium, pay_periods_per_year)
+            self._calculate_paycheck_take_home(yd, year, life_premium, pay_periods_per_year, bonus_pay_period)
             
             # Expenses and money movement
             yd.annual_expenses = current_annual_expenses
@@ -676,7 +677,7 @@ class PlanCalculator:
         
         return plan
 
-    def _calculate_paycheck_take_home(self, yd: YearlyData, year: int, life_premium: float, pay_periods_per_year: int) -> None:
+    def _calculate_paycheck_take_home(self, yd: YearlyData, year: int, life_premium: float, pay_periods_per_year: int, bonus_pay_period: int) -> None:
         """Calculate paycheck take-home pay at different phases of the year.
         
         This calculates:
@@ -694,6 +695,7 @@ class PlanCalculator:
             year: The tax year
             life_premium: Company-provided life insurance premium (taxable)
             pay_periods_per_year: Number of pay periods (26 for BiWeekly, 24 for BiMonthly)
+            bonus_pay_period: The pay period number after which the bonus is paid
         """
         if not yd.is_working_year:
             return
@@ -751,23 +753,36 @@ class PlanCalculator:
                           yd.paycheck_hsa - yd.paycheck_deferred_comp - yd.paycheck_medical_dental)
         
         # 1. Calculate pay period when SS wage base is exceeded
-        # Use total FICA income for threshold calculation since that determines when SS stops
-        paycheck_fica_income = yd.earned_income_for_fica / pay_periods_per_year
-        if yd.earned_income_for_fica > ss_wage_base:
-            # SS wage base is exceeded at some point in the year
-            yd.pay_period_ss_limit_reached = int(ss_wage_base / paycheck_fica_income) + 1
-            if yd.pay_period_ss_limit_reached > pay_periods_per_year:
-                yd.pay_period_ss_limit_reached = 0  # Never actually reached this year
-        else:
-            yd.pay_period_ss_limit_reached = 0  # Never exceeded
+        # We need to simulate cumulative income pay period by pay period
+        # because the bonus is a lump sum that can cause a jump in cumulative income
         
-        # 2. Calculate pay period when Medicare surcharge kicks in
-        if yd.earned_income_for_fica > medicare_surcharge_threshold:
-            yd.pay_period_medicare_surcharge_starts = int(medicare_surcharge_threshold / paycheck_fica_income) + 1
-            if yd.pay_period_medicare_surcharge_starts > pay_periods_per_year:
-                yd.pay_period_medicare_surcharge_starts = 0
-        else:
-            yd.pay_period_medicare_surcharge_starts = 0
+        # Calculate FICA income per regular paycheck (excluding bonus)
+        # Note: earned_income_for_fica includes bonus, so we subtract it
+        regular_fica_income_per_period = (yd.earned_income_for_fica - yd.bonus) / pay_periods_per_year
+        
+        cumulative_income = 0.0
+        yd.pay_period_ss_limit_reached = 0
+        yd.pay_period_medicare_surcharge_starts = 0
+        
+        for period in range(1, pay_periods_per_year + 1):
+            # Add regular paycheck income
+            cumulative_income += regular_fica_income_per_period
+            
+            # Add bonus if this is the bonus pay period
+            if period == bonus_pay_period:
+                cumulative_income += yd.bonus
+            
+            # Check if SS limit reached in this period
+            if yd.pay_period_ss_limit_reached == 0 and cumulative_income > ss_wage_base:
+                yd.pay_period_ss_limit_reached = period
+            
+            # Check if Medicare surcharge starts in this period
+            if yd.pay_period_medicare_surcharge_starts == 0 and cumulative_income > medicare_surcharge_threshold:
+                yd.pay_period_medicare_surcharge_starts = period
+                
+            # If both found, we can stop simulating (optimization)
+            if yd.pay_period_ss_limit_reached > 0 and yd.pay_period_medicare_surcharge_starts > 0:
+                break
         
         # 3. Calculate paycheck take-home for each phase
         
