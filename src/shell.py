@@ -444,7 +444,14 @@ Type 'exit' or 'quit' to exit.
                         "taxable_account_adjustment"],
             "Appreciation": ["appreciation_ira", "appreciation_deferred_comp", "appreciation_hsa", 
                             "appreciation_taxable", "total_appreciation"],
-            "Balances": ["balance_ira", "balance_deferred_comp", "balance_hsa", "balance_taxable", "total_assets"]
+            "Balances": ["balance_ira", "balance_deferred_comp", "balance_hsa", "balance_taxable", "total_assets"],
+            "Pay Statement": ["paycheck_gross", "paycheck_federal_tax", "paycheck_state_tax",
+                              "paycheck_social_security", "paycheck_medicare", "paycheck_401k",
+                              "paycheck_hsa", "paycheck_deferred_comp", "paycheck_medical_dental",
+                              "paycheck_net"],
+            "Paycheck Take-Home": ["paycheck_take_home_initial", "paycheck_take_home_after_ss_limit",
+                                   "paycheck_take_home_after_medicare_surcharge", "pay_period_ss_limit_reached",
+                                   "pay_period_medicare_surcharge_starts"]
         }
         
         for category, fields in categories.items():

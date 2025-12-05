@@ -77,6 +77,25 @@ FIELD_METADATA: Dict[str, FieldInfo] = {
     "effective_tax_rate": FieldInfo("Eff Rate", "Effective tax rate (total taxes / gross income)"),
     "take_home_pay": FieldInfo("Take Home", "Net income after all taxes"),
     
+    # Paycheck Take-Home Pay (working years)
+    "paycheck_take_home_initial": FieldInfo("Paycheck Initial", "Paycheck take-home with Social Security tax"),
+    "paycheck_take_home_after_ss_limit": FieldInfo("Paycheck After SS", "Paycheck take-home after SS wage base exceeded"),
+    "paycheck_take_home_after_medicare_surcharge": FieldInfo("Paycheck After Surcharge", "Paycheck take-home after Medicare surcharge"),
+    "pay_period_ss_limit_reached": FieldInfo("SS Limit Period", "Pay period when SS wage base exceeded (0 if never)"),
+    "pay_period_medicare_surcharge_starts": FieldInfo("Surcharge Period", "Pay period when Medicare surcharge starts (0 if never)"),
+    
+    # Pay Statement (per pay period amounts)
+    "paycheck_gross": FieldInfo("Gross Pay", "Gross pay per pay period"),
+    "paycheck_federal_tax": FieldInfo("Federal W/H", "Federal tax withholding per pay period"),
+    "paycheck_state_tax": FieldInfo("State W/H", "State tax withholding per pay period"),
+    "paycheck_social_security": FieldInfo("SS W/H", "Social Security tax per pay period"),
+    "paycheck_medicare": FieldInfo("Medicare W/H", "Medicare tax per pay period"),
+    "paycheck_401k": FieldInfo("401(k) Ded", "401(k) contribution per pay period"),
+    "paycheck_hsa": FieldInfo("HSA Ded", "HSA contribution per pay period"),
+    "paycheck_deferred_comp": FieldInfo("Def Comp Ded", "Deferred compensation per pay period"),
+    "paycheck_medical_dental": FieldInfo("Med/Dental Ded", "Medical/dental/vision deduction per pay period"),
+    "paycheck_net": FieldInfo("Net Pay", "Net pay per pay period (take-home)"),
+    
     # Contributions
     "employee_401k_contribution": FieldInfo("Employee 401(k)", "Employee 401(k) contribution"),
     "employer_401k_match": FieldInfo("Employer Match", "Employer 401(k) matching contribution"),

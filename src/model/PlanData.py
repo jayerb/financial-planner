@@ -74,6 +74,27 @@ class YearlyData:
     effective_tax_rate: float = 0.0
     take_home_pay: float = 0.0
     
+    # Paycheck take-home pay (working years only)
+    # Values depend on pay schedule: BiWeekly (26 pay periods) or BiMonthly (24 pay periods)
+    paycheck_take_home_initial: float = 0.0  # Paycheck take-home with SS tax
+    paycheck_take_home_after_ss_limit: float = 0.0  # Paycheck take-home after SS wage base exceeded
+    paycheck_take_home_after_medicare_surcharge: float = 0.0  # Paycheck take-home after Medicare surcharge kicks in
+    pay_period_ss_limit_reached: int = 0  # Pay period when SS wage base is exceeded (0 if never)
+    pay_period_medicare_surcharge_starts: int = 0  # Pay period when Medicare surcharge starts (0 if never)
+    
+    # Pay statement per-period amounts (working years only)
+    # These show what appears on each paycheck based on pay schedule
+    paycheck_gross: float = 0.0  # Gross pay per pay period
+    paycheck_federal_tax: float = 0.0  # Federal tax withholding per pay period
+    paycheck_state_tax: float = 0.0  # State tax withholding per pay period
+    paycheck_social_security: float = 0.0  # Social Security tax per pay period (before limit)
+    paycheck_medicare: float = 0.0  # Medicare tax per pay period
+    paycheck_401k: float = 0.0  # 401(k) contribution per pay period
+    paycheck_hsa: float = 0.0  # HSA contribution per pay period
+    paycheck_deferred_comp: float = 0.0  # Deferred comp contribution per pay period
+    paycheck_medical_dental: float = 0.0  # Medical/dental/vision deduction per pay period
+    paycheck_net: float = 0.0  # Net pay per pay period (take-home)
+    
     # Contributions
     employee_401k_contribution: float = 0.0
     employer_401k_match: float = 0.0

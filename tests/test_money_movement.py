@@ -53,6 +53,12 @@ def create_mock_social_security():
     """Create a mock SocialSecurityDetails."""
     mock = Mock()
     mock.total_contribution.return_value = 12000
+    # Mock get_data_for_year for weekly take-home calculations
+    mock.get_data_for_year.return_value = {
+        'maximumTaxedIncome': 168600,  # 2024 SS wage base
+        'employeePortion': 0.062,
+        'maPFML': 0.00318
+    }
     return mock
 
 
@@ -61,6 +67,10 @@ def create_mock_medicare():
     mock = Mock()
     mock.base_contribution.return_value = 5000
     mock.surcharge.return_value = 1000
+    # Instance attributes for weekly take-home calculations
+    mock.medicare_rate = 0.0145
+    mock.surcharge_threshold = 200000
+    mock.surcharge_rate = 0.009
     return mock
 
 
