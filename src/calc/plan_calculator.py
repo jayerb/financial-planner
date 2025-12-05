@@ -65,6 +65,7 @@ class PlanCalculator:
         pay_schedule = pay_schedule_spec.get('schedule', 'BiWeekly')
         pay_periods_per_year = 26 if pay_schedule == 'BiWeekly' else 24
         bonus_pay_period = pay_schedule_spec.get('bonusPayPeriod', 17)
+        rsu_vesting_pay_period = pay_schedule_spec.get('rsuVestingPayPeriod', 21)
         
         # Initial values from spec
         initial_base_salary = income_spec.get('baseSalary', 0)
@@ -269,7 +270,7 @@ class PlanCalculator:
             
             # Paycheck take-home pay calculations (for working years)
             # These show how take-home changes as SS wage base and Medicare surcharge thresholds are crossed
-            self._calculate_paycheck_take_home(yd, year, life_premium, pay_periods_per_year, bonus_pay_period)
+            self._calculate_paycheck_take_home(yd, year, life_premium, pay_periods_per_year, bonus_pay_period, rsu_vesting_pay_period)
             
             # Expenses and money movement
             yd.annual_expenses = current_annual_expenses
@@ -677,7 +678,7 @@ class PlanCalculator:
         
         return plan
 
-    def _calculate_paycheck_take_home(self, yd: YearlyData, year: int, life_premium: float, pay_periods_per_year: int, bonus_pay_period: int) -> None:
+    def _calculate_paycheck_take_home(self, yd: YearlyData, year: int, life_premium: float, pay_periods_per_year: int, bonus_pay_period: int, rsu_vesting_pay_period: int = 6) -> None:
         """Calculate paycheck take-home pay at different phases of the year.
         
         This calculates:
@@ -696,6 +697,7 @@ class PlanCalculator:
             life_premium: Company-provided life insurance premium (taxable)
             pay_periods_per_year: Number of pay periods (26 for BiWeekly, 24 for BiMonthly)
             bonus_pay_period: The pay period number after which the bonus is paid
+            rsu_vesting_pay_period: The pay period number after which RSUs vest (default 21)
         """
         if not yd.is_working_year:
             return
@@ -754,11 +756,15 @@ class PlanCalculator:
         
         # 1. Calculate pay period when SS wage base is exceeded
         # We need to simulate cumulative income pay period by pay period
-        # because the bonus is a lump sum that can cause a jump in cumulative income
+        # because the bonus and RSU vesting are lump sums that can cause jumps in cumulative income
         
-        # Calculate FICA income per regular paycheck (excluding bonus)
-        # Note: earned_income_for_fica includes bonus, so we subtract it
-        regular_fica_income_per_period = (yd.earned_income_for_fica - yd.bonus) / pay_periods_per_year
+        # Regular paycheck income is only base salary (per period)
+        # Bonus, RSU vesting, ESPP, and other income are handled as lump sums at specific periods
+        regular_fica_income_per_period = yd.base_salary / pay_periods_per_year
+        
+        # Calculate non-paycheck FICA income (RSU, ESPP, other income)
+        # These are added at the RSU vesting pay period
+        non_paycheck_fica_income = yd.rsu_vested_value + yd.espp_income + yd.other_income
         
         cumulative_income = 0.0
         yd.pay_period_ss_limit_reached = 0
@@ -771,6 +777,10 @@ class PlanCalculator:
             # Add bonus if this is the bonus pay period
             if period == bonus_pay_period:
                 cumulative_income += yd.bonus
+            
+            # Add RSU/ESPP/other income at the RSU vesting pay period
+            if period == rsu_vesting_pay_period:
+                cumulative_income += non_paycheck_fica_income
             
             # Check if SS limit reached in this period
             if yd.pay_period_ss_limit_reached == 0 and cumulative_income > ss_wage_base:
@@ -830,9 +840,9 @@ class PlanCalculator:
         # Calculate bonus paycheck breakdown
         # Bonuses are typically paid as a lump sum and taxed at supplemental wage rates
         if yd.bonus > 0:
-            self._calculate_bonus_paycheck(yd, year, bonus_pay_period, pay_periods_per_year)
+            self._calculate_bonus_paycheck(yd, year, bonus_pay_period, pay_periods_per_year, rsu_vesting_pay_period)
 
-    def _calculate_bonus_paycheck(self, yd: YearlyData, year: int, bonus_pay_period: int = 17, pay_periods_per_year: int = 26) -> None:
+    def _calculate_bonus_paycheck(self, yd: YearlyData, year: int, bonus_pay_period: int = 17, pay_periods_per_year: int = 26, rsu_vesting_pay_period: int = 6) -> None:
         """Calculate bonus paycheck breakdown.
         
         Bonuses are typically taxed at flat supplemental wage rates rather than
@@ -844,6 +854,7 @@ class PlanCalculator:
             year: The tax year
             bonus_pay_period: The pay period number when bonus is paid (default 17)
             pay_periods_per_year: Number of pay periods in the year (default 26)
+            rsu_vesting_pay_period: The pay period number when RSUs vest (default 6)
         """
         # Federal supplemental wage withholding rate (22% for amounts up to $1M)
         federal_supplemental_rate = 0.22
@@ -868,14 +879,21 @@ class PlanCalculator:
         
         # Social Security tax (applies to bonus, subject to wage base)
         # Calculate how much SS wage base is remaining at the time of bonus
-        regular_fica_income_per_period = (yd.earned_income_for_fica - yd.bonus) / pay_periods_per_year
+        # Use only base salary for regular paycheck income
+        regular_fica_income_per_period = yd.base_salary / pay_periods_per_year
+        
+        # Calculate non-paycheck FICA income (RSU, ESPP, other income)
+        non_paycheck_fica_income = yd.rsu_vested_value + yd.espp_income + yd.other_income
         
         # Income earned in regular paychecks up to and including the bonus period
-        # (Assuming bonus is paid alongside the regular check for that period)
-        income_before_bonus_calc = regular_fica_income_per_period * bonus_pay_period
+        income_before_bonus = regular_fica_income_per_period * bonus_pay_period
+        
+        # Add RSU/ESPP/other income if it vested before or at the bonus period
+        if rsu_vesting_pay_period <= bonus_pay_period:
+            income_before_bonus += non_paycheck_fica_income
         
         # Remaining capacity in the SS wage base
-        remaining_ss_capacity = max(0.0, ss_wage_base - income_before_bonus_calc)
+        remaining_ss_capacity = max(0.0, ss_wage_base - income_before_bonus)
         
         # Taxable bonus amount is the lesser of the full bonus or remaining capacity
         taxable_bonus = min(yd.bonus, remaining_ss_capacity)

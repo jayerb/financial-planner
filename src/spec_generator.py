@@ -317,6 +317,13 @@ def generate_spec(existing_spec: Optional[dict] = None) -> dict:
             max_val=26
         )
         
+        pay_schedule['rsuVestingPayPeriod'] = prompt_int(
+            "Pay period number after which RSUs vest (e.g., 21)",
+            default=ex_pay_schedule.get('rsuVestingPayPeriod', 21),
+            min_val=1,
+            max_val=26
+        )
+        
         spec['paySchedule'] = pay_schedule
 
     # =========================================================================
