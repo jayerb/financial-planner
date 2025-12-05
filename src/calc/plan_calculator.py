@@ -830,9 +830,9 @@ class PlanCalculator:
         # Calculate bonus paycheck breakdown
         # Bonuses are typically paid as a lump sum and taxed at supplemental wage rates
         if yd.bonus > 0:
-            self._calculate_bonus_paycheck(yd, year)
+            self._calculate_bonus_paycheck(yd, year, bonus_pay_period, pay_periods_per_year)
 
-    def _calculate_bonus_paycheck(self, yd: YearlyData, year: int) -> None:
+    def _calculate_bonus_paycheck(self, yd: YearlyData, year: int, bonus_pay_period: int = 17, pay_periods_per_year: int = 26) -> None:
         """Calculate bonus paycheck breakdown.
         
         Bonuses are typically taxed at flat supplemental wage rates rather than
@@ -842,12 +842,15 @@ class PlanCalculator:
         Args:
             yd: The YearlyData object to update
             year: The tax year
+            bonus_pay_period: The pay period number when bonus is paid (default 17)
+            pay_periods_per_year: Number of pay periods in the year (default 26)
         """
         # Federal supplemental wage withholding rate (22% for amounts up to $1M)
         federal_supplemental_rate = 0.22
         
         # Get SS and Medicare rates
         ss_data = self.social_security.get_data_for_year(year)
+        ss_wage_base = ss_data["maximumTaxedIncome"]
         ss_rate = ss_data["employeePortion"] + ss_data["maPFML"]
         medicare_rate = self.medicare.medicare_rate
         
@@ -864,9 +867,20 @@ class PlanCalculator:
         yd.bonus_paycheck_state_tax = yd.bonus * state_rate
         
         # Social Security tax (applies to bonus, subject to wage base)
-        # For simplicity, we calculate as if full rate applies
-        # In reality, may be reduced if wage base already exceeded
-        yd.bonus_paycheck_social_security = yd.bonus * ss_rate
+        # Calculate how much SS wage base is remaining at the time of bonus
+        regular_fica_income_per_period = (yd.earned_income_for_fica - yd.bonus) / pay_periods_per_year
+        
+        # Income earned in regular paychecks up to and including the bonus period
+        # (Assuming bonus is paid alongside the regular check for that period)
+        income_before_bonus_calc = regular_fica_income_per_period * bonus_pay_period
+        
+        # Remaining capacity in the SS wage base
+        remaining_ss_capacity = max(0.0, ss_wage_base - income_before_bonus_calc)
+        
+        # Taxable bonus amount is the lesser of the full bonus or remaining capacity
+        taxable_bonus = min(yd.bonus, remaining_ss_capacity)
+        
+        yd.bonus_paycheck_social_security = taxable_bonus * ss_rate
         
         # Medicare tax at base rate (bonus typically triggers surcharge too)
         # For simplicity, use base rate; surcharge handled separately
