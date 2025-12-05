@@ -894,6 +894,30 @@ class PaycheckRenderer(BaseRenderer):
         print(f"  {'Annual Net Pay:':<40} ${yd.paycheck_net * pay_periods:>14,.2f}")
         print()
         
+        # Show bonus paycheck breakdown if bonus > 0
+        if yd.bonus_paycheck_gross > 0:
+            print("-" * report_width)
+            print("BONUS PAYCHECK")
+            print("-" * report_width)
+            print(f"  {'Gross Bonus:':<40} ${yd.bonus_paycheck_gross:>14,.2f}")
+            print()
+            print("  Tax Withholdings:")
+            print(f"    {'Federal (22% supplemental rate):':<38} ${yd.bonus_paycheck_federal_tax:>14,.2f}")
+            print(f"    {'State Income Tax:':<38} ${yd.bonus_paycheck_state_tax:>14,.2f}")
+            print(f"    {'Social Security:':<38} ${yd.bonus_paycheck_social_security:>14,.2f}")
+            print(f"    {'Medicare:':<38} ${yd.bonus_paycheck_medicare:>14,.2f}")
+            bonus_total_taxes = (yd.bonus_paycheck_federal_tax + yd.bonus_paycheck_state_tax + 
+                                 yd.bonus_paycheck_social_security + yd.bonus_paycheck_medicare)
+            print(f"    {'-' * 38}")
+            print(f"    {'Total Bonus Tax Withholdings:':<38} ${bonus_total_taxes:>14,.2f}")
+            print()
+            if yd.bonus_paycheck_deferred_comp > 0:
+                print("  Pre-Tax Deductions:")
+                print(f"    {'Deferred Compensation:':<38} ${yd.bonus_paycheck_deferred_comp:>14,.2f}")
+                print()
+            print(f"  {'Net Bonus (Take-Home):':<40} ${yd.bonus_paycheck_net:>14,.2f}")
+            print()
+        
         # Show threshold information
         if yd.pay_period_ss_limit_reached > 0 or yd.pay_period_medicare_surcharge_starts > 0:
             print("-" * report_width)

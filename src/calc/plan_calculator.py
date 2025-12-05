@@ -811,3 +811,59 @@ class PlanCalculator:
         else:
             # No surcharge this year
             yd.paycheck_take_home_after_medicare_surcharge = 0.0
+
+        # Calculate bonus paycheck breakdown
+        # Bonuses are typically paid as a lump sum and taxed at supplemental wage rates
+        if yd.bonus > 0:
+            self._calculate_bonus_paycheck(yd, year)
+
+    def _calculate_bonus_paycheck(self, yd: YearlyData, year: int) -> None:
+        """Calculate bonus paycheck breakdown.
+        
+        Bonuses are typically taxed at flat supplemental wage rates rather than
+        using the progressive tax brackets. The federal supplemental rate is 22%
+        for bonuses up to $1 million (37% above that).
+        
+        Args:
+            yd: The YearlyData object to update
+            year: The tax year
+        """
+        # Federal supplemental wage withholding rate (22% for amounts up to $1M)
+        federal_supplemental_rate = 0.22
+        
+        # Get SS and Medicare rates
+        ss_data = self.social_security.get_data_for_year(year)
+        ss_rate = ss_data["employeePortion"] + ss_data["maPFML"]
+        medicare_rate = self.medicare.medicare_rate
+        
+        # State rate - use effective rate from annual calculations
+        state_rate = yd.state_tax / yd.gross_income if yd.gross_income > 0 else 0.05
+        
+        # Bonus gross amount
+        yd.bonus_paycheck_gross = yd.bonus
+        
+        # Federal tax at supplemental rate
+        yd.bonus_paycheck_federal_tax = yd.bonus * federal_supplemental_rate
+        
+        # State tax at effective rate
+        yd.bonus_paycheck_state_tax = yd.bonus * state_rate
+        
+        # Social Security tax (applies to bonus, subject to wage base)
+        # For simplicity, we calculate as if full rate applies
+        # In reality, may be reduced if wage base already exceeded
+        yd.bonus_paycheck_social_security = yd.bonus * ss_rate
+        
+        # Medicare tax at base rate (bonus typically triggers surcharge too)
+        # For simplicity, use base rate; surcharge handled separately
+        yd.bonus_paycheck_medicare = yd.bonus * medicare_rate
+        
+        # Deferred compensation from bonus
+        yd.bonus_paycheck_deferred_comp = yd.bonus_deferral
+        
+        # Net bonus after all deductions
+        yd.bonus_paycheck_net = (yd.bonus_paycheck_gross - 
+                                  yd.bonus_paycheck_federal_tax -
+                                  yd.bonus_paycheck_state_tax -
+                                  yd.bonus_paycheck_social_security -
+                                  yd.bonus_paycheck_medicare -
+                                  yd.bonus_paycheck_deferred_comp)

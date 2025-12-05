@@ -96,6 +96,15 @@ FIELD_METADATA: Dict[str, FieldInfo] = {
     "paycheck_medical_dental": FieldInfo("Med/Dental Ded", "Medical/dental/vision deduction per pay period"),
     "paycheck_net": FieldInfo("Net Pay", "Net pay per pay period (take-home)"),
     
+    # Bonus Paycheck (annual bonus payment)
+    "bonus_paycheck_gross": FieldInfo("Bonus Gross", "Gross bonus amount"),
+    "bonus_paycheck_federal_tax": FieldInfo("Bonus Federal", "Federal tax on bonus (supplemental rate)"),
+    "bonus_paycheck_state_tax": FieldInfo("Bonus State", "State tax on bonus"),
+    "bonus_paycheck_social_security": FieldInfo("Bonus SS", "Social Security tax on bonus"),
+    "bonus_paycheck_medicare": FieldInfo("Bonus Medicare", "Medicare tax on bonus"),
+    "bonus_paycheck_deferred_comp": FieldInfo("Bonus Deferred", "Deferred compensation from bonus"),
+    "bonus_paycheck_net": FieldInfo("Bonus Net", "Net bonus after all deductions"),
+    
     # Contributions
     "employee_401k_contribution": FieldInfo("Employee 401(k)", "Employee 401(k) contribution"),
     "employer_401k_match": FieldInfo("Employer Match", "Employer 401(k) matching contribution"),

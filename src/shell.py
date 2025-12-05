@@ -449,6 +449,9 @@ Type 'exit' or 'quit' to exit.
                               "paycheck_social_security", "paycheck_medicare", "paycheck_401k",
                               "paycheck_hsa", "paycheck_deferred_comp", "paycheck_medical_dental",
                               "paycheck_net"],
+            "Bonus Paycheck": ["bonus_paycheck_gross", "bonus_paycheck_federal_tax", "bonus_paycheck_state_tax",
+                               "bonus_paycheck_social_security", "bonus_paycheck_medicare",
+                               "bonus_paycheck_deferred_comp", "bonus_paycheck_net"],
             "Paycheck Take-Home": ["paycheck_take_home_initial", "paycheck_take_home_after_ss_limit",
                                    "paycheck_take_home_after_medicare_surcharge", "pay_period_ss_limit_reached",
                                    "pay_period_medicare_surcharge_starts"]

@@ -95,6 +95,15 @@ class YearlyData:
     paycheck_medical_dental: float = 0.0  # Medical/dental/vision deduction per pay period
     paycheck_net: float = 0.0  # Net pay per pay period (take-home)
     
+    # Bonus paycheck breakdown (paid as a lump sum, typically once per year)
+    bonus_paycheck_gross: float = 0.0  # Bonus gross amount
+    bonus_paycheck_federal_tax: float = 0.0  # Federal tax on bonus (supplemental rate)
+    bonus_paycheck_state_tax: float = 0.0  # State tax on bonus
+    bonus_paycheck_social_security: float = 0.0  # Social Security tax on bonus
+    bonus_paycheck_medicare: float = 0.0  # Medicare tax on bonus
+    bonus_paycheck_deferred_comp: float = 0.0  # Deferred comp from bonus
+    bonus_paycheck_net: float = 0.0  # Net bonus after all deductions
+    
     # Contributions
     employee_401k_contribution: float = 0.0
     employer_401k_match: float = 0.0
