@@ -53,6 +53,11 @@ def create_mock_social_security():
     """Create a mock SocialSecurityDetails."""
     mock = Mock()
     mock.total_contribution.return_value = 12000
+    mock.get_data_for_year.return_value = {
+        'maximumTaxedIncome': 184500,
+        'employeePortion': 0.062,
+        'maPFML': 0.0063
+    }
     return mock
 
 

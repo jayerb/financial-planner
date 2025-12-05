@@ -433,7 +433,7 @@ Type 'exit' or 'quit' to exit.
             "Deferrals": ["base_deferral", "bonus_deferral", "total_deferral"],
             "Adjusted Income": ["adjusted_gross_income"],
             "Federal Taxes": ["ordinary_income_tax", "long_term_capital_gains_tax", "federal_tax", "marginal_bracket"],
-            "FICA Taxes": ["social_security_tax", "medicare_tax", "medicare_surcharge", "total_fica"],
+            "FICA Taxes": ["social_security_tax", "medicare_tax", "medicare_surcharge", "total_fica", "pay_period_ss_limit_reached"],
             "State Taxes": ["state_income_tax", "state_short_term_capital_gains_tax", "state_tax"],
             "Local Taxes": ["local_tax"],
             "Tax Summary": ["total_taxes", "effective_tax_rate", "take_home_pay"],

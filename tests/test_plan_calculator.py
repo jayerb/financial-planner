@@ -55,6 +55,11 @@ def create_mock_social_security():
     """Create a mock SocialSecurityDetails."""
     mock = Mock()
     mock.total_contribution.return_value = 12000
+    mock.get_data_for_year.return_value = {
+        'maximumTaxedIncome': 184500,
+        'employeePortion': 0.062,
+        'maPFML': 0.0063
+    }
     return mock
 
 
@@ -1459,4 +1464,84 @@ class TestMedicarePremiumSwitch:
         y2036 = result.yearly_data[2036]
         expected_medicare_2036 = 5000 * (1.05 ** 10)
         assert abs(y2036.medical_premium - expected_medicare_2036) < 0.01
+
+
+class TestSocialSecurityLimitCalculation:
+    """Tests for Social Security limit calculation based on regular paychecks."""
+    
+    @pytest.fixture
+    def calculator(self):
+        """Create a PlanCalculator with mock dependencies."""
+        return PlanCalculator(
+            federal=create_mock_federal(),
+            state=create_mock_state(),
+            espp=create_mock_espp(),
+            social_security=create_mock_social_security(),
+            medicare=create_mock_medicare(),
+            rsu_calculator=create_mock_rsu_calculator()
+        )
+    
+    def test_pay_period_ss_limit_reached_calculated(self, calculator):
+        """Test that pay_period_ss_limit_reached is calculated correctly."""
+        spec = create_basic_spec()
+        spec['income']['baseSalary'] = 200000  # Above SS wage base of 184500
+        
+        result = calculator.calculate(spec)
+        
+        first_year = result.yearly_data[2026]
+        # paycheck_gross = 200000 / 26 = 7692.31
+        # ss_wage_base = 184500
+        # pay_period_ss_limit_reached = 184500 / 7692.31 = 23.98 = 23 (int)
+        assert first_year.pay_period_ss_limit_reached == 23
+    
+    def test_pay_period_ss_limit_not_reached(self, calculator):
+        """Test that pay_period_ss_limit_reached is 0 when salary is below SS wage base."""
+        spec = create_basic_spec()
+        spec['income']['baseSalary'] = 150000  # Below SS wage base of 184500
+        
+        result = calculator.calculate(spec)
+        
+        first_year = result.yearly_data[2026]
+        # Base salary alone doesn't exceed the limit
+        assert first_year.pay_period_ss_limit_reached == 0
+    
+    def test_pay_period_ss_limit_exactly_at_base(self, calculator):
+        """Test calculation when salary exactly equals SS wage base."""
+        spec = create_basic_spec()
+        spec['income']['baseSalary'] = 184500  # Exactly at SS wage base
+        
+        result = calculator.calculate(spec)
+        
+        first_year = result.yearly_data[2026]
+        # paycheck_gross = 184500 / 26 = 7096.15
+        # pay_period_ss_limit_reached = 184500 / 7096.15 = 26
+        assert first_year.pay_period_ss_limit_reached == 26
+    
+    def test_pay_period_ss_limit_high_salary(self, calculator):
+        """Test calculation with a very high salary."""
+        spec = create_basic_spec()
+        spec['income']['baseSalary'] = 400000  # Well above SS wage base
+        
+        result = calculator.calculate(spec)
+        
+        first_year = result.yearly_data[2026]
+        # paycheck_gross = 400000 / 26 = 15384.62
+        # ss_wage_base = 184500
+        # pay_period_ss_limit_reached = 184500 / 15384.62 = 11.99 = 11 (int)
+        assert first_year.pay_period_ss_limit_reached == 11
+    
+    def test_pay_period_ss_limit_retirement_year(self, calculator):
+        """Test that pay_period_ss_limit_reached is 0 in retirement years."""
+        spec = create_basic_spec()
+        spec['income']['baseSalary'] = 200000
+        spec['lastWorkingYear'] = 2027
+        spec['lastPlanningYear'] = 2030
+        
+        result = calculator.calculate(spec)
+        
+        # Retirement year should have 0 since there's no base salary
+        retirement_year = result.yearly_data[2028]
+        assert retirement_year.base_salary == 0
+        assert retirement_year.pay_period_ss_limit_reached == 0
+
 

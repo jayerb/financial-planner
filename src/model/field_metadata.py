@@ -63,6 +63,7 @@ FIELD_METADATA: Dict[str, FieldInfo] = {
     "medicare_tax": FieldInfo("Medicare Tax", "Medicare tax"),
     "medicare_surcharge": FieldInfo("Medicare Surcharge", "Additional Medicare surcharge (high income)"),
     "total_fica": FieldInfo("Total FICA", "Total FICA taxes (SS + Medicare)"),
+    "pay_period_ss_limit_reached": FieldInfo("SS Limit Pay Period", "Pay period when SS wage base is reached (based on base salary only)"),
     
     # State Taxes
     "state_income_tax": FieldInfo("State Income Tax", "State income tax"),

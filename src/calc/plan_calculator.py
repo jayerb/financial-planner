@@ -251,6 +251,21 @@ class PlanCalculator:
             yd.medicare_surcharge = self.medicare.surcharge(yd.earned_income_for_fica)
             yd.total_fica = yd.social_security_tax + yd.medicare_tax + yd.medicare_surcharge
             
+            # Calculate when SS limit is reached based on regular paychecks (base_salary only)
+            # Assume 26 pay periods per year (biweekly)
+            pay_periods_per_year = 26
+            paycheck_gross = yd.base_salary / pay_periods_per_year
+            ss_data = self.social_security.get_data_for_year(year)
+            ss_wage_base = ss_data['maximumTaxedIncome']
+            
+            # Check if base_salary exceeds the SS wage base
+            if yd.base_salary >= ss_wage_base:
+                # Calculate which pay period hits the limit
+                yd.pay_period_ss_limit_reached = int(ss_wage_base / paycheck_gross) if paycheck_gross > 0 else 0
+            else:
+                # Limit not reached by base salary alone
+                yd.pay_period_ss_limit_reached = 0
+            
             # State taxes
             yd.state_income_tax = preliminary_state_tax
             yd.state_short_term_capital_gains_tax = self.state.shortTermCapitalGainsTax(yd.short_term_capital_gains)

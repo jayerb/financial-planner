@@ -60,6 +60,7 @@ class YearlyData:
     medicare_tax: float = 0.0
     medicare_surcharge: float = 0.0
     total_fica: float = 0.0
+    pay_period_ss_limit_reached: int = 0  # Pay period (1-26) when SS limit is reached based on base salary
     
     # State taxes
     state_income_tax: float = 0.0
