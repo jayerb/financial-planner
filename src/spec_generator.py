@@ -296,7 +296,7 @@ def generate_spec(existing_spec: Optional[dict] = None) -> dict:
     if has_pay_schedule:
         pay_schedule: dict[str, Any] = {}
         
-        # Default first pay date to first Friday of the first year
+        # Default first pay date to January 9th
         default_first_pay_date = ex_pay_schedule.get('firstPayDate', f"{spec['firstYear']}-01-09")
         
         pay_schedule['firstPayDate'] = prompt_date(
