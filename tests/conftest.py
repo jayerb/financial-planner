@@ -1,7 +1,5 @@
 """Pytest configuration for the financial-planner test suite."""
 
-import pytest
-
 # Configure pytest-asyncio to use auto mode so all async tests are automatically run
 pytest_plugins = ('pytest_asyncio',)
 
