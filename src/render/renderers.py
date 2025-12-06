@@ -897,11 +897,18 @@ class PaycheckRenderer(BaseRenderer):
         
         print(f"  {'Pay Schedule:':<40} {schedule} ({pay_periods} pay periods)")
         print(f"  {'Annual Base Salary:':<40} ${yd.base_salary:>14,.2f}")
-        print(f"  {'Annual Tax Withholdings:':<40} ${total_taxes * pay_periods:>14,.2f}")
-        print(f"  {'Annual Pre-Tax Deductions:':<40} ${total_pretax * pay_periods:>14,.2f}")
-        if yd.paycheck_espp > 0:
-            print(f"  {'Annual Post-Tax Deductions:':<40} ${yd.paycheck_espp * pay_periods:>14,.2f}")
-        print(f"  {'Annual Net Pay:':<40} ${yd.paycheck_net * pay_periods:>14,.2f}")
+        annual_tax_withholdings = (
+            yd.federal_tax +
+            yd.state_tax +
+            yd.social_security_tax +
+            yd.medicare_tax +
+            yd.medicare_surcharge
+        )
+        print(f"  {'Annual Tax Withholdings:':<40} ${annual_tax_withholdings:>14,.2f}")
+        print(f"  {'Annual Pre-Tax Deductions:':<40} ${yd.annual_pretax_deductions:>14,.2f}")
+        if hasattr(yd, 'annual_posttax_deductions') and yd.annual_posttax_deductions > 0:
+            print(f"  {'Annual Post-Tax Deductions:':<40} ${yd.annual_posttax_deductions:>14,.2f}")
+        print(f"  {'Annual Net Pay:':<40} ${yd.take_home_pay:>14,.2f}")
         print()
         
         # Show bonus paycheck breakdown if bonus > 0
