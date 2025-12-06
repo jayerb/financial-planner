@@ -713,7 +713,6 @@ class PlanCalculator:
         
         # Get SS data for the year
         ss_data = self.social_security.get_data_for_year(year)
-        ss_wage_base = ss_data["maximumTaxedIncome"]
         ss_rate = ss_data["employeePortion"] + ss_data["maPFML"]
         
         # Get Medicare data
