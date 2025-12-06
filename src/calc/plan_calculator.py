@@ -59,6 +59,13 @@ class PlanCalculator:
         deductions_spec = spec.get('deductions', {})
         deferred_comp_spec = spec.get('deferredCompensationPlan', {})
         local_tax_spec = spec.get('localTax', {})
+        pay_schedule_spec = spec.get('paySchedule', {})
+        
+        # Pay schedule: BiWeekly = 26 pay periods, BiMonthly = 24 pay periods
+        pay_schedule = pay_schedule_spec.get('schedule', 'BiWeekly')
+        pay_periods_per_year = 26 if pay_schedule == 'BiWeekly' else 24
+        pay_period_preceding_bonus = pay_schedule_spec.get('payPeriodPrecedingBonus', 17)
+        pay_period_preceding_rsu_vest = pay_schedule_spec.get('payPeriodPrecedingRSUVest', 21)
         
         # Initial values from spec
         initial_base_salary = income_spec.get('baseSalary', 0)
@@ -151,6 +158,10 @@ class PlanCalculator:
         # ============================================================
         for year in range(first_year, last_working_year + 1):
             yd = YearlyData(year=year, is_working_year=True)
+            
+            # Set pay schedule attributes
+            yd.pay_schedule = pay_schedule
+            yd.pay_periods_per_year = pay_periods_per_year
             
             # Apply inflation from prior year (except first year)
             if year > first_year:
@@ -260,6 +271,15 @@ class PlanCalculator:
             yd.total_taxes = yd.federal_tax + yd.total_fica + yd.state_tax
             yd.effective_tax_rate = yd.total_taxes / yd.gross_income if yd.gross_income > 0 else 0
             yd.take_home_pay = yd.gross_income - yd.total_taxes - yd.total_deferral
+            
+            # Annual deduction totals for pay stub projections
+            yd.annual_pretax_deductions = (yd.employee_401k_contribution + yd.employee_hsa + 
+                                           yd.total_deferral + yd.medical_dental_vision)
+            yd.annual_posttax_deductions = yd.espp_income  # ESPP is post-tax
+            
+            # Paycheck take-home pay calculations (for working years)
+            # These show how take-home changes as SS wage base and Medicare surcharge thresholds are crossed
+            self._calculate_paycheck_take_home(yd, year, life_premium, pay_periods_per_year, pay_period_preceding_bonus, pay_period_preceding_rsu_vest)
             
             # Expenses and money movement
             yd.annual_expenses = current_annual_expenses
@@ -666,3 +686,289 @@ class PlanCalculator:
             plan.total_retirement_assets = final_year_data.total_assets
         
         return plan
+
+    def _calculate_paycheck_take_home(self, yd: YearlyData, year: int, life_premium: float, pay_periods_per_year: int, pay_period_preceding_bonus: int, pay_period_preceding_rsu_vest: int = 6) -> None:
+        """Calculate paycheck take-home pay at different phases of the year.
+        
+        This calculates:
+        1. Initial paycheck take-home (with full SS tax)
+        2. Paycheck take-home after SS wage base is exceeded (no more SS tax)
+        3. Paycheck take-home after Medicare surcharge kicks in
+        
+        Also calculates which pay period each threshold is crossed.
+        
+        The paycheck is based on base salary only (not bonus, RSUs, etc.) since
+        those are typically paid separately or vest at different times.
+        
+        Args:
+            yd: The YearlyData object to update
+            year: The tax year
+            life_premium: Company-provided life insurance premium (taxable)
+            pay_periods_per_year: Number of pay periods (26 for BiWeekly, 24 for BiMonthly)
+            pay_period_preceding_bonus: The pay period preceding the bonus payment
+            pay_period_preceding_rsu_vest: The pay period preceding RSU vesting (default 6)
+        """
+        if not yd.is_working_year:
+            return
+        
+        # Get SS data for the year
+        ss_data = self.social_security.get_data_for_year(year)
+        ss_rate = ss_data["employeePortion"] + ss_data["maPFML"]
+        
+        # Get Medicare data
+        medicare_rate = self.medicare.medicare_rate
+        medicare_surcharge_threshold = self.medicare.surcharge_threshold
+        medicare_surcharge_rate = self.medicare.surcharge_rate
+        
+        # Calculate per-paycheck gross pay from base salary only
+        # Bonus, RSUs, etc. are paid separately and not included in regular paychecks
+        paycheck_gross = yd.base_salary / pay_periods_per_year
+        
+        # Per-paycheck deductions for tax calculation (pro-rated annual amounts)
+        # Medical/dental/vision is pre-tax for federal/state but not for SS wage calculation
+        paycheck_medical_deduction = yd.medical_dental_vision / pay_periods_per_year
+        
+        # Medicare base includes life premium (taxable benefit)
+        paycheck_life_premium = life_premium / pay_periods_per_year
+        paycheck_medicare_base = paycheck_gross - paycheck_medical_deduction + paycheck_life_premium
+        
+        # Calculate per-paycheck tax rates (federal + state are roughly constant through the year)
+        # Use marginal rate as approximation for paycheck withholding
+        paycheck_federal_rate = yd.marginal_bracket
+        # Estimate state rate from annual values
+        paycheck_state_rate = yd.state_tax / yd.gross_income if yd.gross_income > 0 else 0.05
+        
+        # Per-paycheck deferred compensation contribution (based on base salary deferral only)
+        # Bonus deferrals happen when bonus is paid, not in regular paychecks
+        paycheck_deferral = yd.base_deferral / pay_periods_per_year
+        
+        # Calculate per-pay-period 401(k) and HSA contributions
+        paycheck_401k = yd.employee_401k_contribution / pay_periods_per_year
+        paycheck_hsa = yd.employee_hsa / pay_periods_per_year
+        
+        # Populate pay statement fields (per pay period amounts)
+        yd.paycheck_gross = paycheck_gross
+        yd.paycheck_federal_tax = paycheck_gross * paycheck_federal_rate
+        yd.paycheck_state_tax = paycheck_gross * paycheck_state_rate
+        # Calculate Social Security withholding per paycheck, accounting for wage base limit
+        ss_wage_base = getattr(self.social_security, 'wage_base', 0)
+        # Determine how much of this paycheck is subject to SS tax
+        ss_taxable_pay = min(paycheck_gross, ss_wage_base)
+        yd.paycheck_social_security = ss_taxable_pay * ss_rate
+        yd.paycheck_medicare = paycheck_medicare_base * medicare_rate
+        yd.paycheck_401k = paycheck_401k
+        yd.paycheck_hsa = paycheck_hsa
+        yd.paycheck_deferred_comp = paycheck_deferral
+        yd.paycheck_medical_dental = paycheck_medical_deduction
+        
+        # Calculate per-pay-period ESPP contribution
+        # ESPP contribution = max_espp * (1 - espp_discount) / pay_periods_per_year
+        # This is the amount deducted from each paycheck to purchase ESPP shares
+        max_espp = getattr(self.espp, 'max_espp', 0) or 0
+        if isinstance(max_espp, (int, float)) and max_espp > 0:
+            espp_discount = yd.espp_income / max_espp
+            paycheck_espp = max_espp * (1 - espp_discount) / pay_periods_per_year
+        else:
+            paycheck_espp = 0
+        yd.paycheck_espp = paycheck_espp
+        
+        # Calculate net pay (gross - all taxes and deductions)
+        yd.paycheck_net = (yd.paycheck_gross - yd.paycheck_federal_tax - yd.paycheck_state_tax -
+                          yd.paycheck_social_security - yd.paycheck_medicare - yd.paycheck_401k -
+                          yd.paycheck_hsa - yd.paycheck_deferred_comp - yd.paycheck_medical_dental -
+                          yd.paycheck_espp)
+        
+        # 1. Calculate pay period when SS wage base is exceeded
+        # We need to simulate cumulative income pay period by pay period
+        # because the bonus and RSU vesting are lump sums that can cause jumps in cumulative income
+        
+        # Regular paycheck income is only base salary (per period)
+        # Bonus, RSU vesting, ESPP, and other income are handled as lump sums at specific periods
+        regular_fica_income_per_period = yd.base_salary / pay_periods_per_year
+        
+        # Calculate non-paycheck FICA income (RSU, ESPP, other income)
+        # These are added at the RSU vesting pay period
+        non_paycheck_fica_income = yd.rsu_vested_value + yd.espp_income + yd.other_income
+        
+        cumulative_income = 0.0
+        yd.pay_period_ss_limit_reached = 0
+        yd.pay_period_medicare_surcharge_starts = 0
+        
+        for period in range(1, pay_periods_per_year + 1):
+            # Add regular paycheck income
+            cumulative_income += regular_fica_income_per_period
+            
+            # Add bonus after the preceding pay period
+            if period == pay_period_preceding_bonus + 1:
+                cumulative_income += yd.bonus
+            
+            # Add RSU/ESPP/other income after the preceding pay period
+            if period == pay_period_preceding_rsu_vest + 1:
+                cumulative_income += non_paycheck_fica_income
+            
+            # Check if SS limit reached in this period
+            if yd.pay_period_ss_limit_reached == 0 and cumulative_income > ss_wage_base:
+                yd.pay_period_ss_limit_reached = period
+            
+            # Check if Medicare surcharge starts in this period
+            if yd.pay_period_medicare_surcharge_starts == 0 and cumulative_income > medicare_surcharge_threshold:
+                yd.pay_period_medicare_surcharge_starts = period
+                
+            # If both found, we can stop simulating (optimization)
+            if yd.pay_period_ss_limit_reached > 0 and yd.pay_period_medicare_surcharge_starts > 0:
+                break
+        
+        # 3. Calculate paycheck take-home for each phase
+        
+        # Phase 1: Initial (with SS tax, before surcharge if applicable)
+        # Taxes: Federal (marginal) + State + SS + Medicare base
+        paycheck_ss_tax = paycheck_gross * ss_rate
+        paycheck_medicare_tax = paycheck_medicare_base * medicare_rate
+        paycheck_taxes_phase1 = (paycheck_gross * paycheck_federal_rate + 
+                                 paycheck_gross * paycheck_state_rate +
+                                 paycheck_ss_tax + paycheck_medicare_tax)
+        yd.paycheck_take_home_initial = (
+            paycheck_gross - paycheck_taxes_phase1
+            - paycheck_deferral
+            - paycheck_401k
+            - paycheck_hsa
+            - paycheck_medical_deduction
+            - paycheck_espp
+        )
+        
+        # Phase 2: After SS wage base exceeded (no more SS tax)
+        paycheck_taxes_phase2 = (paycheck_gross * paycheck_federal_rate +
+                                 paycheck_gross * paycheck_state_rate +
+                                 paycheck_medicare_tax)
+        yd.paycheck_take_home_after_ss_limit = (
+            paycheck_gross - paycheck_taxes_phase2
+            - paycheck_deferral
+            - paycheck_401k
+            - paycheck_hsa
+            - paycheck_medical_deduction
+            - paycheck_espp
+        )
+        
+        # Phase 3: After Medicare surcharge kicks in
+        paycheck_medicare_surcharge = paycheck_gross * medicare_surcharge_rate
+        paycheck_taxes_phase3 = (paycheck_gross * paycheck_federal_rate +
+                                 paycheck_gross * paycheck_state_rate +
+                                 paycheck_medicare_tax + paycheck_medicare_surcharge)
+        # Note: By the time surcharge kicks in, SS limit is usually already exceeded
+        # So phase 3 typically doesn't have SS tax either
+        if yd.pay_period_medicare_surcharge_starts > 0 and yd.pay_period_ss_limit_reached > 0:
+            if yd.pay_period_medicare_surcharge_starts >= yd.pay_period_ss_limit_reached:
+                # SS limit reached before surcharge - phase 3 has no SS tax
+                yd.paycheck_take_home_after_medicare_surcharge = (
+                    paycheck_gross - paycheck_taxes_phase3
+                    - paycheck_deferral
+                    - paycheck_401k
+                    - paycheck_hsa
+                    - paycheck_medical_deduction
+                    - paycheck_espp
+                )
+            else:
+                # Surcharge before SS limit (unusual) - include SS tax
+                paycheck_taxes_phase3_with_ss = paycheck_taxes_phase3 + paycheck_ss_tax
+                yd.paycheck_take_home_after_medicare_surcharge = (
+                    paycheck_gross - paycheck_taxes_phase3_with_ss
+                    - paycheck_deferral
+                    - paycheck_401k
+                    - paycheck_hsa
+                    - paycheck_medical_deduction
+                    - paycheck_espp
+                )
+        elif yd.pay_period_medicare_surcharge_starts > 0:
+            # Surcharge kicks in but SS limit never reached
+            paycheck_taxes_phase3_with_ss = paycheck_taxes_phase3 + paycheck_ss_tax
+            yd.paycheck_take_home_after_medicare_surcharge = (
+                paycheck_gross - paycheck_taxes_phase3_with_ss
+                - paycheck_deferral
+                - paycheck_401k
+                - paycheck_hsa
+                - paycheck_medical_deduction
+                - paycheck_espp
+            )
+        else:
+            # No surcharge this year
+            yd.paycheck_take_home_after_medicare_surcharge = 0.0
+
+        # Calculate bonus paycheck breakdown
+        # Bonuses are typically paid as a lump sum and taxed at supplemental wage rates
+        if yd.bonus > 0:
+            self._calculate_bonus_paycheck(yd, year, pay_period_preceding_bonus, pay_periods_per_year, pay_period_preceding_rsu_vest)
+
+    def _calculate_bonus_paycheck(self, yd: YearlyData, year: int, pay_period_preceding_bonus: int = 17, pay_periods_per_year: int = 26, pay_period_preceding_rsu_vest: int = 6) -> None:
+        """Calculate bonus paycheck breakdown.
+        
+        Bonuses are typically taxed at flat supplemental wage rates rather than
+        using the progressive tax brackets. The federal supplemental rate is 22%
+        for bonuses up to $1 million (37% above that).
+        
+        Args:
+            yd: The YearlyData object to update
+            year: The tax year
+            pay_period_preceding_bonus: The pay period preceding the bonus payment (default 17)
+            pay_periods_per_year: Number of pay periods in the year (default 26)
+            pay_period_preceding_rsu_vest: The pay period preceding RSU vesting (default 6)
+        """
+        # Federal supplemental wage withholding rate (22% for amounts up to $1M)
+        federal_supplemental_rate = 0.22
+        
+        # Get SS and Medicare rates
+        ss_data = self.social_security.get_data_for_year(year)
+        ss_wage_base = ss_data["maximumTaxedIncome"]
+        ss_rate = ss_data["employeePortion"] + ss_data["maPFML"]
+        medicare_rate = self.medicare.medicare_rate
+        
+        # State rate - use effective rate from annual calculations
+        state_rate = yd.state_tax / yd.gross_income if yd.gross_income > 0 else 0.05
+        
+        # Bonus gross amount
+        yd.bonus_paycheck_gross = yd.bonus
+        
+        # Federal tax at supplemental rate
+        yd.bonus_paycheck_federal_tax = yd.bonus * federal_supplemental_rate
+        
+        # State tax at effective rate
+        yd.bonus_paycheck_state_tax = yd.bonus * state_rate
+        
+        # Social Security tax (applies to bonus, subject to wage base)
+        # Calculate how much SS wage base is remaining at the time of bonus
+        # Use only base salary for regular paycheck income
+        regular_fica_income_per_period = yd.base_salary / pay_periods_per_year
+        
+        # Calculate non-paycheck FICA income (RSU, ESPP, other income)
+        non_paycheck_fica_income = yd.rsu_vested_value + yd.espp_income + yd.other_income
+        
+        # Income earned in regular paychecks up to and including the bonus period
+        # Bonus is paid after pay_period_preceding_bonus, so include that many periods
+        income_before_bonus = regular_fica_income_per_period * (pay_period_preceding_bonus + 1)
+        
+        # Add RSU/ESPP/other income if it vested before or at the bonus period
+        # RSU vests after pay_period_preceding_rsu_vest
+        if pay_period_preceding_rsu_vest + 1 <= pay_period_preceding_bonus + 1:
+            income_before_bonus += non_paycheck_fica_income
+        
+        # Remaining capacity in the SS wage base
+        remaining_ss_capacity = max(0.0, ss_wage_base - income_before_bonus)
+        
+        # Taxable bonus amount is the lesser of the full bonus or remaining capacity
+        taxable_bonus = min(yd.bonus, remaining_ss_capacity)
+        
+        yd.bonus_paycheck_social_security = taxable_bonus * ss_rate
+        
+        # Medicare tax at base rate (bonus typically triggers surcharge too)
+        # For simplicity, use base rate; surcharge handled separately
+        yd.bonus_paycheck_medicare = yd.bonus * medicare_rate
+        
+        # Deferred compensation from bonus
+        yd.bonus_paycheck_deferred_comp = yd.bonus_deferral
+        
+        # Net bonus after all deductions
+        yd.bonus_paycheck_net = (yd.bonus_paycheck_gross - 
+                                  yd.bonus_paycheck_federal_tax -
+                                  yd.bonus_paycheck_state_tax -
+                                  yd.bonus_paycheck_social_security -
+                                  yd.bonus_paycheck_medicare -
+                                  yd.bonus_paycheck_deferred_comp)

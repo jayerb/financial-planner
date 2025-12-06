@@ -781,6 +781,166 @@ class CashFlowRenderer(BaseRenderer):
         print()
 
 
+class PaycheckRenderer(BaseRenderer):
+    """Renderer for displaying paycheck details (pay stub view)."""
+    
+    def __init__(self, start_year: int = None, end_year: int = None, program_name: str = None):
+        """Initialize with optional year range.
+        
+        Args:
+            start_year: The tax year to display (defaults to plan's first year)
+            end_year: Ignored - only displays single year paycheck
+            program_name: The name of the program being rendered (for headers)
+        """
+        super().__init__(program_name)
+        self.tax_year = start_year  # Use start_year as the target year
+    
+    def render(self, data: PlanData) -> None:
+        """Render the paycheck breakdown (pay stub format).
+        
+        Shows what a paycheck looks like, including gross pay,
+        all deductions (taxes, retirement, benefits), and net pay.
+        
+        Args:
+            data: PlanData containing all yearly calculations
+        """
+        year = self.tax_year if self.tax_year is not None else data.first_year
+        yd = data.get_year(year)
+        if not yd:
+            print(f"No data available for year {year}")
+            return
+        
+        if not yd.is_working_year:
+            print(f"Year {year} is not a working year - no paycheck data available")
+            return
+
+        report_width = 60
+        print()
+        print("=" * report_width)
+        header = self._format_header(f'PAYCHECK - {year}', report_width)
+        print(f"{header:^{report_width}}")
+        print("=" * report_width)
+        
+        print()
+        print("-" * report_width)
+        print("GROSS PAY")
+        print("-" * report_width)
+        print(f"  {'Gross Pay:':<40} ${yd.paycheck_gross:>14,.2f}")
+        
+        print()
+        print("-" * report_width)
+        print("TAX WITHHOLDINGS")
+        print("-" * report_width)
+        print(f"  {'Federal Income Tax:':<40} ${yd.paycheck_federal_tax:>14,.2f}")
+        print(f"  {'State Income Tax:':<40} ${yd.paycheck_state_tax:>14,.2f}")
+        print(f"  {'Social Security:':<40} ${yd.paycheck_social_security:>14,.2f}")
+        print(f"  {'Medicare:':<40} ${yd.paycheck_medicare:>14,.2f}")
+        print(f"  {'-' * 40}")
+        total_taxes = (yd.paycheck_federal_tax + yd.paycheck_state_tax + 
+                       yd.paycheck_social_security + yd.paycheck_medicare)
+        print(f"  {'Total Tax Withholdings:':<40} ${total_taxes:>14,.2f}")
+        
+        print()
+        print("-" * report_width)
+        print("PRE-TAX DEDUCTIONS")
+        print("-" * report_width)
+        if yd.paycheck_401k > 0:
+            print(f"  {'401(k) Contribution:':<40} ${yd.paycheck_401k:>14,.2f}")
+        if yd.paycheck_hsa > 0:
+            print(f"  {'HSA Contribution:':<40} ${yd.paycheck_hsa:>14,.2f}")
+        if yd.paycheck_deferred_comp > 0:
+            print(f"  {'Deferred Compensation:':<40} ${yd.paycheck_deferred_comp:>14,.2f}")
+        if yd.paycheck_medical_dental > 0:
+            print(f"  {'Medical/Dental/Vision:':<40} ${yd.paycheck_medical_dental:>14,.2f}")
+        total_pretax = (yd.paycheck_401k + yd.paycheck_hsa + 
+                        yd.paycheck_deferred_comp + yd.paycheck_medical_dental)
+        if total_pretax > 0:
+            print(f"  {'-' * 40}")
+            print(f"  {'Total Pre-Tax Deductions:':<40} ${total_pretax:>14,.2f}")
+        else:
+            print(f"  {'(None)':<40}")
+        
+        # Show post-tax deductions (ESPP)
+        if yd.paycheck_espp > 0:
+            print()
+            print("-" * report_width)
+            print("POST-TAX DEDUCTIONS")
+            print("-" * report_width)
+            print(f"  {'ESPP Contribution:':<40} ${yd.paycheck_espp:>14,.2f}")
+        
+        print()
+        print("=" * report_width)
+        print("NET PAY")
+        print("=" * report_width)
+        print(f"  {'Net Pay (Take-Home):':<40} ${yd.paycheck_net:>14,.2f}")
+        print()
+        
+        # Show year-to-date projections
+        print("-" * report_width)
+        print("ANNUAL PROJECTIONS (based on this paycheck)")
+        print("-" * report_width)
+        
+        # Use pay schedule and pay periods per year directly from YearlyData
+        pay_periods = yd.pay_periods_per_year
+        schedule = yd.pay_schedule
+        
+        print(f"  {'Pay Schedule:':<40} {schedule} ({pay_periods} pay periods)")
+        print(f"  {'Annual Base Salary:':<40} ${yd.base_salary:>14,.2f}")
+        annual_tax_withholdings = (
+            yd.federal_tax +
+            yd.state_tax +
+            yd.social_security_tax +
+            yd.medicare_tax +
+            yd.medicare_surcharge
+        )
+        print(f"  {'Annual Tax Withholdings:':<40} ${annual_tax_withholdings:>14,.2f}")
+        print(f"  {'Annual Pre-Tax Deductions:':<40} ${yd.annual_pretax_deductions:>14,.2f}")
+        if hasattr(yd, 'annual_posttax_deductions') and yd.annual_posttax_deductions > 0:
+            print(f"  {'Annual Post-Tax Deductions:':<40} ${yd.annual_posttax_deductions:>14,.2f}")
+        print(f"  {'Annual Net Pay:':<40} ${yd.take_home_pay:>14,.2f}")
+        print()
+        
+        # Show bonus paycheck breakdown if bonus > 0
+        if yd.bonus_paycheck_gross > 0:
+            print("-" * report_width)
+            print("BONUS PAYCHECK")
+            print("-" * report_width)
+            print(f"  {'Gross Bonus:':<40} ${yd.bonus_paycheck_gross:>14,.2f}")
+            print()
+            print("  Tax Withholdings:")
+            print(f"    {'Federal (22% supplemental rate):':<38} ${yd.bonus_paycheck_federal_tax:>14,.2f}")
+            print(f"    {'State Income Tax:':<38} ${yd.bonus_paycheck_state_tax:>14,.2f}")
+            print(f"    {'Social Security:':<38} ${yd.bonus_paycheck_social_security:>14,.2f}")
+            print(f"    {'Medicare:':<38} ${yd.bonus_paycheck_medicare:>14,.2f}")
+            bonus_total_taxes = (yd.bonus_paycheck_federal_tax + yd.bonus_paycheck_state_tax + 
+                                 yd.bonus_paycheck_social_security + yd.bonus_paycheck_medicare)
+            print(f"    {'-' * 38}")
+            print(f"    {'Total Bonus Tax Withholdings:':<38} ${bonus_total_taxes:>14,.2f}")
+            print()
+            if yd.bonus_paycheck_deferred_comp > 0:
+                print("  Pre-Tax Deductions:")
+                print(f"    {'Deferred Compensation:':<38} ${yd.bonus_paycheck_deferred_comp:>14,.2f}")
+                print()
+            print(f"  {'Net Bonus (Take-Home):':<40} ${yd.bonus_paycheck_net:>14,.2f}")
+            print()
+        
+        # Show threshold information
+        if yd.pay_period_ss_limit_reached > 0 or yd.pay_period_medicare_surcharge_starts > 0:
+            print("-" * report_width)
+            print("PAYCHECK CHANGES DURING YEAR")
+            print("-" * report_width)
+            if yd.pay_period_ss_limit_reached > 0:
+                print(f"  {'SS wage base reached in pay period:':<40} {yd.pay_period_ss_limit_reached:>14}")
+                print(f"  {'Paycheck after SS limit:':<40} ${yd.paycheck_take_home_after_ss_limit:>14,.2f}")
+            if yd.pay_period_medicare_surcharge_starts > 0:
+                print(f"  {'Medicare surcharge starts in period:':<40} {yd.pay_period_medicare_surcharge_starts:>14}")
+                print(f"  {'Paycheck after surcharge:':<40} ${yd.paycheck_take_home_after_medicare_surcharge:>14,.2f}")
+            print()
+        
+        print("=" * report_width)
+        print()
+
+
 class CustomRenderer(BaseRenderer):
     """A generalized renderer that displays a table of specified fields.
     
@@ -1180,6 +1340,7 @@ def reload_renderer_registry() -> None:
         'Contributions': ContributionsRenderer,
         'MoneyMovement': MoneyMovementRenderer,
         'CashFlow': CashFlowRenderer,
+        'Paycheck': PaycheckRenderer,
     })
     
     # Load all custom configs (built-in and user)
@@ -1233,6 +1394,7 @@ RENDERER_REGISTRY = {
     'Contributions': ContributionsRenderer,
     'MoneyMovement': MoneyMovementRenderer,
     'CashFlow': CashFlowRenderer,
+    'Paycheck': PaycheckRenderer,
 }
 
 # Load custom renderers from both built-in and user config directories and add to registry

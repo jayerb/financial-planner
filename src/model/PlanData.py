@@ -74,6 +74,43 @@ class YearlyData:
     effective_tax_rate: float = 0.0
     take_home_pay: float = 0.0
     
+    # Paycheck take-home pay (working years only)
+    # Values depend on pay schedule: BiWeekly (26 pay periods) or BiMonthly (24 pay periods)
+    pay_schedule: str = 'BiWeekly'  # Pay schedule: BiWeekly or BiMonthly
+    pay_periods_per_year: int = 26  # Number of pay periods (26 for BiWeekly, 24 for BiMonthly)
+    paycheck_take_home_initial: float = 0.0  # Paycheck take-home with SS tax
+    paycheck_take_home_after_ss_limit: float = 0.0  # Paycheck take-home after SS wage base exceeded
+    paycheck_take_home_after_medicare_surcharge: float = 0.0  # Paycheck take-home after Medicare surcharge kicks in
+    pay_period_ss_limit_reached: int = 0  # Pay period when SS wage base is exceeded (0 if never)
+    pay_period_medicare_surcharge_starts: int = 0  # Pay period when Medicare surcharge starts (0 if never)
+    
+    # Pay statement per-period amounts (working years only)
+    # These show what appears on each paycheck based on pay schedule
+    paycheck_gross: float = 0.0  # Gross pay per pay period
+    paycheck_federal_tax: float = 0.0  # Federal tax withholding per pay period
+    paycheck_state_tax: float = 0.0  # State tax withholding per pay period
+    paycheck_social_security: float = 0.0  # Social Security tax per pay period (before limit)
+    paycheck_medicare: float = 0.0  # Medicare tax per pay period
+    paycheck_401k: float = 0.0  # 401(k) contribution per pay period
+    paycheck_hsa: float = 0.0  # HSA contribution per pay period
+    paycheck_deferred_comp: float = 0.0  # Deferred comp contribution per pay period
+    paycheck_medical_dental: float = 0.0  # Medical/dental/vision deduction per pay period
+    paycheck_espp: float = 0.0  # ESPP contribution per pay period
+    paycheck_net: float = 0.0  # Net pay per pay period (take-home)
+    
+    # Bonus paycheck breakdown (paid as a lump sum, typically once per year)
+    bonus_paycheck_gross: float = 0.0  # Bonus gross amount
+    bonus_paycheck_federal_tax: float = 0.0  # Federal tax on bonus (supplemental rate)
+    bonus_paycheck_state_tax: float = 0.0  # State tax on bonus
+    bonus_paycheck_social_security: float = 0.0  # Social Security tax on bonus
+    bonus_paycheck_medicare: float = 0.0  # Medicare tax on bonus
+    bonus_paycheck_deferred_comp: float = 0.0  # Deferred comp from bonus
+    bonus_paycheck_net: float = 0.0  # Net bonus after all deductions
+    
+    # Annual deduction totals (for pay stub projections)
+    annual_pretax_deductions: float = 0.0  # Annual total of pre-tax deductions (401k, HSA, deferred comp, medical)
+    annual_posttax_deductions: float = 0.0  # Annual total of post-tax deductions (ESPP)
+    
     # Contributions
     employee_401k_contribution: float = 0.0
     employer_401k_match: float = 0.0
