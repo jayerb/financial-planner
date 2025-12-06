@@ -60,34 +60,9 @@ class TestBonusPayPeriodImpact:
         # Run calculation with bonus at period 5
         calculator._calculate_paycheck_take_home(yd, 2026, 0, 26, pay_period_preceding_bonus=5)
         
-        # SS limit (160.2k) should be reached at period 5
-        # Period 1-4: 4 * (130k/26) = 20k
-        # Period 5: 20k + 5k + 50k = 75k -> Wait, 130k/26 = 5k per period
-        # Cumulative at 5: 5 * 5k + 50k = 75k. Still under 160.2k?
-        # Ah, 130k base + 50k bonus = 180k total.
-        # 160.2k limit.
-        # Period 5 cumulative: 25k base + 50k bonus = 75k. Not reached yet.
-        
-        # Let's try a bigger bonus or later period
-        # Base 130k -> 5k/period
-        # Bonus 100k at period 10
-        # Period 10 cumulative: 50k base + 100k bonus = 150k. Close to 160.2k
-        
-        # Let's try Base 104k (4k/period), Bonus 100k at period 10
-        # Limit 160.2k
-        # Period 10 cumulative: 40k + 100k = 140k. Still under.
-        
-        # Let's try Base 156k (6k/period), Bonus 50k at period 10
-        # Limit 160.2k
-        # Period 10 cumulative: 60k + 50k = 110k.
-        # Period 18 cumulative: 108k + 50k = 158k.
-        # Period 19 cumulative: 114k + 50k = 164k. Reached at 19.
-        
-        # Without bonus timing (uniform distribution):
-        # Total 206k / 26 = 7.92k/period
-        # 160.2k / 7.92k = 20.2 -> Reached at period 21.
-        
-        # So with bonus at 10, reached at 19. Without, reached at 21.
+        # With a base salary of 156k and a bonus of 50k paid at period 10, the SS limit (160.2k) is reached at period 19.
+        # If income were distributed uniformly, the limit would be reached at period 21.
+        # This test verifies that the bonus accelerates reaching the SS limit.
         
         yd.base_salary = 156000
         yd.bonus = 50000
