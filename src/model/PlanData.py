@@ -76,6 +76,8 @@ class YearlyData:
     
     # Paycheck take-home pay (working years only)
     # Values depend on pay schedule: BiWeekly (26 pay periods) or BiMonthly (24 pay periods)
+    pay_schedule: str = 'BiWeekly'  # Pay schedule: BiWeekly or BiMonthly
+    pay_periods_per_year: int = 26  # Number of pay periods (26 for BiWeekly, 24 for BiMonthly)
     paycheck_take_home_initial: float = 0.0  # Paycheck take-home with SS tax
     paycheck_take_home_after_ss_limit: float = 0.0  # Paycheck take-home after SS wage base exceeded
     paycheck_take_home_after_medicare_surcharge: float = 0.0  # Paycheck take-home after Medicare surcharge kicks in
@@ -104,6 +106,10 @@ class YearlyData:
     bonus_paycheck_medicare: float = 0.0  # Medicare tax on bonus
     bonus_paycheck_deferred_comp: float = 0.0  # Deferred comp from bonus
     bonus_paycheck_net: float = 0.0  # Net bonus after all deductions
+    
+    # Annual deduction totals (for pay stub projections)
+    annual_pretax_deductions: float = 0.0  # Annual total of pre-tax deductions (401k, HSA, deferred comp, medical)
+    annual_posttax_deductions: float = 0.0  # Annual total of post-tax deductions (ESPP)
     
     # Contributions
     employee_401k_contribution: float = 0.0

@@ -374,6 +374,7 @@ class TestPaycheckRendererMockData:
         
         # Create a working year with known paycheck values
         yd = YearlyData(year=2026, is_working_year=True)
+        yd.base_salary = 260000
         yd.earned_income_for_fica = 260000  # Results in $10,000/paycheck for 26 periods
         yd.paycheck_gross = 10000.00
         yd.paycheck_federal_tax = 2500.00
@@ -389,6 +390,18 @@ class TestPaycheckRendererMockData:
         yd.pay_period_medicare_surcharge_starts = 15
         yd.paycheck_take_home_after_ss_limit = 5620.38
         yd.paycheck_take_home_after_medicare_surcharge = 5520.38
+        # New attributes for pay stub projections
+        yd.pay_schedule = 'BiWeekly'
+        yd.pay_periods_per_year = 26
+        yd.annual_pretax_deductions = 58000.00  # 401k + HSA + deferred comp + medical
+        yd.annual_posttax_deductions = 0.0
+        # Tax attributes for annual projections
+        yd.federal_tax = 65000.00
+        yd.state_tax = 13000.00
+        yd.social_security_tax = 16120.00
+        yd.medicare_tax = 3770.00
+        yd.medicare_surcharge = 900.00
+        yd.take_home_pay = 160000.00
         
         plan.yearly_data[2026] = yd
         return plan
@@ -524,6 +537,7 @@ class TestPaycheckRendererNoPretaxDeductions:
         )
         
         yd = YearlyData(year=2026, is_working_year=True)
+        yd.base_salary = 260000
         yd.earned_income_for_fica = 260000
         yd.paycheck_gross = 10000.00
         yd.paycheck_federal_tax = 2500.00
@@ -540,6 +554,17 @@ class TestPaycheckRendererNoPretaxDeductions:
         yd.pay_period_medicare_surcharge_starts = 0
         yd.paycheck_take_home_after_ss_limit = 0
         yd.paycheck_take_home_after_medicare_surcharge = 0
+        # New attributes for pay stub projections
+        yd.pay_schedule = 'BiWeekly'
+        yd.pay_periods_per_year = 26
+        yd.annual_pretax_deductions = 0.0
+        yd.annual_posttax_deductions = 0.0
+        yd.federal_tax = 65000.00
+        yd.state_tax = 13000.00
+        yd.social_security_tax = 16120.00
+        yd.medicare_tax = 3770.00
+        yd.medicare_surcharge = 0.0
+        yd.take_home_pay = 162110.00
         
         plan.yearly_data[2026] = yd
         return plan
@@ -616,6 +641,18 @@ class TestBonusPaycheckRendering:
         yd.bonus_paycheck_deferred_comp = 0
         yd.bonus_paycheck_net = 33982.00
         
+        # New attributes for pay stub projections
+        yd.pay_schedule = 'BiWeekly'
+        yd.pay_periods_per_year = 26
+        yd.annual_pretax_deductions = 28600.00
+        yd.annual_posttax_deductions = 0.0
+        yd.federal_tax = 75000.00
+        yd.state_tax = 15000.00
+        yd.social_security_tax = 19344.00
+        yd.medicare_tax = 4524.00
+        yd.medicare_surcharge = 1000.00
+        yd.take_home_pay = 192000.00
+        
         plan.yearly_data[2026] = yd
         return plan
     
@@ -655,6 +692,18 @@ class TestBonusPaycheckRendering:
         yd.bonus_paycheck_deferred_comp = 39000.00  # 75% deferred
         yd.bonus_paycheck_net = -5018.00  # Negative due to high deferral
         
+        # New attributes for pay stub projections
+        yd.pay_schedule = 'BiWeekly'
+        yd.pay_periods_per_year = 26
+        yd.annual_pretax_deductions = 80600.00
+        yd.annual_posttax_deductions = 0.0
+        yd.federal_tax = 75000.00
+        yd.state_tax = 15000.00
+        yd.social_security_tax = 19344.00
+        yd.medicare_tax = 4524.00
+        yd.medicare_surcharge = 1000.00
+        yd.take_home_pay = 141000.00
+        
         plan.yearly_data[2026] = yd
         return plan
     
@@ -693,6 +742,18 @@ class TestBonusPaycheckRendering:
         yd.bonus_paycheck_medicare = 0
         yd.bonus_paycheck_deferred_comp = 0
         yd.bonus_paycheck_net = 0
+        
+        # New attributes for pay stub projections
+        yd.pay_schedule = 'BiWeekly'
+        yd.pay_periods_per_year = 26
+        yd.annual_pretax_deductions = 28600.00
+        yd.annual_posttax_deductions = 0.0
+        yd.federal_tax = 65000.00
+        yd.state_tax = 13000.00
+        yd.social_security_tax = 16120.00
+        yd.medicare_tax = 3770.00
+        yd.medicare_surcharge = 0.0
+        yd.take_home_pay = 162110.00
         
         plan.yearly_data[2026] = yd
         return plan
@@ -1033,16 +1094,16 @@ class TestESPPRendererOutput:
     
     def test_espp_shown_in_annual_projections(self, plan_data):
         """Test that ESPP is shown in annual projections as post-tax."""
-        # Find a year with ESPP contribution
+        # Find a year with ESPP post-tax deductions (based on espp_income, not paycheck_espp)
         test_year = None
         for year in range(plan_data.first_year, plan_data.last_working_year + 1):
             yd = plan_data.get_year(year)
-            if yd.paycheck_espp > 0:
+            if hasattr(yd, 'annual_posttax_deductions') and yd.annual_posttax_deductions > 0:
                 test_year = year
                 break
         
         if test_year is None:
-            pytest.skip("No year with ESPP contribution found")
+            pytest.skip("No year with ESPP post-tax deductions found")
         
         renderer = PaycheckRenderer(start_year=test_year)
         
@@ -1075,6 +1136,18 @@ class TestESPPRendererOutput:
         yd.paycheck_espp = 0  # No ESPP
         yd.paycheck_net = yd.paycheck_gross - 500 - 200 - 300 - 50 - 400 - 100 - 100
         yd.marginal_bracket = 0.24
+        
+        # New attributes for pay stub projections
+        yd.pay_schedule = 'BiWeekly'
+        yd.pay_periods_per_year = 26
+        yd.annual_pretax_deductions = 15600.00
+        yd.annual_posttax_deductions = 0.0
+        yd.federal_tax = 13000.00
+        yd.state_tax = 5200.00
+        yd.social_security_tax = 7800.00
+        yd.medicare_tax = 1300.00
+        yd.medicare_surcharge = 0.0
+        yd.take_home_pay = 57100.00
         
         plan = PlanData(first_year=2026, last_working_year=2030, last_planning_year=2050)
         plan.yearly_data[2026] = yd

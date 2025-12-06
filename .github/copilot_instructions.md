@@ -2,6 +2,8 @@
 
 ## Running Tests
 
+**IMPORTANT:** Always use `pytest` directly (not `python -m pytest`) because `pytest` is a pre-authorized command.
+
 Always run tests from the **root of the project** using `pytest`:
 
 ```bash

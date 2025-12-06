@@ -454,7 +454,8 @@ Type 'exit' or 'quit' to exit.
                                "bonus_paycheck_deferred_comp", "bonus_paycheck_net"],
             "Paycheck Take-Home": ["paycheck_take_home_initial", "paycheck_take_home_after_ss_limit",
                                    "paycheck_take_home_after_medicare_surcharge", "pay_period_ss_limit_reached",
-                                   "pay_period_medicare_surcharge_starts"]
+                                   "pay_period_medicare_surcharge_starts", "pay_schedule", "pay_periods_per_year",
+                                   "annual_pretax_deductions", "annual_posttax_deductions"]
         }
         
         for category, fields in categories.items():

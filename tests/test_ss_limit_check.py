@@ -17,9 +17,9 @@ class TestSSLimitCheck:
         rsu = MagicMock()
         
         # Setup SS data
-        # 2023 limit: 160,200
+        # 2026 limit: 184,500
         # Rate: 6.2%
-        self.ss_limit = 160200
+        self.ss_limit = 184500
         self.ss_rate = 0.062
         
         ss.get_data_for_year.return_value = {
@@ -27,6 +27,8 @@ class TestSSLimitCheck:
             "employeePortion": self.ss_rate,
             "maPFML": 0.0
         }
+        # Set wage_base attribute for paycheck calculations
+        ss.wage_base = self.ss_limit
         
         # Setup Medicare data
         medicare.medicare_rate = 0.0145
@@ -96,7 +98,7 @@ class TestSSLimitCheck:
         # Scenario:
         # Base: 130,000 (5,000 per period)
         # Bonus: 100,000 (paid at period 10)
-        # Limit: 160,200
+        # Limit: 184,500
         
         # Period 1-9: 45k
         # Period 10: 45k + 5k + 100k = 150k. (Under limit)

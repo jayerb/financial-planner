@@ -59,6 +59,8 @@ def create_mock_social_security():
         'employeePortion': 0.062,
         'maPFML': 0.00318
     }
+    # Add wage_base property for paycheck calculations
+    mock.wage_base = 168600
     return mock
 
 

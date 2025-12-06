@@ -159,6 +159,10 @@ class PlanCalculator:
         for year in range(first_year, last_working_year + 1):
             yd = YearlyData(year=year, is_working_year=True)
             
+            # Set pay schedule attributes
+            yd.pay_schedule = pay_schedule
+            yd.pay_periods_per_year = pay_periods_per_year
+            
             # Apply inflation from prior year (except first year)
             if year > first_year:
                 current_salary = current_salary * (1 + salary_increase_rate)
@@ -267,6 +271,11 @@ class PlanCalculator:
             yd.total_taxes = yd.federal_tax + yd.total_fica + yd.state_tax
             yd.effective_tax_rate = yd.total_taxes / yd.gross_income if yd.gross_income > 0 else 0
             yd.take_home_pay = yd.gross_income - yd.total_taxes - yd.total_deferral
+            
+            # Annual deduction totals for pay stub projections
+            yd.annual_pretax_deductions = (yd.employee_401k_contribution + yd.employee_hsa + 
+                                           yd.total_deferral + yd.medical_dental_vision)
+            yd.annual_posttax_deductions = yd.espp_income  # ESPP is post-tax
             
             # Paycheck take-home pay calculations (for working years)
             # These show how take-home changes as SS wage base and Medicare surcharge thresholds are crossed

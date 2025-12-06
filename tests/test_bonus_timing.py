@@ -26,6 +26,8 @@ class TestBonusPayPeriodImpact:
             "employeePortion": 0.062,
             "maPFML": 0.0
         }
+        # Set wage_base attribute for paycheck calculations
+        ss.wage_base = 160200
         
         # Setup Medicare data
         medicare.medicare_rate = 0.0145

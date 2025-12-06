@@ -83,6 +83,10 @@ FIELD_METADATA: Dict[str, FieldInfo] = {
     "paycheck_take_home_after_medicare_surcharge": FieldInfo("Paycheck After Surcharge", "Paycheck take-home after Medicare surcharge"),
     "pay_period_ss_limit_reached": FieldInfo("SS Limit Period", "Pay period when SS wage base exceeded (0 if never)"),
     "pay_period_medicare_surcharge_starts": FieldInfo("Surcharge Period", "Pay period when Medicare surcharge starts (0 if never)"),
+    "pay_schedule": FieldInfo("Pay Schedule", "Pay frequency (e.g., BiWeekly, Monthly, SemiMonthly)"),
+    "pay_periods_per_year": FieldInfo("Pay Periods", "Number of pay periods per year"),
+    "annual_pretax_deductions": FieldInfo("Annual Pretax", "Total annual pre-tax deductions (401k, HSA, etc.)"),
+    "annual_posttax_deductions": FieldInfo("Annual Posttax", "Total annual post-tax deductions (ESPP)"),
     
     # Pay Statement (per pay period amounts)
     "paycheck_gross": FieldInfo("Gross Pay", "Gross pay per pay period"),
