@@ -833,18 +833,36 @@ class PlanCalculator:
         if yd.pay_period_medicare_surcharge_starts > 0 and yd.pay_period_ss_limit_reached > 0:
             if yd.pay_period_medicare_surcharge_starts >= yd.pay_period_ss_limit_reached:
                 # SS limit reached before surcharge - phase 3 has no SS tax
-                yd.paycheck_take_home_after_medicare_surcharge = (paycheck_gross - paycheck_taxes_phase3 - 
-                                                                   paycheck_deferral)
+                yd.paycheck_take_home_after_medicare_surcharge = (
+                    paycheck_gross - paycheck_taxes_phase3
+                    - paycheck_deferral
+                    - paycheck_401k
+                    - paycheck_hsa
+                    - paycheck_medical_deduction
+                    - paycheck_espp
+                )
             else:
                 # Surcharge before SS limit (unusual) - include SS tax
                 paycheck_taxes_phase3_with_ss = paycheck_taxes_phase3 + paycheck_ss_tax
-                yd.paycheck_take_home_after_medicare_surcharge = (paycheck_gross - paycheck_taxes_phase3_with_ss - 
-                                                                   paycheck_deferral)
+                yd.paycheck_take_home_after_medicare_surcharge = (
+                    paycheck_gross - paycheck_taxes_phase3_with_ss
+                    - paycheck_deferral
+                    - paycheck_401k
+                    - paycheck_hsa
+                    - paycheck_medical_deduction
+                    - paycheck_espp
+                )
         elif yd.pay_period_medicare_surcharge_starts > 0:
             # Surcharge kicks in but SS limit never reached
             paycheck_taxes_phase3_with_ss = paycheck_taxes_phase3 + paycheck_ss_tax
-            yd.paycheck_take_home_after_medicare_surcharge = (paycheck_gross - paycheck_taxes_phase3_with_ss - 
-                                                               paycheck_deferral)
+            yd.paycheck_take_home_after_medicare_surcharge = (
+                paycheck_gross - paycheck_taxes_phase3_with_ss
+                - paycheck_deferral
+                - paycheck_401k
+                - paycheck_hsa
+                - paycheck_medical_deduction
+                - paycheck_espp
+            )
         else:
             # No surcharge this year
             yd.paycheck_take_home_after_medicare_surcharge = 0.0
