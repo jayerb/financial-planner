@@ -94,6 +94,7 @@ FIELD_METADATA: Dict[str, FieldInfo] = {
     "paycheck_hsa": FieldInfo("HSA Ded", "HSA contribution per pay period"),
     "paycheck_deferred_comp": FieldInfo("Def Comp Ded", "Deferred compensation per pay period"),
     "paycheck_medical_dental": FieldInfo("Med/Dental Ded", "Medical/dental/vision deduction per pay period"),
+    "paycheck_espp": FieldInfo("ESPP Ded", "ESPP contribution per pay period (post-tax)"),
     "paycheck_net": FieldInfo("Net Pay", "Net pay per pay period (take-home)"),
     
     # Bonus Paycheck (annual bonus payment)

@@ -448,7 +448,7 @@ Type 'exit' or 'quit' to exit.
             "Pay Statement": ["paycheck_gross", "paycheck_federal_tax", "paycheck_state_tax",
                               "paycheck_social_security", "paycheck_medicare", "paycheck_401k",
                               "paycheck_hsa", "paycheck_deferred_comp", "paycheck_medical_dental",
-                              "paycheck_net"],
+                              "paycheck_espp", "paycheck_net"],
             "Bonus Paycheck": ["bonus_paycheck_gross", "bonus_paycheck_federal_tax", "bonus_paycheck_state_tax",
                                "bonus_paycheck_social_security", "bonus_paycheck_medicare",
                                "bonus_paycheck_deferred_comp", "bonus_paycheck_net"],

@@ -921,3 +921,199 @@ class TestBonusPaycheckCalculation:
         if yd.bonus > 0:
             assert yd.bonus_paycheck_deferred_comp == yd.bonus_deferral
 
+
+class TestESPPContributionCalculation:
+    """Test ESPP contribution calculation in plan_calculator."""
+    
+    def test_espp_field_exists_in_yearly_data(self):
+        """Test that paycheck_espp field exists in YearlyData."""
+        yd = YearlyData(year=2026, is_working_year=True)
+        assert hasattr(yd, 'paycheck_espp')
+        assert yd.paycheck_espp == 0.0
+    
+    def test_espp_contribution_calculated_when_espp_income_present(self, plan_data):
+        """Test that ESPP contribution is calculated when ESPP income is present."""
+        # Find a year with ESPP income
+        for year in range(plan_data.first_year, plan_data.last_working_year + 1):
+            yd = plan_data.get_year(year)
+            if yd.espp_income > 0:
+                # ESPP contribution should be calculated
+                assert yd.paycheck_espp > 0
+                break
+    
+    def test_espp_contribution_formula(self, plan_data):
+        """Test that ESPP contribution follows the formula: max_espp * (1 - discount) / pay_periods."""
+        # ESPP contribution = max_espp * (1 - espp_discount) / pay_periods_per_year
+        # espp_discount = espp_income / max_espp
+        max_espp = 25000.0  # From reference/federal-details.json
+        pay_periods = 26  # BiWeekly
+        
+        for year in range(plan_data.first_year, plan_data.last_working_year + 1):
+            yd = plan_data.get_year(year)
+            if yd.espp_income > 0 and max_espp > 0:
+                espp_discount = yd.espp_income / max_espp
+                expected_contribution = max_espp * (1 - espp_discount) / pay_periods
+                assert abs(yd.paycheck_espp - expected_contribution) < 0.01, \
+                    f"Year {year}: expected {expected_contribution}, got {yd.paycheck_espp}"
+                break
+    
+    def test_espp_contribution_zero_for_non_working_years(self, plan_data):
+        """Test that ESPP contribution is zero for non-working years."""
+        for year in range(plan_data.last_working_year + 1, plan_data.last_planning_year + 1):
+            yd = plan_data.get_year(year)
+            if yd:
+                assert yd.paycheck_espp == 0.0
+                break
+
+
+class TestESPPRendererOutput:
+    """Test ESPP display in PaycheckRenderer."""
+    
+    def test_espp_shown_as_post_tax_deduction(self, plan_data):
+        """Test that ESPP is shown in POST-TAX DEDUCTIONS section."""
+        # Find a year with ESPP contribution
+        test_year = None
+        for year in range(plan_data.first_year, plan_data.last_working_year + 1):
+            yd = plan_data.get_year(year)
+            if yd.paycheck_espp > 0:
+                test_year = year
+                break
+        
+        if test_year is None:
+            pytest.skip("No year with ESPP contribution found")
+        
+        renderer = PaycheckRenderer(start_year=test_year)
+        
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            renderer.render(plan_data)
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        assert 'POST-TAX DEDUCTIONS' in result
+        assert 'ESPP Contribution:' in result
+    
+    def test_espp_not_in_pretax_deductions_section(self, plan_data):
+        """Test that ESPP is NOT included in PRE-TAX DEDUCTIONS section."""
+        # Find a year with ESPP contribution
+        test_year = None
+        for year in range(plan_data.first_year, plan_data.last_working_year + 1):
+            yd = plan_data.get_year(year)
+            if yd.paycheck_espp > 0:
+                test_year = year
+                break
+        
+        if test_year is None:
+            pytest.skip("No year with ESPP contribution found")
+        
+        renderer = PaycheckRenderer(start_year=test_year)
+        
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            renderer.render(plan_data)
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        
+        # Find the PRE-TAX DEDUCTIONS section and verify ESPP is not in it
+        pretax_start = result.find('PRE-TAX DEDUCTIONS')
+        pretax_end = result.find('POST-TAX DEDUCTIONS')
+        
+        if pretax_start != -1 and pretax_end != -1:
+            pretax_section = result[pretax_start:pretax_end]
+            assert 'ESPP' not in pretax_section
+    
+    def test_espp_shown_in_annual_projections(self, plan_data):
+        """Test that ESPP is shown in annual projections as post-tax."""
+        # Find a year with ESPP contribution
+        test_year = None
+        for year in range(plan_data.first_year, plan_data.last_working_year + 1):
+            yd = plan_data.get_year(year)
+            if yd.paycheck_espp > 0:
+                test_year = year
+                break
+        
+        if test_year is None:
+            pytest.skip("No year with ESPP contribution found")
+        
+        renderer = PaycheckRenderer(start_year=test_year)
+        
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            renderer.render(plan_data)
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        assert 'Annual Post-Tax Deductions:' in result
+    
+    def test_espp_section_hidden_when_no_espp(self):
+        """Test that POST-TAX DEDUCTIONS section is hidden when no ESPP."""
+        # Create a mock YearlyData with no ESPP
+        yd = YearlyData(year=2026, is_working_year=True)
+        yd.base_salary = 100000
+        yd.paycheck_gross = 100000 / 26
+        yd.paycheck_federal_tax = 500
+        yd.paycheck_state_tax = 200
+        yd.paycheck_social_security = 300
+        yd.paycheck_medicare = 50
+        yd.paycheck_401k = 400
+        yd.paycheck_hsa = 100
+        yd.paycheck_deferred_comp = 0
+        yd.paycheck_medical_dental = 100
+        yd.paycheck_espp = 0  # No ESPP
+        yd.paycheck_net = yd.paycheck_gross - 500 - 200 - 300 - 50 - 400 - 100 - 100
+        yd.marginal_bracket = 0.24
+        
+        plan = PlanData(first_year=2026, last_working_year=2030, last_planning_year=2050)
+        plan.yearly_data[2026] = yd
+        
+        renderer = PaycheckRenderer(start_year=2026)
+        
+        output = StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = output
+        
+        try:
+            renderer.render(plan)
+        finally:
+            sys.stdout = old_stdout
+        
+        result = output.getvalue()
+        assert 'POST-TAX DEDUCTIONS' not in result
+        assert 'Annual Post-Tax Deductions' not in result
+
+
+class TestESPPNetPayCalculation:
+    """Test that ESPP is correctly subtracted from net pay."""
+    
+    def test_net_pay_includes_espp_deduction(self, plan_data):
+        """Test that net pay is reduced by ESPP contribution."""
+        for year in range(plan_data.first_year, plan_data.last_working_year + 1):
+            yd = plan_data.get_year(year)
+            if yd.paycheck_espp > 0:
+                # Net pay should be gross - taxes - pretax deductions - ESPP
+                expected_net = (yd.paycheck_gross - 
+                               yd.paycheck_federal_tax - 
+                               yd.paycheck_state_tax -
+                               yd.paycheck_social_security - 
+                               yd.paycheck_medicare -
+                               yd.paycheck_401k - 
+                               yd.paycheck_hsa -
+                               yd.paycheck_deferred_comp - 
+                               yd.paycheck_medical_dental -
+                               yd.paycheck_espp)
+                assert abs(yd.paycheck_net - expected_net) < 0.01, \
+                    f"Year {year}: expected net {expected_net}, got {yd.paycheck_net}"
+                break

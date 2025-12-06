@@ -93,6 +93,7 @@ class YearlyData:
     paycheck_hsa: float = 0.0  # HSA contribution per pay period
     paycheck_deferred_comp: float = 0.0  # Deferred comp contribution per pay period
     paycheck_medical_dental: float = 0.0  # Medical/dental/vision deduction per pay period
+    paycheck_espp: float = 0.0  # ESPP contribution per pay period
     paycheck_net: float = 0.0  # Net pay per pay period (take-home)
     
     # Bonus paycheck breakdown (paid as a lump sum, typically once per year)

@@ -860,6 +860,14 @@ class PaycheckRenderer(BaseRenderer):
         else:
             print(f"  {'(None)':<40}")
         
+        # Show post-tax deductions (ESPP)
+        if yd.paycheck_espp > 0:
+            print()
+            print("-" * report_width)
+            print("POST-TAX DEDUCTIONS")
+            print("-" * report_width)
+            print(f"  {'ESPP Contribution:':<40} ${yd.paycheck_espp:>14,.2f}")
+        
         print()
         print("=" * report_width)
         print("NET PAY")
@@ -891,6 +899,8 @@ class PaycheckRenderer(BaseRenderer):
         print(f"  {'Annual Base Salary:':<40} ${yd.base_salary:>14,.2f}")
         print(f"  {'Annual Tax Withholdings:':<40} ${total_taxes * pay_periods:>14,.2f}")
         print(f"  {'Annual Pre-Tax Deductions:':<40} ${total_pretax * pay_periods:>14,.2f}")
+        if yd.paycheck_espp > 0:
+            print(f"  {'Annual Post-Tax Deductions:':<40} ${yd.paycheck_espp * pay_periods:>14,.2f}")
         print(f"  {'Annual Net Pay:':<40} ${yd.paycheck_net * pay_periods:>14,.2f}")
         print()
         

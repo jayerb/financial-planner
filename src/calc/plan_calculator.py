@@ -749,10 +749,22 @@ class PlanCalculator:
         yd.paycheck_deferred_comp = paycheck_deferral
         yd.paycheck_medical_dental = paycheck_medical_deduction
         
+        # Calculate per-pay-period ESPP contribution
+        # ESPP contribution = max_espp * (1 - espp_discount) / pay_periods_per_year
+        # This is the amount deducted from each paycheck to purchase ESPP shares
+        max_espp = getattr(self.espp, 'max_espp', 0) or 0
+        if isinstance(max_espp, (int, float)) and max_espp > 0:
+            espp_discount = yd.espp_income / max_espp
+            paycheck_espp = max_espp * (1 - espp_discount) / pay_periods_per_year
+        else:
+            paycheck_espp = 0
+        yd.paycheck_espp = paycheck_espp
+        
         # Calculate net pay (gross - all taxes and deductions)
         yd.paycheck_net = (yd.paycheck_gross - yd.paycheck_federal_tax - yd.paycheck_state_tax -
                           yd.paycheck_social_security - yd.paycheck_medicare - yd.paycheck_401k -
-                          yd.paycheck_hsa - yd.paycheck_deferred_comp - yd.paycheck_medical_dental)
+                          yd.paycheck_hsa - yd.paycheck_deferred_comp - yd.paycheck_medical_dental -
+                          yd.paycheck_espp)
         
         # 1. Calculate pay period when SS wage base is exceeded
         # We need to simulate cumulative income pay period by pay period
