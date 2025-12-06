@@ -880,20 +880,9 @@ class PaycheckRenderer(BaseRenderer):
         print("ANNUAL PROJECTIONS (based on this paycheck)")
         print("-" * report_width)
         
-        # Determine pay periods per year from the data
-        # We can estimate from gross pay vs base salary
-        if yd.paycheck_gross > 0:
-            # Use base_salary as annual total, paycheck_gross as per-period
-            estimated_periods = round(yd.base_salary / yd.paycheck_gross)
-            if estimated_periods in [24, 26]:
-                pay_periods = estimated_periods
-                schedule = "BiMonthly" if pay_periods == 24 else "BiWeekly"
-            else:
-                pay_periods = 26  # Default to biweekly
-                schedule = "BiWeekly"
-        else:
-            pay_periods = 26
-            schedule = "BiWeekly"
+        # Use pay schedule and pay periods per year directly from YearlyData
+        pay_periods = yd.pay_periods_per_year
+        schedule = yd.pay_schedule
         
         print(f"  {'Pay Schedule:':<40} {schedule} ({pay_periods} pay periods)")
         print(f"  {'Annual Base Salary:':<40} ${yd.base_salary:>14,.2f}")
