@@ -132,17 +132,9 @@ class TestSSLimitCheck:
         
         # If limit reached at period 10 (bonus period), then
         # periods 1-9 paid full SS.
-        # Period 10 regular check paid full SS (since 50k < 160k).
-        # Bonus paid partial SS.
-        
-        # So total paid = 10 * regular_ss + bonus_ss
-        # This should be close to max_ss_tax
+        # Period 10 regular check and bonus may be partial, depending on limit.
         
         total_paid = limit_period * regular_ss_per_check + bonus_ss
-        
-        # If bonus_ss is full (150k * 6.2% = 9300), total will be huge.
-        # 10 * 310 + 9300 = 3100 + 9300 = 12400.
-        # Max tax = 9932.
         
         assert total_paid <= max_ss_tax + 1.0, \
             f"Overpaying SS Tax! Paid {total_paid} vs Max {max_ss_tax}"
