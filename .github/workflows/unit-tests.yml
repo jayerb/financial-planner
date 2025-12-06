@@ -22,4 +22,4 @@ jobs:
           pip install -r mcp-server/requirements.txt
       - name: Run unit tests
         run: |
-          pytest tests/
+          PYTHONPATH=. pytest tests/
