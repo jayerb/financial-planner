@@ -828,13 +828,27 @@ class PlanCalculator:
         paycheck_taxes_phase1 = (paycheck_gross * paycheck_federal_rate + 
                                  paycheck_gross * paycheck_state_rate +
                                  paycheck_ss_tax + paycheck_medicare_tax)
-        yd.paycheck_take_home_initial = paycheck_gross - paycheck_taxes_phase1 - paycheck_deferral
+        yd.paycheck_take_home_initial = (
+            paycheck_gross - paycheck_taxes_phase1
+            - paycheck_deferral
+            - paycheck_401k
+            - paycheck_hsa
+            - paycheck_medical_deduction
+            - paycheck_espp
+        )
         
         # Phase 2: After SS wage base exceeded (no more SS tax)
         paycheck_taxes_phase2 = (paycheck_gross * paycheck_federal_rate +
                                  paycheck_gross * paycheck_state_rate +
                                  paycheck_medicare_tax)
-        yd.paycheck_take_home_after_ss_limit = paycheck_gross - paycheck_taxes_phase2 - paycheck_deferral
+        yd.paycheck_take_home_after_ss_limit = (
+            paycheck_gross - paycheck_taxes_phase2
+            - paycheck_deferral
+            - paycheck_401k
+            - paycheck_hsa
+            - paycheck_medical_deduction
+            - paycheck_espp
+        )
         
         # Phase 3: After Medicare surcharge kicks in
         paycheck_medicare_surcharge = paycheck_gross * medicare_surcharge_rate
