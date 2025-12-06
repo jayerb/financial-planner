@@ -310,18 +310,26 @@ def generate_spec(existing_spec: Optional[dict] = None) -> dict:
             default=ex_pay_schedule.get('schedule', 'BiWeekly')
         )
         
+        # Set max pay period based on schedule
+        if pay_schedule['schedule'] == 'BiWeekly':
+            max_pay_period = 26
+        elif pay_schedule['schedule'] == 'BiMonthly':
+            max_pay_period = 24
+        else:
+            max_pay_period = 26  # fallback default
+
         pay_schedule['bonusPayPeriod'] = prompt_int(
             "Pay period number after which bonus is paid (e.g., 17)",
             default=ex_pay_schedule.get('bonusPayPeriod', 17),
             min_val=1,
-            max_val=26
+            max_val=max_pay_period
         )
         
         pay_schedule['rsuVestingPayPeriod'] = prompt_int(
             "Pay period number after which RSUs vest (e.g., 21)",
             default=ex_pay_schedule.get('rsuVestingPayPeriod', 21),
             min_val=1,
-            max_val=26
+            max_val=max_pay_period
         )
         
         spec['paySchedule'] = pay_schedule
