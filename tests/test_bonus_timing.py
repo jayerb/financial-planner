@@ -20,9 +20,9 @@ class TestBonusPayPeriodImpact:
         medicare = MagicMock()
         rsu = MagicMock()
         
-        # Setup SS data
+        # Setup SS data - use 160200 to match test expectations
         ss.get_data_for_year.return_value = {
-            "maximumTaxedIncome": 160200,  # 2023 limit for example
+            "maximumTaxedIncome": 160200,  # SS wage base for tests
             "employeePortion": 0.062,
             "maPFML": 0.0
         }
@@ -39,7 +39,7 @@ class TestBonusPayPeriodImpact:
     
     def test_bonus_accelerates_ss_limit(self, calculator):
         """Test that a large bonus early in the year accelerates reaching SS limit."""
-        yd = YearlyData(year=2026, is_working_year=True)
+        yd = YearlyData(year=2023, is_working_year=True)
         
         # Setup income: Base 130k, Bonus 50k -> Total 180k (above 160.2k limit)
         # Without bonus timing, limit reached late in year
@@ -58,7 +58,7 @@ class TestBonusPayPeriodImpact:
         yd.gross_income = 180000
         
         # Run calculation with bonus at period 5
-        calculator._calculate_paycheck_take_home(yd, 2026, 0, 26, pay_period_preceding_bonus=5)
+        calculator._calculate_paycheck_take_home(yd, 2023, 0, 26, pay_period_preceding_bonus=5)
         
         # With a base salary of 156k and a bonus of 50k paid at period 10, the SS limit (160.2k) is reached at period 19.
         # If income were distributed uniformly, the limit would be reached at period 21.
@@ -69,14 +69,14 @@ class TestBonusPayPeriodImpact:
         yd.earned_income_for_fica = 206000
         yd.gross_income = 206000
         
-        calculator._calculate_paycheck_take_home(yd, 2026, 0, 26, pay_period_preceding_bonus=10)
+        calculator._calculate_paycheck_take_home(yd, 2023, 0, 26, pay_period_preceding_bonus=10)
         
         # Verify limit reached earlier than uniform distribution
         assert yd.pay_period_ss_limit_reached == 19
         
     def test_bonus_triggers_medicare_surcharge(self, calculator):
         """Test that bonus triggers Medicare surcharge."""
-        yd = YearlyData(year=2026, is_working_year=True)
+        yd = YearlyData(year=2023, is_working_year=True)
         
         # Threshold 200k
         # Base 156k (6k/period)
