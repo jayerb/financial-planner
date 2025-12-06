@@ -96,21 +96,11 @@ class TestSSLimitCheck:
         yd = YearlyData(year=2026, is_working_year=True)
         
         # Scenario:
-        # Base: 130,000 (5,000 per period)
-        # Bonus: 100,000 (paid at period 10)
-        # Limit: 184,500
-        
-        # Period 1-9: 45k
-        # Period 10: 45k + 5k + 100k = 150k. (Under limit)
-        # Wait, I need bonus to push OVER limit.
-        
-        # Base 130k. Bonus 100k.
-        # Period 10 cumulative before bonus: 9*5k + 5k = 50k.
-        # With bonus: 150k. Still under 160.2k.
-        
-        # Let's try Base 130k. Bonus 150k.
-        # Period 10: 50k + 150k = 200k. Over limit.
-        # Limit reached at period 10.
+        # Base salary: $130,000 (paid evenly over 26 periods)
+        # Bonus: $150,000 (paid at period 10)
+        # Social Security limit: $184,500
+        # At period 10, cumulative income including bonus exceeds the SS limit.
+        # Only part of the bonus is subject to SS tax, so bonus SS tax should be partial.
         
         yd.base_salary = 130000
         yd.bonus = 150000
