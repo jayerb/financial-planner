@@ -53,7 +53,7 @@ class TestBonusPayPeriodImpact:
         yd.gross_income = 180000
         
         # Run calculation with bonus at period 5
-        calculator._calculate_paycheck_take_home(yd, 2026, 0, 26, bonus_pay_period=5)
+        calculator._calculate_paycheck_take_home(yd, 2026, 0, 26, pay_period_preceding_bonus=5)
         
         # SS limit (160.2k) should be reached at period 5
         # Period 1-4: 4 * (130k/26) = 20k
@@ -89,7 +89,7 @@ class TestBonusPayPeriodImpact:
         yd.earned_income_for_fica = 206000
         yd.gross_income = 206000
         
-        calculator._calculate_paycheck_take_home(yd, 2026, 0, 26, bonus_pay_period=10)
+        calculator._calculate_paycheck_take_home(yd, 2026, 0, 26, pay_period_preceding_bonus=10)
         
         # Verify limit reached earlier than uniform distribution
         assert yd.pay_period_ss_limit_reached == 19
@@ -118,7 +118,7 @@ class TestBonusPayPeriodImpact:
         yd.marginal_bracket = 0.24
         yd.state_tax = 10000
         
-        calculator._calculate_paycheck_take_home(yd, 2026, 0, 26, bonus_pay_period=10)
+        calculator._calculate_paycheck_take_home(yd, 2026, 0, 26, pay_period_preceding_bonus=10)
         
         assert yd.pay_period_medicare_surcharge_starts == 24
 
@@ -128,12 +128,12 @@ class TestBonusPayPeriodImpact:
         
         # Limit 160.2k
         # Base 130k (5k/period)
-        # Bonus 50k at period 26
+        # Bonus 50k at period 26 (preceding pay period is 25)
         # Total 180k
         
         # Uniform: 180k/26 = 6.92k/period. 160.2/6.92 = 23.1 -> Period 24.
         
-        # With late bonus:
+        # With late bonus (paid on period 26):
         # Period 25 cumulative: 125k. Under.
         # Period 26 cumulative: 130k + 50k = 180k. Reached at 26.
         
@@ -148,6 +148,7 @@ class TestBonusPayPeriodImpact:
         yd.marginal_bracket = 0.24
         yd.state_tax = 9000
         
-        calculator._calculate_paycheck_take_home(yd, 2026, 0, 26, bonus_pay_period=26)
+        # pay_period_preceding_bonus=25 means bonus is paid in period 26
+        calculator._calculate_paycheck_take_home(yd, 2026, 0, 26, pay_period_preceding_bonus=25)
         
         assert yd.pay_period_ss_limit_reached == 26

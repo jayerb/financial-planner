@@ -64,8 +64,8 @@ class PlanCalculator:
         # Pay schedule: BiWeekly = 26 pay periods, BiMonthly = 24 pay periods
         pay_schedule = pay_schedule_spec.get('schedule', 'BiWeekly')
         pay_periods_per_year = 26 if pay_schedule == 'BiWeekly' else 24
-        bonus_pay_period = pay_schedule_spec.get('bonusPayPeriod', 17)
-        rsu_vesting_pay_period = pay_schedule_spec.get('rsuVestingPayPeriod', 21)
+        pay_period_preceding_bonus = pay_schedule_spec.get('payPeriodPrecedingBonus', 17)
+        pay_period_preceding_rsu_vest = pay_schedule_spec.get('payPeriodPrecedingRSUVest', 21)
         
         # Initial values from spec
         initial_base_salary = income_spec.get('baseSalary', 0)
@@ -270,7 +270,7 @@ class PlanCalculator:
             
             # Paycheck take-home pay calculations (for working years)
             # These show how take-home changes as SS wage base and Medicare surcharge thresholds are crossed
-            self._calculate_paycheck_take_home(yd, year, life_premium, pay_periods_per_year, bonus_pay_period, rsu_vesting_pay_period)
+            self._calculate_paycheck_take_home(yd, year, life_premium, pay_periods_per_year, pay_period_preceding_bonus, pay_period_preceding_rsu_vest)
             
             # Expenses and money movement
             yd.annual_expenses = current_annual_expenses
@@ -678,7 +678,7 @@ class PlanCalculator:
         
         return plan
 
-    def _calculate_paycheck_take_home(self, yd: YearlyData, year: int, life_premium: float, pay_periods_per_year: int, bonus_pay_period: int, rsu_vesting_pay_period: int = 6) -> None:
+    def _calculate_paycheck_take_home(self, yd: YearlyData, year: int, life_premium: float, pay_periods_per_year: int, pay_period_preceding_bonus: int, pay_period_preceding_rsu_vest: int = 6) -> None:
         """Calculate paycheck take-home pay at different phases of the year.
         
         This calculates:
@@ -696,8 +696,8 @@ class PlanCalculator:
             year: The tax year
             life_premium: Company-provided life insurance premium (taxable)
             pay_periods_per_year: Number of pay periods (26 for BiWeekly, 24 for BiMonthly)
-            bonus_pay_period: The pay period number after which the bonus is paid
-            rsu_vesting_pay_period: The pay period number after which RSUs vest (default 21)
+            pay_period_preceding_bonus: The pay period preceding the bonus payment
+            pay_period_preceding_rsu_vest: The pay period preceding RSU vesting (default 6)
         """
         if not yd.is_working_year:
             return
@@ -786,12 +786,12 @@ class PlanCalculator:
             # Add regular paycheck income
             cumulative_income += regular_fica_income_per_period
             
-            # Add bonus if this is the bonus pay period
-            if period == bonus_pay_period:
+            # Add bonus after the preceding pay period
+            if period == pay_period_preceding_bonus + 1:
                 cumulative_income += yd.bonus
             
-            # Add RSU/ESPP/other income at the RSU vesting pay period
-            if period == rsu_vesting_pay_period:
+            # Add RSU/ESPP/other income after the preceding pay period
+            if period == pay_period_preceding_rsu_vest + 1:
                 cumulative_income += non_paycheck_fica_income
             
             # Check if SS limit reached in this period
@@ -852,9 +852,9 @@ class PlanCalculator:
         # Calculate bonus paycheck breakdown
         # Bonuses are typically paid as a lump sum and taxed at supplemental wage rates
         if yd.bonus > 0:
-            self._calculate_bonus_paycheck(yd, year, bonus_pay_period, pay_periods_per_year, rsu_vesting_pay_period)
+            self._calculate_bonus_paycheck(yd, year, pay_period_preceding_bonus, pay_periods_per_year, pay_period_preceding_rsu_vest)
 
-    def _calculate_bonus_paycheck(self, yd: YearlyData, year: int, bonus_pay_period: int = 17, pay_periods_per_year: int = 26, rsu_vesting_pay_period: int = 6) -> None:
+    def _calculate_bonus_paycheck(self, yd: YearlyData, year: int, pay_period_preceding_bonus: int = 17, pay_periods_per_year: int = 26, pay_period_preceding_rsu_vest: int = 6) -> None:
         """Calculate bonus paycheck breakdown.
         
         Bonuses are typically taxed at flat supplemental wage rates rather than
@@ -864,9 +864,9 @@ class PlanCalculator:
         Args:
             yd: The YearlyData object to update
             year: The tax year
-            bonus_pay_period: The pay period number when bonus is paid (default 17)
+            pay_period_preceding_bonus: The pay period preceding the bonus payment (default 17)
             pay_periods_per_year: Number of pay periods in the year (default 26)
-            rsu_vesting_pay_period: The pay period number when RSUs vest (default 6)
+            pay_period_preceding_rsu_vest: The pay period preceding RSU vesting (default 6)
         """
         # Federal supplemental wage withholding rate (22% for amounts up to $1M)
         federal_supplemental_rate = 0.22
@@ -898,10 +898,12 @@ class PlanCalculator:
         non_paycheck_fica_income = yd.rsu_vested_value + yd.espp_income + yd.other_income
         
         # Income earned in regular paychecks up to and including the bonus period
-        income_before_bonus = regular_fica_income_per_period * bonus_pay_period
+        # Bonus is paid after pay_period_preceding_bonus, so include that many periods
+        income_before_bonus = regular_fica_income_per_period * (pay_period_preceding_bonus + 1)
         
         # Add RSU/ESPP/other income if it vested before or at the bonus period
-        if rsu_vesting_pay_period <= bonus_pay_period:
+        # RSU vests after pay_period_preceding_rsu_vest
+        if pay_period_preceding_rsu_vest + 1 <= pay_period_preceding_bonus + 1:
             income_before_bonus += non_paycheck_fica_income
         
         # Remaining capacity in the SS wage base

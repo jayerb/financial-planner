@@ -64,7 +64,7 @@ class TestSSLimitCheck:
         yd.state_tax = 10000
         
         # Run calculation
-        calculator._calculate_paycheck_take_home(yd, 2026, 0, 26, bonus_pay_period=25)
+        calculator._calculate_paycheck_take_home(yd, 2026, 0, 26, pay_period_preceding_bonus=25)
         
         regular_ss_per_check = yd.paycheck_social_security
         bonus_ss = yd.bonus_paycheck_social_security
@@ -124,7 +124,7 @@ class TestSSLimitCheck:
         yd.marginal_bracket = 0.24
         yd.state_tax = 10000
         
-        calculator._calculate_paycheck_take_home(yd, 2026, 0, 26, bonus_pay_period=10)
+        calculator._calculate_paycheck_take_home(yd, 2026, 0, 26, pay_period_preceding_bonus=10)
         
         regular_ss_per_check = yd.paycheck_social_security
         bonus_ss = yd.bonus_paycheck_social_security

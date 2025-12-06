@@ -318,16 +318,16 @@ def generate_spec(existing_spec: Optional[dict] = None) -> dict:
         else:
             max_pay_period = 26  # fallback default
 
-        pay_schedule['bonusPayPeriod'] = prompt_int(
-            "Pay period number after which bonus is paid (e.g., 17)",
-            default=ex_pay_schedule.get('bonusPayPeriod', 17),
+        pay_schedule['payPeriodPrecedingBonus'] = prompt_int(
+            "Pay period preceding bonus payment (e.g., 17 means bonus paid after period 17)",
+            default=ex_pay_schedule.get('payPeriodPrecedingBonus', 17),
             min_val=1,
             max_val=max_pay_period
         )
         
-        pay_schedule['rsuVestingPayPeriod'] = prompt_int(
-            "Pay period number after which RSUs vest (e.g., 21)",
-            default=ex_pay_schedule.get('rsuVestingPayPeriod', 21),
+        pay_schedule['payPeriodPrecedingRSUVest'] = prompt_int(
+            "Pay period preceding RSU vesting (e.g., 21 means RSUs vest after period 21)",
+            default=ex_pay_schedule.get('payPeriodPrecedingRSUVest', 21),
             min_val=1,
             max_val=max_pay_period
         )
