@@ -742,7 +742,15 @@ class PlanCalculator:
         yd.paycheck_gross = paycheck_gross
         yd.paycheck_federal_tax = paycheck_gross * paycheck_federal_rate
         yd.paycheck_state_tax = paycheck_gross * paycheck_state_rate
-        yd.paycheck_social_security = paycheck_gross * ss_rate
+        # Calculate Social Security withholding per paycheck, accounting for wage base limit
+        ss_wage_base = getattr(self.social_security, 'wage_base', 0)
+        cumulative_ss_wages = getattr(yd, 'cumulative_ss_wages', 0)
+        # Determine how much of this paycheck is subject to SS tax
+        remaining_wage_base = max(ss_wage_base - cumulative_ss_wages, 0)
+        ss_taxable_pay = min(paycheck_gross, remaining_wage_base)
+        yd.paycheck_social_security = ss_taxable_pay * ss_rate
+        # Update cumulative Social Security wages for next period
+        yd.cumulative_ss_wages = cumulative_ss_wages + paycheck_gross
         yd.paycheck_medicare = paycheck_medicare_base * medicare_rate
         yd.paycheck_401k = paycheck_401k
         yd.paycheck_hsa = paycheck_hsa
