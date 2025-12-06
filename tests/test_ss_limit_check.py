@@ -48,8 +48,8 @@ class TestSSLimitCheck:
         # Scenario:
         # Base: 200,000 (7,692 per period)
         # Bonus: 50,000 (paid at period 25)
-        # Limit: 160,200
-        # Limit reached at period ~21 (200k/26 * 21 = 161k)
+        # Limit: 184,500
+        # Limit reached at period ~24 (200k/26 * 24 = 184,615)
         
         yd.base_salary = 200000
         yd.bonus = 50000
