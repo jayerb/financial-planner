@@ -154,10 +154,10 @@ class TestSSLimitCheck:
             f"Bonus should have partial SS tax, got {bonus_ss}"
         
         # Total SS paid should equal the max (within rounding)
-        # Regular paychecks 1 through bonus_payment_period all pay full SS on the regular amount
-        # The bonus pays partial SS to fill up to the limit
-        # Paychecks after the bonus pay no SS
-        # The total should equal max_ss_tax
+        # Regular paychecks 1 through bonus_payment_period (period 11) each pay full SS
+        # At period 11, the bonus pays partial SS to reach the limit
+        # Regular paychecks after period 11 pay no SS (limit already reached)
+        # Total SS = (regular checks 1-11) * regular_ss + bonus_ss ≈ max_ss_tax
         total_ss_from_regular_checks = bonus_payment_period * regular_ss_per_check
         total_ss_paid = total_ss_from_regular_checks + bonus_ss
         
