@@ -46,10 +46,11 @@ class TestSSLimitCheck:
         yd = YearlyData(year=2026, is_working_year=True)
         
         # Scenario:
-        # Base: 200,000 (7,692 per period)
-        # Bonus: 50,000 (paid at period 25)
+        # Base: 200,000 (7,692.31 per period over 26 periods)
+        # Bonus: 50,000 (paid at period 26, after pay_period_preceding_bonus=25)
         # Limit: 184,500
-        # Limit reached at period ~24 (200k/26 * 24 = 184,615)
+        # Limit reached at period 24 (200k/26 * 24 = 184,615.38 > 184,500)
+        # Expected: Bonus paid after limit, so bonus SS = 0
         
         yd.base_salary = 200000
         yd.bonus = 50000
@@ -80,13 +81,23 @@ class TestSSLimitCheck:
         print(f"Limit Period: {limit_period}")
         print(f"Max SS Tax: {max_ss_tax}")
         
-        ss_paid_before_limit_check = (limit_period - 1) * regular_ss_per_check + bonus_ss
+        # Bonus is paid at period 26 (after pay_period_preceding_bonus=25)
+        # Limit is reached at period ~24
+        # So bonus should have 0 SS tax
+        bonus_payment_period = 25 + 1
+        assert bonus_payment_period > limit_period, \
+            f"Test expects bonus at period {bonus_payment_period} after limit at period {limit_period}"
+        assert bonus_ss == 0.0, \
+            f"Bonus paid after limit should have 0 SS tax, got {bonus_ss}"
         
-        print(f"Paid before limit check: {ss_paid_before_limit_check}")
-        
-        # This should fail if bonus_ss is calculated on full bonus
-        assert ss_paid_before_limit_check <= max_ss_tax + 1.0, \
-            f"Overpaying SS Tax! Paid {ss_paid_before_limit_check} vs Max {max_ss_tax}"
+        # Total SS paid should be approximately the max (from regular paychecks only)
+        # Periods 1 through limit_period-1 pay full SS
+        # Period limit_period pays partial SS (to reach the limit)
+        # Periods after limit_period pay no SS
+        # We approximate by checking that SS from limit_period full periods doesn't exceed max by more than one period
+        total_ss_paid_upper_bound = limit_period * regular_ss_per_check
+        assert total_ss_paid_upper_bound <= max_ss_tax + regular_ss_per_check, \
+            f"SS paid exceeds max! Upper bound {total_ss_paid_upper_bound} vs Max {max_ss_tax}"
 
     def test_ss_tax_sum_matches_limit_bonus_pushes_over(self, calculator):
         """
@@ -96,11 +107,14 @@ class TestSSLimitCheck:
         yd = YearlyData(year=2026, is_working_year=True)
         
         # Scenario:
-        # Base salary: $130,000 (paid evenly over 26 periods)
-        # Bonus: $150,000 (paid at period 10)
+        # Base salary: $130,000 (paid evenly over 26 periods = $5,000 per period)
+        # Bonus: $150,000 (paid at period 11, after pay_period_preceding_bonus=10)
         # Social Security limit: $184,500
-        # At period 10, cumulative income including bonus exceeds the SS limit.
-        # Only part of the bonus is subject to SS tax, so bonus SS tax should be partial.
+        # At period 11: cumulative = $5,000 * 11 + $150,000 = $205,000 > $184,500
+        # Expected: Bonus pushes income over limit, so bonus SS is partial
+        # Regular checks 1-11: $5,000 * 11 = $55,000
+        # Remaining SS capacity at bonus: $184,500 - $55,000 = $129,500
+        # Bonus SS tax: $129,500 * 0.062 = $8,029
         
         yd.base_salary = 130000
         yd.bonus = 150000
@@ -130,11 +144,23 @@ class TestSSLimitCheck:
         print(f"Limit Period: {limit_period}")
         print(f"Max SS Tax: {max_ss_tax}")
         
-        # If limit reached at period 10 (bonus period), then
-        # periods 1-9 paid full SS.
-        # Period 10 regular check and bonus may be partial, depending on limit.
+        # Bonus is paid at period 11 (after pay_period_preceding_bonus=10)
+        # This bonus pushes income over the limit
+        # So bonus should have partial SS tax
+        bonus_payment_period = 10 + 1
+        assert bonus_payment_period == limit_period, \
+            f"Test expects bonus at period {bonus_payment_period} to push over limit at period {limit_period}"
+        assert 0 < bonus_ss < yd.bonus * self.ss_rate, \
+            f"Bonus should have partial SS tax, got {bonus_ss}"
         
-        total_paid = limit_period * regular_ss_per_check + bonus_ss
+        # Total SS paid should equal the max (within rounding)
+        # Regular paychecks 1 through bonus_payment_period all pay full SS on the regular amount
+        # The bonus pays partial SS to fill up to the limit
+        # Paychecks after the bonus pay no SS
+        # The total should equal max_ss_tax
+        total_ss_from_regular_checks = bonus_payment_period * regular_ss_per_check
+        total_ss_paid = total_ss_from_regular_checks + bonus_ss
         
-        assert total_paid <= max_ss_tax + 1.0, \
-            f"Overpaying SS Tax! Paid {total_paid} vs Max {max_ss_tax}"
+        # Allow small rounding error (within $1)
+        assert abs(total_ss_paid - max_ss_tax) < 1.0, \
+            f"Total SS paid {total_ss_paid} should equal max {max_ss_tax}"
