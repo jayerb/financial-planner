@@ -77,6 +77,39 @@ FIELD_METADATA: Dict[str, FieldInfo] = {
     "effective_tax_rate": FieldInfo("Eff Rate", "Effective tax rate (total taxes / gross income)"),
     "take_home_pay": FieldInfo("Take Home", "Net income after all taxes"),
     
+    # Paycheck Take-Home Pay (working years)
+    "paycheck_take_home_initial": FieldInfo("Paycheck Initial", "Paycheck take-home with Social Security tax"),
+    "paycheck_take_home_after_ss_limit": FieldInfo("Paycheck After SS", "Paycheck take-home after SS wage base exceeded"),
+    "paycheck_take_home_after_medicare_surcharge": FieldInfo("Paycheck After Surcharge", "Paycheck take-home after Medicare surcharge"),
+    "pay_period_ss_limit_reached": FieldInfo("SS Limit Period", "Pay period when SS wage base exceeded (0 if never)"),
+    "pay_period_medicare_surcharge_starts": FieldInfo("Surcharge Period", "Pay period when Medicare surcharge starts (0 if never)"),
+    "pay_schedule": FieldInfo("Pay Schedule", "Pay frequency (e.g., BiWeekly, Monthly, SemiMonthly)"),
+    "pay_periods_per_year": FieldInfo("Pay Periods", "Number of pay periods per year"),
+    "annual_pretax_deductions": FieldInfo("Annual Pretax", "Total annual pre-tax deductions (401k, HSA, etc.)"),
+    "annual_posttax_deductions": FieldInfo("Annual Posttax", "Total annual post-tax deductions (ESPP)"),
+    
+    # Pay Statement (per pay period amounts)
+    "paycheck_gross": FieldInfo("Gross Pay", "Gross pay per pay period"),
+    "paycheck_federal_tax": FieldInfo("Federal W/H", "Federal tax withholding per pay period"),
+    "paycheck_state_tax": FieldInfo("State W/H", "State tax withholding per pay period"),
+    "paycheck_social_security": FieldInfo("SS W/H", "Social Security tax per pay period"),
+    "paycheck_medicare": FieldInfo("Medicare W/H", "Medicare tax per pay period"),
+    "paycheck_401k": FieldInfo("401(k) Ded", "401(k) contribution per pay period"),
+    "paycheck_hsa": FieldInfo("HSA Ded", "HSA contribution per pay period"),
+    "paycheck_deferred_comp": FieldInfo("Def Comp Ded", "Deferred compensation per pay period"),
+    "paycheck_medical_dental": FieldInfo("Med/Dental Ded", "Medical/dental/vision deduction per pay period"),
+    "paycheck_espp": FieldInfo("ESPP Ded", "ESPP contribution per pay period (post-tax)"),
+    "paycheck_net": FieldInfo("Net Pay", "Net pay per pay period (take-home)"),
+    
+    # Bonus Paycheck (annual bonus payment)
+    "bonus_paycheck_gross": FieldInfo("Bonus Gross", "Gross bonus amount"),
+    "bonus_paycheck_federal_tax": FieldInfo("Bonus Federal", "Federal tax on bonus (supplemental rate)"),
+    "bonus_paycheck_state_tax": FieldInfo("Bonus State", "State tax on bonus"),
+    "bonus_paycheck_social_security": FieldInfo("Bonus SS", "Social Security tax on bonus"),
+    "bonus_paycheck_medicare": FieldInfo("Bonus Medicare", "Medicare tax on bonus"),
+    "bonus_paycheck_deferred_comp": FieldInfo("Bonus Deferred", "Deferred compensation from bonus"),
+    "bonus_paycheck_net": FieldInfo("Bonus Net", "Net bonus after all deductions"),
+    
     # Contributions
     "employee_401k_contribution": FieldInfo("Employee 401(k)", "Employee 401(k) contribution"),
     "employer_401k_match": FieldInfo("Employer Match", "Employer 401(k) matching contribution"),

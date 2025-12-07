@@ -111,6 +111,35 @@ def prompt_string(prompt: str, default: Optional[str] = None) -> str:
     return value
 
 
+def prompt_choice(prompt: str, choices: list[str], default: Optional[str] = None) -> str:
+    """Prompt for a choice from a list of options."""
+    choices_str = "/".join(choices)
+    default_str = f" [{default}]" if default else ""
+    while True:
+        value = input(f"{prompt} ({choices_str}){default_str}: ").strip()
+        if value == "" and default:
+            return default
+        # Case-insensitive match
+        for choice in choices:
+            if value.lower() == choice.lower():
+                return choice
+        print(f"  Please enter one of: {choices_str}")
+
+
+def prompt_date(prompt: str, default: Optional[str] = None) -> str:
+    """Prompt for a date in YYYY-MM-DD format."""
+    default_str = f" [{default}]" if default else ""
+    while True:
+        value = input(f"{prompt} (YYYY-MM-DD){default_str}: ").strip()
+        if value == "" and default:
+            return default
+        try:
+            datetime.strptime(value, "%Y-%m-%d")
+            return value
+        except ValueError:
+            print("  Please enter a valid date in YYYY-MM-DD format (e.g., 2026-01-09)")
+
+
 def print_section(title: str) -> None:
     """Print a section header."""
     print()
@@ -254,6 +283,56 @@ def generate_spec(existing_spec: Optional[dict] = None) -> dict:
     )
 
     spec['income'] = income
+
+    # =========================================================================
+    # PAY SCHEDULE
+    # =========================================================================
+    print_section("Pay Schedule")
+    
+    ex_pay_schedule = ex.get('paySchedule', {})
+    has_existing_pay_schedule = 'paySchedule' in ex
+    has_pay_schedule = prompt_yes_no("Do you want to configure pay schedule details?", default=has_existing_pay_schedule)
+    
+    if has_pay_schedule:
+        pay_schedule: dict[str, Any] = {}
+        
+        # Default first pay date to January 9th
+        default_first_pay_date = ex_pay_schedule.get('firstPayDate', f"{spec['firstYear']}-01-09")
+        
+        pay_schedule['firstPayDate'] = prompt_date(
+            "First pay date of the year",
+            default=default_first_pay_date
+        )
+        
+        pay_schedule['schedule'] = prompt_choice(
+            "Pay schedule",
+            choices=['BiWeekly', 'BiMonthly'],
+            default=ex_pay_schedule.get('schedule', 'BiWeekly')
+        )
+        
+        # Set max pay period based on schedule
+        if pay_schedule['schedule'] == 'BiWeekly':
+            max_pay_period = 26
+        elif pay_schedule['schedule'] == 'BiMonthly':
+            max_pay_period = 24
+        else:
+            max_pay_period = 26  # fallback default
+
+        pay_schedule['payPeriodPrecedingBonus'] = prompt_int(
+            "Pay period preceding bonus payment (e.g., 17 means bonus paid after period 17)",
+            default=ex_pay_schedule.get('payPeriodPrecedingBonus', 17),
+            min_val=1,
+            max_val=max_pay_period
+        )
+        
+        pay_schedule['payPeriodPrecedingRSUVest'] = prompt_int(
+            "Pay period preceding RSU vesting (e.g., 21 means RSUs vest after period 21)",
+            default=ex_pay_schedule.get('payPeriodPrecedingRSUVest', 21),
+            min_val=1,
+            max_val=max_pay_period
+        )
+        
+        spec['paySchedule'] = pay_schedule
 
     # =========================================================================
     # DEFERRED COMPENSATION
