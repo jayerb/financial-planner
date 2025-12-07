@@ -110,11 +110,17 @@ class TestSSLimitCheck:
         # Base salary: $130,000 (paid evenly over 26 periods = $5,000 per period)
         # Bonus: $150,000 (paid at period 11, after pay_period_preceding_bonus=10)
         # Social Security limit: $184,500
-        # At period 11: cumulative = $5,000 * 11 + $150,000 = $205,000 > $184,500
-        # Expected: Bonus pushes income over limit, so bonus SS is partial
-        # Regular checks 1-11: $5,000 * 11 = $55,000
-        # Remaining SS capacity at bonus: $184,500 - $55,000 = $129,500
-        # Bonus SS tax: $129,500 * 0.062 = $8,029
+        # 
+        # Timeline at period 11 (when bonus is paid):
+        # - Regular paychecks 1-11 have been paid: $5,000 * 11 = $55,000
+        # - Bonus is then paid: $150,000
+        # - Total cumulative income: $55,000 + $150,000 = $205,000 > $184,500
+        # 
+        # Expected SS calculation:
+        # - Regular paychecks 1-11 each pay full SS: 11 * ($5,000 * 0.062) = $3,410
+        # - Remaining SS capacity when bonus paid: $184,500 - $55,000 = $129,500
+        # - Bonus SS tax: $129,500 * 0.062 = $8,029
+        # - Total SS: $3,410 + $8,029 = $11,439 (equals max SS tax)
         
         yd.base_salary = 130000
         yd.bonus = 150000
