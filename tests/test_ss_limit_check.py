@@ -113,6 +113,7 @@ class TestSSLimitCheck:
         # 
         # Timeline at period 11 (when bonus is paid):
         # - Regular paychecks 1-11 have been paid: $5,000 * 11 = $55,000
+        #   (Note: The regular paycheck for period 11 is processed before the bonus)
         # - Bonus is then paid: $150,000
         # - Total cumulative income: $55,000 + $150,000 = $205,000 > $184,500
         # 
