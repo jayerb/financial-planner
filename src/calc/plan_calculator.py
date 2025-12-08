@@ -39,6 +39,103 @@ class PlanCalculator:
         self.medicare = medicare
         self.rsu_calculator = rsu_calculator
     
+    def _apply_appreciation_to_balances(self, yd: YearlyData, balances: dict, rates: dict) -> None:
+        """Calculate appreciation and update balances and yearly data.
+        
+        Args:
+            yd: YearlyData to update with appreciation amounts
+            balances: Dict with keys 'taxable', 'ira', 'hsa', 'deferred_comp' - values will be updated in place
+            rates: Dict with same keys containing appreciation rates
+        """
+        yd.appreciation_taxable = balances['taxable'] * rates['taxable']
+        yd.appreciation_ira = balances['ira'] * rates['ira']
+        yd.appreciation_hsa = balances['hsa'] * rates['hsa']
+        yd.appreciation_deferred_comp = balances['deferred_comp'] * rates['deferred_comp']
+        yd.total_appreciation = (yd.appreciation_taxable + yd.appreciation_ira + 
+                                yd.appreciation_hsa + yd.appreciation_deferred_comp)
+        
+        # Apply growth to balances
+        balances['taxable'] += yd.appreciation_taxable
+        balances['ira'] += yd.appreciation_ira
+        balances['hsa'] += yd.appreciation_hsa
+        balances['deferred_comp'] += yd.appreciation_deferred_comp
+    
+    def _calculate_retirement_taxes(self, yd: YearlyData, year: int, hsa_deduction: float = 0, 
+                                    add_ltcg_to_state_taxable: bool = False) -> None:
+        """Calculate federal and state taxes for retirement years.
+        
+        Args:
+            yd: YearlyData to update (must have gross_income, short/long_term_capital_gains, local_tax set)
+            year: Tax year
+            hsa_deduction: HSA contribution to include in deductions (if before Medicare)
+            add_ltcg_to_state_taxable: Whether to add LTCG to state taxable income (for compatibility)
+        """
+        # Federal deductions
+        deductions = self.federal.totalDeductions(year, 0, 0, yd.local_tax)
+        yd.standard_deduction = deductions['standardDeduction']
+        yd.total_deductions = yd.standard_deduction + hsa_deduction
+        
+        # Adjusted gross income
+        yd.adjusted_gross_income = max(0, yd.gross_income - yd.total_deductions)
+        
+        # Federal taxes
+        federal_result = self.federal.taxBurden(yd.adjusted_gross_income, year)
+        yd.ordinary_income_tax = federal_result.totalFederalTax
+        yd.marginal_bracket = federal_result.marginalBracket
+        yd.long_term_capital_gains_tax = self.federal.longTermCapitalGainsTax(
+            yd.adjusted_gross_income, yd.long_term_capital_gains, year)
+        yd.federal_tax = yd.ordinary_income_tax + yd.long_term_capital_gains_tax
+        
+        # State taxes
+        state_taxable = yd.gross_income + (yd.long_term_capital_gains if add_ltcg_to_state_taxable else 0)
+        yd.state_income_tax = self.state.taxBurden(state_taxable, 0, year=year, employer_hsa_contribution=0)
+        yd.state_short_term_capital_gains_tax = self.state.shortTermCapitalGainsTax(yd.short_term_capital_gains)
+        yd.state_tax = yd.state_income_tax + yd.state_short_term_capital_gains_tax
+        
+        # Total taxes and take home (no FICA in retirement)
+        yd.total_taxes = yd.federal_tax + yd.state_tax
+        yd.effective_tax_rate = yd.total_taxes / yd.gross_income if yd.gross_income > 0 else 0
+        yd.take_home_pay = yd.gross_income - yd.total_taxes
+    
+    def _set_expense_fields(self, yd: YearlyData, annual_expenses: float, travel_expenses: float, 
+                           medical_premium: float, special_expenses: dict, 
+                           medical_premium_expense: float) -> None:
+        """Set common expense fields on YearlyData.
+        
+        Args:
+            yd: YearlyData to update
+            annual_expenses: Current annual expenses
+            travel_expenses: Current travel expenses
+            medical_premium: Medical premium amount (for tracking)
+            special_expenses: Dict of year -> special expense amount
+            medical_premium_expense: Amount actually paid for medical premium (0 during working years)
+        """
+        yd.annual_expenses = annual_expenses
+        yd.special_expenses = special_expenses.get(yd.year, 0)
+        yd.travel_expenses = travel_expenses
+        yd.medical_premium = medical_premium
+        yd.medical_premium_expense = medical_premium_expense
+        yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.travel_expenses + yd.medical_premium_expense
+        yd.income_expense_difference = yd.take_home_pay - yd.total_expenses
+    
+    def _update_account_balances_on_yd(self, yd: YearlyData, balance_taxable: float, 
+                                       balance_401k: float, balance_hsa: float, 
+                                       balance_deferred_comp: float) -> None:
+        """Update YearlyData with current account balances.
+        
+        Args:
+            yd: YearlyData to update
+            balance_taxable: Current taxable account balance
+            balance_401k: Current 401k/IRA balance
+            balance_hsa: Current HSA balance
+            balance_deferred_comp: Current deferred compensation balance
+        """
+        yd.balance_ira = balance_401k
+        yd.balance_hsa = balance_hsa
+        yd.balance_deferred_comp = balance_deferred_comp
+        yd.balance_taxable = balance_taxable
+        yd.total_assets = yd.balance_ira + yd.balance_hsa + yd.balance_deferred_comp + yd.balance_taxable
+    
     def calculate(self, spec: dict) -> PlanData:
         """Calculate complete financial plan data for all years.
         
@@ -175,19 +272,11 @@ class PlanCalculator:
                 current_medicare_premium = current_medicare_premium * (1 + premium_inflation)
                 current_hsa_withdrawal = current_hsa_withdrawal * (1 + hsa_withdrawal_inflation)
                 
-                # Calculate appreciation amounts before applying growth
-                yd.appreciation_taxable = balance_taxable * taxable_appreciation
-                yd.appreciation_ira = balance_401k * tax_deferred_appreciation
-                yd.appreciation_hsa = balance_hsa * hsa_appreciation
-                yd.appreciation_deferred_comp = balance_deferred_comp * deferred_comp_growth
-                yd.total_appreciation = (yd.appreciation_taxable + yd.appreciation_ira + 
-                                        yd.appreciation_hsa + yd.appreciation_deferred_comp)
-                
-                # Apply growth to balances
-                balance_taxable = balance_taxable + yd.appreciation_taxable
-                balance_401k = balance_401k + yd.appreciation_ira
-                balance_hsa = balance_hsa + yd.appreciation_hsa
-                balance_deferred_comp = balance_deferred_comp + yd.appreciation_deferred_comp
+                # Calculate and apply appreciation to all balances
+                balances = {'taxable': balance_taxable, 'ira': balance_401k, 'hsa': balance_hsa, 'deferred_comp': balance_deferred_comp}
+                rates = {'taxable': taxable_appreciation, 'ira': tax_deferred_appreciation, 'hsa': hsa_appreciation, 'deferred_comp': deferred_comp_growth}
+                self._apply_appreciation_to_balances(yd, balances, rates)
+                balance_taxable, balance_401k, balance_hsa, balance_deferred_comp = balances['taxable'], balances['ira'], balances['hsa'], balances['deferred_comp']
             
             # Income
             yd.base_salary = current_salary
@@ -282,13 +371,9 @@ class PlanCalculator:
             self._calculate_paycheck_take_home(yd, year, life_premium, pay_periods_per_year, pay_period_preceding_bonus, pay_period_preceding_rsu_vest)
             
             # Expenses and money movement
-            yd.annual_expenses = current_annual_expenses
-            yd.special_expenses = special_expenses.get(year, 0)
-            yd.travel_expenses = current_travel_expenses
-            yd.medical_premium = current_insurance_premium  # Track premium (employer covers during working years)
-            yd.medical_premium_expense = 0  # Employer covers premium during working years
-            yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.travel_expenses + yd.medical_premium_expense
-            yd.income_expense_difference = yd.take_home_pay - yd.total_expenses
+            self._set_expense_fields(yd, current_annual_expenses, current_travel_expenses, 
+                                    current_insurance_premium, special_expenses, 
+                                    0)  # Employer covers premium during working years
             yd.taxable_account_adjustment = yd.income_expense_difference
             
             # Adjust taxable account balance based on income vs expenses
@@ -315,11 +400,7 @@ class PlanCalculator:
             yd.hsa_withdrawal = min(current_hsa_withdrawal, balance_hsa)  # Can't withdraw more than balance
             balance_hsa -= yd.hsa_withdrawal
             
-            yd.balance_ira = balance_401k
-            yd.balance_hsa = balance_hsa
-            yd.balance_deferred_comp = balance_deferred_comp
-            yd.balance_taxable = balance_taxable
-            yd.total_assets = yd.balance_ira + yd.balance_hsa + yd.balance_deferred_comp + yd.balance_taxable
+            self._update_account_balances_on_yd(yd, balance_taxable, balance_401k, balance_hsa, balance_deferred_comp)
             
             # Add to plan and update totals
             plan.yearly_data[year] = yd
@@ -348,24 +429,18 @@ class PlanCalculator:
             # For first retirement year, deferred comp growth was already applied before this loop
             if year == disbursement_start:
                 # Taxable, 401k, HSA get appreciation this year; deferred comp appreciation was tracked above
-                yd.appreciation_taxable = balance_taxable * taxable_appreciation
-                yd.appreciation_ira = balance_401k * tax_deferred_appreciation
-                yd.appreciation_hsa = balance_hsa * hsa_appreciation
+                balances = {'taxable': balance_taxable, 'ira': balance_401k, 'hsa': balance_hsa, 'deferred_comp': 0}
+                rates = {'taxable': taxable_appreciation, 'ira': tax_deferred_appreciation, 'hsa': hsa_appreciation, 'deferred_comp': 0}
+                self._apply_appreciation_to_balances(yd, balances, rates)
                 yd.appreciation_deferred_comp = first_retirement_year_deferred_comp_appreciation
+                yd.total_appreciation = (yd.appreciation_taxable + yd.appreciation_ira + 
+                                        yd.appreciation_hsa + yd.appreciation_deferred_comp)
+                balance_taxable, balance_401k, balance_hsa = balances['taxable'], balances['ira'], balances['hsa']
             else:
-                yd.appreciation_deferred_comp = balance_deferred_comp * deferred_comp_growth
-                yd.appreciation_taxable = balance_taxable * taxable_appreciation
-                yd.appreciation_ira = balance_401k * tax_deferred_appreciation
-                yd.appreciation_hsa = balance_hsa * hsa_appreciation
-                balance_deferred_comp = balance_deferred_comp + yd.appreciation_deferred_comp
-            
-            yd.total_appreciation = (yd.appreciation_taxable + yd.appreciation_ira + 
-                                    yd.appreciation_hsa + yd.appreciation_deferred_comp)
-            
-            # Apply growth to balances (except deferred comp for first year - already done)
-            balance_taxable = balance_taxable + yd.appreciation_taxable
-            balance_401k = balance_401k + yd.appreciation_ira
-            balance_hsa = balance_hsa + yd.appreciation_hsa
+                balances = {'taxable': balance_taxable, 'ira': balance_401k, 'hsa': balance_hsa, 'deferred_comp': balance_deferred_comp}
+                rates = {'taxable': taxable_appreciation, 'ira': tax_deferred_appreciation, 'hsa': hsa_appreciation, 'deferred_comp': deferred_comp_growth}
+                self._apply_appreciation_to_balances(yd, balances, rates)
+                balance_taxable, balance_401k, balance_hsa, balance_deferred_comp = balances['taxable'], balances['ira'], balances['hsa'], balances['deferred_comp']
             
             current_local_tax = current_local_tax * (1 + local_tax_inflation)
             current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
@@ -407,41 +482,12 @@ class PlanCalculator:
             # Gross income from disbursement and realized capital gains
             yd.gross_income = yd.deferred_comp_disbursement + yd.short_term_capital_gains + yd.long_term_capital_gains
             
-            # Federal deductions (standard deduction + HSA if before Medicare)
-            deductions = self.federal.totalDeductions(year, 0, 0, yd.local_tax)
-            yd.standard_deduction = deductions['standardDeduction']
-            # Include HSA contribution in total deductions if before Medicare eligibility
-            yd.total_deductions = yd.standard_deduction + yd.employee_hsa
-            
-            # Adjusted gross income
-            yd.adjusted_gross_income = yd.gross_income - yd.total_deductions
-            
-            # Federal taxes
-            federal_result = self.federal.taxBurden(yd.adjusted_gross_income, year)
-            yd.ordinary_income_tax = federal_result.totalFederalTax
-            yd.marginal_bracket = federal_result.marginalBracket
-            yd.long_term_capital_gains_tax = self.federal.longTermCapitalGainsTax(
-                yd.adjusted_gross_income, yd.long_term_capital_gains, year)
-            yd.federal_tax = yd.ordinary_income_tax + yd.long_term_capital_gains_tax
-            
-            # State taxes
-            state_taxable = yd.gross_income + yd.long_term_capital_gains
-            yd.state_income_tax = self.state.taxBurden(state_taxable, 0, year=year, employer_hsa_contribution=0)
-            yd.state_short_term_capital_gains_tax = self.state.shortTermCapitalGainsTax(yd.short_term_capital_gains)
-            yd.state_tax = yd.state_income_tax + yd.state_short_term_capital_gains_tax
-            
-            # Total taxes and take home (no FICA in retirement)
-            yd.total_taxes = yd.federal_tax + yd.state_tax
-            yd.effective_tax_rate = yd.total_taxes / yd.gross_income if yd.gross_income > 0 else 0
-            yd.take_home_pay = yd.gross_income - yd.total_taxes
+            # Calculate taxes using helper (preserve original behavior of adding LTCG to state taxable)
+            self._calculate_retirement_taxes(yd, year, yd.employee_hsa, add_ltcg_to_state_taxable=True)
             
             # Expenses and money movement
-            yd.annual_expenses = current_annual_expenses
-            yd.special_expenses = special_expenses.get(year, 0)
-            yd.travel_expenses = current_travel_expenses
-            yd.medical_premium_expense = yd.medical_premium  # Use appropriate premium based on Medicare eligibility
-            yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.travel_expenses + yd.medical_premium_expense
-            yd.income_expense_difference = yd.take_home_pay - yd.total_expenses
+            self._set_expense_fields(yd, current_annual_expenses, current_travel_expenses, 
+                                    yd.medical_premium, special_expenses, yd.medical_premium)
             # HSA contribution comes from cash flow (reduces taxable account)
             yd.taxable_account_adjustment = yd.income_expense_difference - yd.hsa_contribution
             
@@ -458,11 +504,7 @@ class PlanCalculator:
             yd.hsa_withdrawal = min(current_hsa_withdrawal, balance_hsa)  # Can't withdraw more than balance
             balance_hsa -= yd.hsa_withdrawal
             
-            yd.balance_ira = balance_401k
-            yd.balance_hsa = balance_hsa
-            yd.balance_deferred_comp = max(0, balance_deferred_comp)
-            yd.balance_taxable = balance_taxable
-            yd.total_assets = yd.balance_ira + yd.balance_hsa + yd.balance_deferred_comp + yd.balance_taxable
+            self._update_account_balances_on_yd(yd, balance_taxable, balance_401k, balance_hsa, max(0, balance_deferred_comp))
             
             # Add to plan and update totals
             plan.yearly_data[year] = yd
@@ -479,18 +521,11 @@ class PlanCalculator:
         for year in range(post_disbursement_start, last_planning_year + 1):
             yd = YearlyData(year=year, is_working_year=False)
             
-            # Calculate appreciation amounts before applying growth
-            yd.appreciation_taxable = balance_taxable * taxable_appreciation
-            yd.appreciation_ira = balance_401k * tax_deferred_appreciation
-            yd.appreciation_hsa = balance_hsa * hsa_appreciation
-            yd.appreciation_deferred_comp = 0  # Deferred comp is depleted
-            yd.total_appreciation = (yd.appreciation_taxable + yd.appreciation_ira + 
-                                    yd.appreciation_hsa)
-            
-            # Apply growth to balances
-            balance_taxable = balance_taxable + yd.appreciation_taxable
-            balance_401k = balance_401k + yd.appreciation_ira
-            balance_hsa = balance_hsa + yd.appreciation_hsa
+            # Calculate and apply appreciation to balances
+            balances = {'taxable': balance_taxable, 'ira': balance_401k, 'hsa': balance_hsa, 'deferred_comp': 0}
+            rates = {'taxable': taxable_appreciation, 'ira': tax_deferred_appreciation, 'hsa': hsa_appreciation, 'deferred_comp': 0}
+            self._apply_appreciation_to_balances(yd, balances, rates)
+            balance_taxable, balance_401k, balance_hsa = balances['taxable'], balances['ira'], balances['hsa']
             
             current_local_tax = current_local_tax * (1 + local_tax_inflation)
             current_annual_expenses = current_annual_expenses * (1 + expense_inflation)
@@ -522,11 +557,9 @@ class PlanCalculator:
             yd.long_term_capital_gains = balance_taxable * long_term_cg_percent
             
             # Expenses (needed to calculate IRA withdrawal requirement)
-            yd.annual_expenses = current_annual_expenses
-            yd.special_expenses = special_expenses.get(year, 0)
-            yd.travel_expenses = current_travel_expenses
-            yd.medical_premium_expense = yd.medical_premium  # Use appropriate premium based on Medicare eligibility
-            yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.travel_expenses + yd.medical_premium_expense
+            # Set expense fields early since they're needed for IRA withdrawal calculation
+            self._set_expense_fields(yd, current_annual_expenses, current_travel_expenses, 
+                                    yd.medical_premium, special_expenses, yd.medical_premium)
             
             # Federal deductions (standard deduction + HSA if before Medicare)
             deductions = self.federal.totalDeductions(year, 0, 0, yd.local_tax)
@@ -617,29 +650,11 @@ class PlanCalculator:
             # IRA withdrawals are taxable as ordinary income
             yd.gross_income = base_income + yd.ira_withdrawal
             
-            # Adjusted gross income
-            yd.adjusted_gross_income = max(0, yd.gross_income - yd.total_deductions)
+            # Calculate final taxes with IRA withdrawal using helper
+            # This recalculates total_deductions (which was set earlier for IRA withdrawal estimation)
+            self._calculate_retirement_taxes(yd, year, yd.employee_hsa)
             
-            # Federal taxes (IRA withdrawal is ordinary income)
-            federal_result = self.federal.taxBurden(yd.adjusted_gross_income, year)
-            yd.ordinary_income_tax = federal_result.totalFederalTax
-            yd.marginal_bracket = federal_result.marginalBracket
-            yd.long_term_capital_gains_tax = self.federal.longTermCapitalGainsTax(
-                yd.adjusted_gross_income, yd.long_term_capital_gains, year)
-            yd.federal_tax = yd.ordinary_income_tax + yd.long_term_capital_gains_tax
-            
-            # State taxes (IRA withdrawal is also state taxable)
-            state_taxable = yd.gross_income
-            yd.state_income_tax = self.state.taxBurden(state_taxable, 0, year=year, employer_hsa_contribution=0)
-            yd.state_short_term_capital_gains_tax = self.state.shortTermCapitalGainsTax(yd.short_term_capital_gains)
-            yd.state_tax = yd.state_income_tax + yd.state_short_term_capital_gains_tax
-            
-            # Total taxes and take home (no FICA)
-            yd.total_taxes = yd.federal_tax + yd.state_tax
-            yd.effective_tax_rate = yd.total_taxes / yd.gross_income if yd.gross_income > 0 else 0
-            yd.take_home_pay = yd.gross_income - yd.total_taxes
-            
-            # Money movement
+            # Update income_expense_difference now that we have final take_home_pay
             yd.income_expense_difference = yd.take_home_pay - yd.total_expenses
             
             # Any remaining shortfall comes from taxable account
@@ -662,11 +677,7 @@ class PlanCalculator:
             yd.hsa_withdrawal = min(current_hsa_withdrawal, balance_hsa)  # Can't withdraw more than balance
             balance_hsa -= yd.hsa_withdrawal
             
-            yd.balance_ira = balance_401k
-            yd.balance_hsa = balance_hsa
-            yd.balance_deferred_comp = 0
-            yd.balance_taxable = balance_taxable
-            yd.total_assets = yd.balance_ira + yd.balance_hsa + yd.balance_taxable
+            self._update_account_balances_on_yd(yd, balance_taxable, balance_401k, balance_hsa, 0)
             
             # Add to plan and update totals
             plan.yearly_data[year] = yd
