@@ -95,6 +95,45 @@ class PlanCalculator:
         yd.effective_tax_rate = yd.total_taxes / yd.gross_income if yd.gross_income > 0 else 0
         yd.take_home_pay = yd.gross_income - yd.total_taxes
     
+    def _set_expense_fields(self, yd: YearlyData, annual_expenses: float, travel_expenses: float, 
+                           medical_premium: float, special_expenses: dict, 
+                           medical_premium_expense: float) -> None:
+        """Set common expense fields on YearlyData.
+        
+        Args:
+            yd: YearlyData to update
+            annual_expenses: Current annual expenses
+            travel_expenses: Current travel expenses
+            medical_premium: Medical premium amount (for tracking)
+            special_expenses: Dict of year -> special expense amount
+            medical_premium_expense: Amount actually paid for medical premium (0 during working years)
+        """
+        yd.annual_expenses = annual_expenses
+        yd.special_expenses = special_expenses.get(yd.year, 0)
+        yd.travel_expenses = travel_expenses
+        yd.medical_premium = medical_premium
+        yd.medical_premium_expense = medical_premium_expense
+        yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.travel_expenses + yd.medical_premium_expense
+        yd.income_expense_difference = yd.take_home_pay - yd.total_expenses
+    
+    def _update_account_balances_on_yd(self, yd: YearlyData, balance_taxable: float, 
+                                       balance_401k: float, balance_hsa: float, 
+                                       balance_deferred_comp: float) -> None:
+        """Update YearlyData with current account balances.
+        
+        Args:
+            yd: YearlyData to update
+            balance_taxable: Current taxable account balance
+            balance_401k: Current 401k/IRA balance
+            balance_hsa: Current HSA balance
+            balance_deferred_comp: Current deferred compensation balance
+        """
+        yd.balance_ira = balance_401k
+        yd.balance_hsa = balance_hsa
+        yd.balance_deferred_comp = balance_deferred_comp
+        yd.balance_taxable = balance_taxable
+        yd.total_assets = yd.balance_ira + yd.balance_hsa + yd.balance_deferred_comp + yd.balance_taxable
+    
     def calculate(self, spec: dict) -> PlanData:
         """Calculate complete financial plan data for all years.
         
@@ -330,13 +369,9 @@ class PlanCalculator:
             self._calculate_paycheck_take_home(yd, year, life_premium, pay_periods_per_year, pay_period_preceding_bonus, pay_period_preceding_rsu_vest)
             
             # Expenses and money movement
-            yd.annual_expenses = current_annual_expenses
-            yd.special_expenses = special_expenses.get(year, 0)
-            yd.travel_expenses = current_travel_expenses
-            yd.medical_premium = current_insurance_premium  # Track premium (employer covers during working years)
-            yd.medical_premium_expense = 0  # Employer covers premium during working years
-            yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.travel_expenses + yd.medical_premium_expense
-            yd.income_expense_difference = yd.take_home_pay - yd.total_expenses
+            self._set_expense_fields(yd, current_annual_expenses, current_travel_expenses, 
+                                    current_insurance_premium, special_expenses, 
+                                    0)  # Employer covers premium during working years
             yd.taxable_account_adjustment = yd.income_expense_difference
             
             # Adjust taxable account balance based on income vs expenses
@@ -363,11 +398,7 @@ class PlanCalculator:
             yd.hsa_withdrawal = min(current_hsa_withdrawal, balance_hsa)  # Can't withdraw more than balance
             balance_hsa -= yd.hsa_withdrawal
             
-            yd.balance_ira = balance_401k
-            yd.balance_hsa = balance_hsa
-            yd.balance_deferred_comp = balance_deferred_comp
-            yd.balance_taxable = balance_taxable
-            yd.total_assets = yd.balance_ira + yd.balance_hsa + yd.balance_deferred_comp + yd.balance_taxable
+            self._update_account_balances_on_yd(yd, balance_taxable, balance_401k, balance_hsa, balance_deferred_comp)
             
             # Add to plan and update totals
             plan.yearly_data[year] = yd
@@ -453,12 +484,8 @@ class PlanCalculator:
             self._calculate_retirement_taxes(yd, year, yd.employee_hsa)
             
             # Expenses and money movement
-            yd.annual_expenses = current_annual_expenses
-            yd.special_expenses = special_expenses.get(year, 0)
-            yd.travel_expenses = current_travel_expenses
-            yd.medical_premium_expense = yd.medical_premium  # Use appropriate premium based on Medicare eligibility
-            yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.travel_expenses + yd.medical_premium_expense
-            yd.income_expense_difference = yd.take_home_pay - yd.total_expenses
+            self._set_expense_fields(yd, current_annual_expenses, current_travel_expenses, 
+                                    yd.medical_premium, special_expenses, yd.medical_premium)
             # HSA contribution comes from cash flow (reduces taxable account)
             yd.taxable_account_adjustment = yd.income_expense_difference - yd.hsa_contribution
             
@@ -475,11 +502,7 @@ class PlanCalculator:
             yd.hsa_withdrawal = min(current_hsa_withdrawal, balance_hsa)  # Can't withdraw more than balance
             balance_hsa -= yd.hsa_withdrawal
             
-            yd.balance_ira = balance_401k
-            yd.balance_hsa = balance_hsa
-            yd.balance_deferred_comp = max(0, balance_deferred_comp)
-            yd.balance_taxable = balance_taxable
-            yd.total_assets = yd.balance_ira + yd.balance_hsa + yd.balance_deferred_comp + yd.balance_taxable
+            self._update_account_balances_on_yd(yd, balance_taxable, balance_401k, balance_hsa, max(0, balance_deferred_comp))
             
             # Add to plan and update totals
             plan.yearly_data[year] = yd
@@ -532,11 +555,9 @@ class PlanCalculator:
             yd.long_term_capital_gains = balance_taxable * long_term_cg_percent
             
             # Expenses (needed to calculate IRA withdrawal requirement)
-            yd.annual_expenses = current_annual_expenses
-            yd.special_expenses = special_expenses.get(year, 0)
-            yd.travel_expenses = current_travel_expenses
-            yd.medical_premium_expense = yd.medical_premium  # Use appropriate premium based on Medicare eligibility
-            yd.total_expenses = yd.annual_expenses + yd.special_expenses + yd.travel_expenses + yd.medical_premium_expense
+            # Set expense fields early since they're needed for IRA withdrawal calculation
+            self._set_expense_fields(yd, current_annual_expenses, current_travel_expenses, 
+                                    yd.medical_premium, special_expenses, yd.medical_premium)
             
             # Federal deductions (standard deduction + HSA if before Medicare)
             deductions = self.federal.totalDeductions(year, 0, 0, yd.local_tax)
@@ -631,7 +652,7 @@ class PlanCalculator:
             # Note: yd.total_deductions was already set above to include HSA
             self._calculate_retirement_taxes(yd, year, yd.employee_hsa)
             
-            # Money movement
+            # Update income_expense_difference now that we have final take_home_pay
             yd.income_expense_difference = yd.take_home_pay - yd.total_expenses
             
             # Any remaining shortfall comes from taxable account
@@ -654,11 +675,7 @@ class PlanCalculator:
             yd.hsa_withdrawal = min(current_hsa_withdrawal, balance_hsa)  # Can't withdraw more than balance
             balance_hsa -= yd.hsa_withdrawal
             
-            yd.balance_ira = balance_401k
-            yd.balance_hsa = balance_hsa
-            yd.balance_deferred_comp = 0
-            yd.balance_taxable = balance_taxable
-            yd.total_assets = yd.balance_ira + yd.balance_hsa + yd.balance_taxable
+            self._update_account_balances_on_yd(yd, balance_taxable, balance_401k, balance_hsa, 0)
             
             # Add to plan and update totals
             plan.yearly_data[year] = yd
