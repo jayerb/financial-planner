@@ -60,13 +60,15 @@ class PlanCalculator:
         balances['hsa'] += yd.appreciation_hsa
         balances['deferred_comp'] += yd.appreciation_deferred_comp
     
-    def _calculate_retirement_taxes(self, yd: YearlyData, year: int, hsa_deduction: float = 0) -> None:
+    def _calculate_retirement_taxes(self, yd: YearlyData, year: int, hsa_deduction: float = 0, 
+                                    add_ltcg_to_state_taxable: bool = False) -> None:
         """Calculate federal and state taxes for retirement years.
         
         Args:
             yd: YearlyData to update (must have gross_income, short/long_term_capital_gains, local_tax set)
             year: Tax year
             hsa_deduction: HSA contribution to include in deductions (if before Medicare)
+            add_ltcg_to_state_taxable: Whether to add LTCG to state taxable income (for compatibility)
         """
         # Federal deductions
         deductions = self.federal.totalDeductions(year, 0, 0, yd.local_tax)
@@ -85,7 +87,7 @@ class PlanCalculator:
         yd.federal_tax = yd.ordinary_income_tax + yd.long_term_capital_gains_tax
         
         # State taxes
-        state_taxable = yd.gross_income
+        state_taxable = yd.gross_income + (yd.long_term_capital_gains if add_ltcg_to_state_taxable else 0)
         yd.state_income_tax = self.state.taxBurden(state_taxable, 0, year=year, employer_hsa_contribution=0)
         yd.state_short_term_capital_gains_tax = self.state.shortTermCapitalGainsTax(yd.short_term_capital_gains)
         yd.state_tax = yd.state_income_tax + yd.state_short_term_capital_gains_tax
@@ -480,8 +482,8 @@ class PlanCalculator:
             # Gross income from disbursement and realized capital gains
             yd.gross_income = yd.deferred_comp_disbursement + yd.short_term_capital_gains + yd.long_term_capital_gains
             
-            # Calculate taxes using helper
-            self._calculate_retirement_taxes(yd, year, yd.employee_hsa)
+            # Calculate taxes using helper (preserve original behavior of adding LTCG to state taxable)
+            self._calculate_retirement_taxes(yd, year, yd.employee_hsa, add_ltcg_to_state_taxable=True)
             
             # Expenses and money movement
             self._set_expense_fields(yd, current_annual_expenses, current_travel_expenses, 
@@ -649,7 +651,7 @@ class PlanCalculator:
             yd.gross_income = base_income + yd.ira_withdrawal
             
             # Calculate final taxes with IRA withdrawal using helper
-            # Note: yd.total_deductions was already set above to include HSA
+            # This recalculates total_deductions (which was set earlier for IRA withdrawal estimation)
             self._calculate_retirement_taxes(yd, year, yd.employee_hsa)
             
             # Update income_expense_difference now that we have final take_home_pay
